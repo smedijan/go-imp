@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-gremlins/gremlins/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/gomodule"
 )
 
 func TestDetectsModule(t *testing.T) {

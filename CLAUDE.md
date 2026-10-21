@@ -14,7 +14,7 @@ tests catch them. It works best on small to medium-sized Go modules
 
 ```bash
 # Build the binary
-make build                    # Creates dist/bin/gremlins
+make build                    # Creates dist/bin/imp
 
 # Run all tests with race detector
 make test                     # go test -race ./...
@@ -46,13 +46,13 @@ make fieldalignment
 
 ```bash
 # Basic mutation testing
-gremlins unleash              # Or: gremlins run, gremlins r
+imp unleash              # Or: imp run, imp r
 
 # Dry-run mode (find mutations without testing)
-gremlins unleash --dry-run    # Or: -d
+imp unleash --dry-run    # Or: -d
 
 # Configuration file
-# Uses .gremlins.yaml in project root
+# Uses .imp.yaml in project root
 ```
 
 ### Development Workflow
@@ -115,7 +115,7 @@ make clean
 
 **Configuration (`internal/configuration/`)**
 
-- Manages settings via flags, config file (.gremlins.yaml), and
+- Manages settings via flags, config file (.imp.yaml), and
   environment
 - Uses Viper for configuration handling
 - Controls which mutation types are enabled
@@ -195,4 +195,4 @@ internal/
   enabled rules
 - Test coverage tracked (Codecov integration)
 - All commits must pass: lint, tests, build
-- Mutation testing runs on itself (`.gremlins.yaml` configured)
+- Mutation testing runs on itself (`.imp.yaml` configured)

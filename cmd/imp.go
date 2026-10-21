@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-// Package cmd implements the Gremlins command-line interface.
+// Package cmd implements the imp command-line interface.
 package cmd
 
 import (
@@ -25,15 +25,15 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
-	"github.com/go-gremlins/gremlins/cmd/internal/flags"
-	"github.com/go-gremlins/gremlins/internal/configuration"
+	"github.com/smedijan/go-imp/cmd/internal/flags"
+	"github.com/smedijan/go-imp/internal/configuration"
 
-	"github.com/go-gremlins/gremlins/internal/log"
+	"github.com/smedijan/go-imp/internal/log"
 )
 
 const paramConfigFile = "config"
 
-// Execute initialises a new Cobra root command (gremlins) with a custom version
+// Execute initialises a new Cobra root command (imp) with a custom version
 // string used in the `-v` flag results.
 func Execute(ctx context.Context, version string) error {
 	rootCmd, err := newRootCmd(ctx, version)
@@ -44,11 +44,11 @@ func Execute(ctx context.Context, version string) error {
 	return rootCmd.execute()
 }
 
-type gremlinsCmd struct {
+type rootCommand struct {
 	cmd *cobra.Command
 }
 
-func (gc gremlinsCmd) execute() error {
+func (gc rootCommand) execute() error {
 	var cfgFile string
 	cobra.OnInitialize(func() {
 		err := configuration.Init([]string{cfgFile})
@@ -62,7 +62,7 @@ func (gc gremlinsCmd) execute() error {
 	return gc.cmd.Execute()
 }
 
-func newRootCmd(ctx context.Context, version string) (*gremlinsCmd, error) {
+func newRootCmd(ctx context.Context, version string) (*rootCommand, error) {
 	if version == "" {
 		return nil, errors.New("expected a version string")
 	}
@@ -71,7 +71,7 @@ func newRootCmd(ctx context.Context, version string) (*gremlinsCmd, error) {
 		Hidden:        true,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Use:           "gremlins",
+		Use:           "imp",
 		Short:         shortExplainer(),
 		Version:       version,
 	}
@@ -88,14 +88,13 @@ func newRootCmd(ctx context.Context, version string) (*gremlinsCmd, error) {
 		return nil, err
 	}
 
-	return &gremlinsCmd{
+	return &rootCommand{
 		cmd: cmd,
 	}, nil
 }
 
 func shortExplainer() string {
 	return heredoc.Doc(`
-		Gremlins is a mutation testing tool for Go projects, made with love by k3rn31 
-		and friends.
+		imp is an independent mutation-testing tool for Go projects.
 	`)
 }

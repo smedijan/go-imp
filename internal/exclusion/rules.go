@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
+	"github.com/smedijan/go-imp/internal/configuration"
 )
 
 // Rules represents a collection of regex patterns for file exclusion.

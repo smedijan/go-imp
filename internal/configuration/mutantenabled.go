@@ -17,7 +17,7 @@
 package configuration
 
 import (
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 var mutationEnabled = map[mutator.Type]bool{

@@ -3,7 +3,6 @@ name: Feature request
 about: Suggest an idea for this project
 title: '[request] '
 labels: 't/to-triage'
-assignees: k3rn31
 ---
 
 # 🚀 Feature Request

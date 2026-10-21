@@ -42,19 +42,25 @@ jobs:
         #   GR_SHORT_VERSION=1.2
         #   GR_PATCH_VERSION=2
         run: |
-          echo "GR_FULL_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -c2-)" >> $GITHUB_ENV
-          echo "GR_SHORT_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -d '.' -f 1,2 | cut -c2-)" >> $GITHUB_ENV
-          echo "GR_PATCH_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -d '.' -f 3)" >> $GITHUB_ENV
+          version="${GR_VERSION_TAG##*/}"
+          full_version="${version#v}"
+          short_version="${full_version%.*}"
+          patch_version="${full_version##*.}"
+          {
+            printf 'GR_FULL_VERSION=%s\n' "$full_version"
+            printf 'GR_SHORT_VERSION=%s\n' "$short_version"
+            printf 'GR_PATCH_VERSION=%s\n' "$patch_version"
+          } >> "$GITHUB_ENV"
         # If it is a major or minor, we mark it as latest and default.
       - if: ${{ env.GR_PATCH_VERSION == '0' && env.GR_VERSION_TAG != 'next' }}
         run: |
-          mike deploy --update-aliases --push ${{ env.GR_SHORT_VERSION }} latest
+          mike deploy --update-aliases --push "${{ env.GR_SHORT_VERSION }}" latest
           mike list
         working-directory: docs
         # If it is a patch, we don't set it at latest
       - if: ${{ env.GR_PATCH_VERSION != '0' && env.GR_VERSION_TAG != 'next' }}
         run: |
-          mike deploy --update-aliases --push ${{ env.GR_SHORT_VERSION }}
+          mike deploy --update-aliases --push "${{ env.GR_SHORT_VERSION }}"
           mike list
         working-directory: docs
       - if: ${{ env.GR_VERSION_TAG == 'next' }}

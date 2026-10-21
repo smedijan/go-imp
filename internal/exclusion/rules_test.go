@@ -3,7 +3,7 @@ package exclusion
 import (
 	"testing"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
+	"github.com/smedijan/go-imp/internal/configuration"
 )
 
 var testPath = []string{

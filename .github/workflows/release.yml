@@ -1,36 +1,26 @@
-name: release
+name: Release
+
 on:
   push:
     tags: [ 'v*' ]
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    env:
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Fetch all tags
         run: git fetch --force --tags
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Docker Login
-        uses: docker/login-action@v3
-        with:
-          registry: docker.io
-          username: gogremlins
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: go.mod
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -38,7 +28,7 @@ jobs:
           version: '~> v2'
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.WORKFLOW_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
   documentation:
     name: Build documentation
     if: ${{ github.event_name != 'pull_request' }}

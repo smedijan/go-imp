@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-// Gremlins is a mutation testing tool for Go.
+// imp is a mutation testing tool for Go.
 package main
 
 import (
@@ -28,9 +28,9 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/go-gremlins/gremlins/cmd"
-	"github.com/go-gremlins/gremlins/internal/execution"
-	"github.com/go-gremlins/gremlins/internal/log"
+	"github.com/smedijan/go-imp/cmd"
+	"github.com/smedijan/go-imp/internal/execution"
+	"github.com/smedijan/go-imp/internal/log"
 )
 
 var version = "dev"

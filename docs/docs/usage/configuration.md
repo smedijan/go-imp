@@ -1,6 +1,6 @@
 # Configuration
 
-Gremlins can be configured via (in order of precedence):
+imp can be configured via (in order of precedence):
 
 1. command flags
 2. environment variables
@@ -13,7 +13,7 @@ command documentation to learn how to use them.
 
 ## Configuration files
 
-Gremlins can be configured with a configuration file.
+imp can be configured with a configuration file.
 
 ### Location
 
@@ -36,7 +36,7 @@ The configuration file can be placed in (in order of precedence)
 The config file can be overridden with the `--config` flag.
 
 ```shell
-gremlins unleash --config=myConfig.yaml
+imp unleash --config=myConfig.yaml
 ```
 
 ### Reference
@@ -86,7 +86,7 @@ mutants:
 
 ```
 
-1. By default `0`, which means that Gremlins will use the system CPUs number.
+1. By default `0`, which means that imp will use the system CPUs number.
 2. By default `0`, which means that no test process CPU will be enforced.
 3. By default `0`, which means a default coefficient of `5` will be enforced.
 4. Thresholds are set by default to `0`, which means they are not enforced.
@@ -103,7 +103,7 @@ For further information check the specific command documentation.
 
 ## Environment variables
 
-Gremlins can be configured via environment variables as well. You can construct the variable name referring to the
+imp can be configured via environment variables as well. You can construct the variable name referring to the
 configuration file format. They start with `GREMLINS_`, and each dot and dash becomes an underscore.
 
 For example:

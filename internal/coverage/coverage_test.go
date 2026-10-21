@@ -26,10 +26,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/viper"
 
-	"github.com/go-gremlins/gremlins/internal/coverage"
+	"github.com/smedijan/go-imp/internal/coverage"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/gomodule"
 )
 
 type commandHolder struct {

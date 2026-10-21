@@ -5,7 +5,7 @@ RELEASER_CMD=goreleaser
 RELEASE=${RELEASER_CMD} release
 LINTER_CMD=golangci-lint
 LINT=${LINTER_CMD} run
-BINARY_NAME=gremlins
+BINARY_NAME=imp
 COVER_OUT=coverage.out
 TARGET=dist
 BIN=${TARGET}/bin
@@ -18,7 +18,7 @@ build: ${BIN}/${BINARY_NAME}
 
 ${BIN}/${BINARY_NAME}:
 	mkdir -p ${BIN}
-	${GO_BUILD} -o ${BIN}/${BINARY_NAME} cmd/gremlins/main.go
+	${GO_BUILD} -o ${BIN}/${BINARY_NAME} cmd/imp/main.go
 
 .PHONY: test
 test:
@@ -41,7 +41,7 @@ lint:
 
 .PHONY: goimports
 goimports:
-	goimports --local 'github.com/go-gremlins/gremlins' -v -w .
+	goimports --local 'github.com/smedijan/go-imp' -v -w .
 
 .PHONY: fieldalignment
 fieldalignment:

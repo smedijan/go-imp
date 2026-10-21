@@ -27,17 +27,17 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/go-gremlins/gremlins/cmd/internal/flags"
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/coverage"
-	"github.com/go-gremlins/gremlins/internal/diff"
-	"github.com/go-gremlins/gremlins/internal/engine"
-	"github.com/go-gremlins/gremlins/internal/engine/workdir"
-	"github.com/go-gremlins/gremlins/internal/exclusion"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/internal/log"
-	"github.com/go-gremlins/gremlins/internal/mutator"
-	"github.com/go-gremlins/gremlins/internal/report"
+	"github.com/smedijan/go-imp/cmd/internal/flags"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/coverage"
+	"github.com/smedijan/go-imp/internal/diff"
+	"github.com/smedijan/go-imp/internal/engine"
+	"github.com/smedijan/go-imp/internal/engine/workdir"
+	"github.com/smedijan/go-imp/internal/exclusion"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/log"
+	"github.com/smedijan/go-imp/internal/mutator"
+	"github.com/smedijan/go-imp/internal/report"
 )
 
 type unleashCmd struct {
@@ -70,7 +70,7 @@ func newUnleashCmd(ctx context.Context) (*unleashCmd, error) {
 		Use:     fmt.Sprintf("%s [path]", commandName),
 		Aliases: []string{"run", "r"},
 		Args:    cobra.MaximumNArgs(1),
-		Short:   "Unleash the gremlins",
+		Short:   "Run mutation tests on your Go code",
 		Long:    longExplainer(),
 		RunE:    runUnleash(ctx),
 	}
@@ -84,7 +84,7 @@ func newUnleashCmd(ctx context.Context) (*unleashCmd, error) {
 
 func longExplainer() string {
 	return heredoc.Doc(`
-		Unleashes the gremlins and performs mutation testing on a Go module. It works by
+		Runs mutation testing on a Go module. It works by
 		first gathering the coverage of the test suite and then analysing the source
 		code to look for supported mutants.
 
@@ -94,7 +94,7 @@ func longExplainer() string {
 		In 'dry-run' mode, unleash only performs the analysis of the source code, but it
 		doesn't actually perform the test.
 
-		Thresholds are configurable quality gates that make gremlins exit with an error 
+		Thresholds are configurable quality gates that make imp exit with an error
 		if those values are not met. Efficacy is the percent of KILLED mutants over
 		the total KILLED and LIVED mutants. Mutant coverage is the percent of total
 		KILLED + LIVED mutants, over the total mutants.
@@ -113,7 +113,7 @@ func runUnleash(ctx context.Context) func(cmd *cobra.Command, args []string) err
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
-		workDir, err := os.MkdirTemp(os.TempDir(), "gremlins-")
+		workDir, err := os.MkdirTemp(os.TempDir(), "imp-")
 		if err != nil {
 			return fmt.Errorf("impossible to create the workdir: %w", err)
 		}
@@ -213,8 +213,8 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 		{Name: paramCoverPackages, CfgKey: configuration.UnleashCoverPkgKey, DefaultV: "", Usage: "a comma-separated list of package patterns"},
 		{Name: paramDiff, CfgKey: configuration.UnleashDiffRef, Shorthand: "D", DefaultV: "", Usage: "diff branch or commit"},
 		{Name: paramOutput, CfgKey: configuration.UnleashOutputKey, Shorthand: "o", DefaultV: "", Usage: "set the output file for machine readable results"},
-		{Name: paramIntegrationMode, CfgKey: configuration.UnleashIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "makes Gremlins run the complete test suite for each mutation"},
-		{Name: paramExcludeFiles, CfgKey: configuration.UnleashExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude files from Gremlins run by filepath regexp"},
+		{Name: paramIntegrationMode, CfgKey: configuration.UnleashIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "makes imp run the complete test suite for each mutation"},
+		{Name: paramExcludeFiles, CfgKey: configuration.UnleashExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude files from an imp run by filepath regexp"},
 		{Name: paramThresholdEfficacy, CfgKey: configuration.UnleashThresholdEfficacyKey, DefaultV: float64(0), Usage: "threshold for code-efficacy percent"},
 		{Name: paramThresholdMCoverage, CfgKey: configuration.UnleashThresholdMCoverageKey, DefaultV: float64(0), Usage: "threshold for mutant-coverage percent"},
 		{Name: paramWorkers, CfgKey: configuration.UnleashWorkersKey, DefaultV: 0, Usage: "the number of workers to use in mutation testing"},

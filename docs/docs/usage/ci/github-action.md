@@ -1,39 +1,18 @@
----
-title: GitHub Action
----
+# GitHub Actions
 
-# GitHub Action
-
-Gremlins can be used in [GitHub Actions](https://github.com/features/actions) through the
-official [Run gremlins unleash action](https://github.com/marketplace/actions/run-gremlins-unleash).
-
-## Example usage
+Install and run `imp` directly in your workflow:
 
 ```yaml
-name: gremlins
-
-on:
-  pull_request:
-  push:
-
+name: imp
+on: [push, pull_request]
 jobs:
-  gremlins:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-go@v3
-    - uses: go-gremlins/gremlins-action@v1
-      with:
-        version: latest
-        args: --tags="tag1,tag2"
-        workdir: test/dir
+  mutation-testing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/smedijan/go-imp/cmd/imp@main
+      - run: imp unleash --silent
 ```
-
-## Customization
-
-| Name          | Type     | Default  | Description                                              |
-|---------------|----------|----------|----------------------------------------------------------|
-| `version`[^1] | `string` | `latest` | Te version of Gremlins to use                            | 
-| `args`        | `string` |          | The command line arguments to pass to `gremlins unleash` |
-| `workdir`     | `string` | `.`      | Working directory relative to repository root            |  
-
-[^1]: Can be `latest`, a fixed version like `v0.1.2` or a semver range like `~0.2`. In this case this will
-     return `v0.2.2`.

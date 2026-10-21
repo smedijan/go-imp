@@ -1,6 +1,6 @@
-# Contributing to Gremlins
+# Contributing to imp
 
-First, thanks for you wanting to contribute, the Gremlins project welcomes contributors!
+First, thanks for you wanting to contribute, the imp project welcomes contributors!
 
 ## What can I contribute?
 
@@ -31,31 +31,31 @@ code metrics, bear with us if we ask you to make changes before accepting your P
 
 ## Becoming a contributor
 
-Gremlins is fully developed on GitHub and the best way to contribute is by forking the repository and, once you complete
+imp is fully developed on GitHub and the best way to contribute is by forking the repository and, once you complete
 your work, opening a _pull request_.
 
 ### Before contributing
 
 All contributions are welcome, but, before submitting any significant change, it is better to coordinate with the
-Gremlins' team before starting the work. It is a good idea to start at
-the [issue tracker](https://github.com/go-gremlins/gremlins/issues) and file a new issue or claim an existing one.
+imp' team before starting the work. It is a good idea to start at
+the [issue tracker](https://github.com/smedijan/go-imp/issues) and file a new issue or claim an existing one.
 
 ### Open an issue
 
-Apart from trivial changes, every contribution to the Gremlins should be linked to an issue. Feel free to propose a
+Apart from trivial changes, every contribution to the imp should be linked to an issue. Feel free to propose a
 change and expose your plans, so that everyone can contribute in its validation, and the chances of your _pull request_
 being accepted will increase.
 
 ### Submit a contribution
 
-Gremlins is released with semantic versioning and
+imp is released with semantic versioning and
 follows [GitHub flow](https://docs.github.com/en/get-started/quickstart/github-flow), with the only difference that we
 open release branches when there is a _fix version_ to release.
 
 When you open a _pull request_, a series of automatic checks kicks off. You can verify if your change makes those checks
 fail and adjust the code accordingly.
 
-At this point, a member of the Gremlins team will review your code, possibly will
+At this point, a member of the imp team will review your code, possibly will
 discuss with you to understand it better, maybe ask for some changes and so on. Please expect that this process will be
 more thorough if you are a first time contributor: we need to know each other.
 
@@ -83,7 +83,7 @@ Fixes #123
 #### First line
 
 This is a short one line summary of what has been done in the commit, prefixed by the package affected (ex. `mutator`
-, `docs`, etc.). The commit message should be written as it is answering the question "This commit changes Gremlins to
+, `docs`, etc.). The commit message should be written as it is answering the question "This commit changes imp to
 ..."
 
 The first line is separated from the rest by a blank line.

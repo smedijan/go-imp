@@ -1,7 +1,7 @@
 FROM golang:1.25
 
-COPY gremlins /usr/bin
+COPY imp /usr/bin
 RUN adduser --disabled-password --gecos "" nonroot
 USER nonroot:nonroot
 
-CMD ["gremlins"]
+CMD ["imp"]
