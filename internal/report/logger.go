@@ -26,13 +26,13 @@ type MutantLogger struct {
 
 // NewLogger creates a new MutantLogger with filters from configuration.
 func NewLogger() MutantLogger {
-	outputStatuses := configuration.Get[string](configuration.UnleashOutputStatusesKey)
+	outputStatuses := configuration.Get[string](configuration.RunOutputStatusesKey)
 	f, err := ParseFilter(outputStatuses)
 	if err != nil {
 		log.Infof("output-statuses filter not applied: %s\n", err)
 	}
 
-	diffStatuses := configuration.Get[string](configuration.UnleashOutputDiffStatusesKey)
+	diffStatuses := configuration.Get[string](configuration.RunOutputDiffStatusesKey)
 	df, err := ParseDiffFilter(diffStatuses)
 	if err != nil {
 		log.Infof("output-diff-statuses filter not applied: %s\n", err)

@@ -18,4 +18,4 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run imp
-        run: go run ./cmd/imp unleash --silent
+        run: go run ./cmd/imp run --silent

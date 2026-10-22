@@ -158,7 +158,7 @@ func TestReport(t *testing.T) {
 	}
 	for _, tc := range drTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			viper.Set(configuration.UnleashDryRunKey, true)
+			viper.Set(configuration.RunDryRunKey, true)
 			defer viper.Reset()
 
 			out := &bytes.Buffer{}
@@ -200,52 +200,52 @@ func TestAssessment(t *testing.T) {
 		// Efficacy-threshold as float64
 		{
 			name:        "efficacy < efficacy-threshold",
-			confKey:     configuration.UnleashThresholdEfficacyKey,
+			confKey:     configuration.RunThresholdEfficacyKey,
 			value:       float64(51),
 			expectError: true,
 		},
 		{
 			name:        "efficacy >= efficacy-threshold",
-			confKey:     configuration.UnleashThresholdEfficacyKey,
+			confKey:     configuration.RunThresholdEfficacyKey,
 			value:       float64(50),
 			expectError: false,
 		},
 		{
 			name:        "efficacy-threshold == 0",
-			confKey:     configuration.UnleashThresholdEfficacyKey,
+			confKey:     configuration.RunThresholdEfficacyKey,
 			value:       float64(0),
 			expectError: false,
 		},
 		// Efficacy-threshold as float64
 		{
 			name:        "efficacy < efficacy-threshold",
-			confKey:     configuration.UnleashThresholdEfficacyKey,
+			confKey:     configuration.RunThresholdEfficacyKey,
 			value:       51,
 			expectError: true,
 		},
 		// Mutator coverage-threshold as float
 		{
 			name:        "coverage < coverage-threshold",
-			confKey:     configuration.UnleashThresholdMCoverageKey,
+			confKey:     configuration.RunThresholdMCoverageKey,
 			value:       float64(51),
 			expectError: true,
 		},
 		{
 			name:        "coverage >= coverage-threshold",
-			confKey:     configuration.UnleashThresholdMCoverageKey,
+			confKey:     configuration.RunThresholdMCoverageKey,
 			value:       float64(50),
 			expectError: false,
 		},
 		{
 			name:        "coverage-threshold == 0",
-			confKey:     configuration.UnleashThresholdMCoverageKey,
+			confKey:     configuration.RunThresholdMCoverageKey,
 			value:       float64(0),
 			expectError: false,
 		},
 		// Mutator coverage-threshold as int
 		{
 			name:        "coverage < coverage-threshold",
-			confKey:     configuration.UnleashThresholdMCoverageKey,
+			confKey:     configuration.RunThresholdMCoverageKey,
 			value:       51,
 			expectError: true,
 		},
@@ -473,7 +473,7 @@ func TestReportToFile(t *testing.T) {
 	t.Run("it writes on file when output is set", func(t *testing.T) {
 		outDir := t.TempDir()
 		output := filepath.Join(outDir, outFile)
-		viper.Set(configuration.UnleashOutputKey, output)
+		viper.Set(configuration.RunOutputKey, output)
 		defer viper.Reset()
 
 		if err := report.Do(data); err != nil {
@@ -517,7 +517,7 @@ func TestReportToFile(t *testing.T) {
 		outDir, cl := notWriteableDir(t)
 		defer cl()
 		output := filepath.Join(outDir, outFile)
-		viper.Set(configuration.UnleashOutputKey, output)
+		viper.Set(configuration.RunOutputKey, output)
 		defer viper.Reset()
 
 		if err := report.Do(data); err != nil {

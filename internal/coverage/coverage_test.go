@@ -75,9 +75,9 @@ func TestCoverageRun(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			viper.Set(configuration.UnleashTagsKey, "tag1 tag2")
-			viper.Set(configuration.UnleashCoverPkgKey, coverpkg)
-			viper.Set(configuration.UnleashIntegrationMode, tc.intMode)
+			viper.Set(configuration.RunTagsKey, "tag1 tag2")
+			viper.Set(configuration.RunCoverPkgKey, coverpkg)
+			viper.Set(configuration.RunIntegrationMode, tc.intMode)
 			defer viper.Reset()
 
 			wantWorkdir := "workdir"

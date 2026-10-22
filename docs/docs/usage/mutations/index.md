@@ -8,7 +8,7 @@ Mutations are the core of imp' activity. Each mutation belongs to a group that d
 groups are called _mutation types_. imp supports various _mutation types_, each comprising one or more mutations.
 
 When imp scans the source code under test, it looks for mutations and for each found mutation creates a _mutant_.
-A _mutant_ is the "gremlin" that actually changes the source code.
+A _mutant_ is the "mutant" that actually changes the source code.
 
 Each _mutant type_ can be enabled or disabled, and only a subset of mutations is enabled by default.
 

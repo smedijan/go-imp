@@ -3,10 +3,10 @@
 To execute a mutation test run, from the root of a Go module execute:
 
 ```sh
-$ imp unleash #(1)
+$ imp run #(1)
 ```
 
-1. If `unleash` is too long to type for you, you can use `run` or `r` which will do the same.
+1. Use `imp r` as a shorthand for `imp run`.
 
 imp only tests mutations of parts of the code already covered by test cases. If a mutant is not covered, why bother
 testing? You already know it will not be caught. In any case, imp will report which mutations aren't covered.

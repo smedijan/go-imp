@@ -33,7 +33,7 @@ import (
 //
 // It has two methods:
 //
-//		Get that returns a folder name that will be used by Gremlins as workdir.
+//		Get that returns a folder name that will be used by imp as workdir.
 //	    Clean that must be called to remove all the created folders.
 type Dealer interface {
 	Get(idf string) (string, error)
@@ -43,7 +43,7 @@ type Dealer interface {
 
 // CachedDealer is the implementation of the Dealer interface, responsible
 // for creating a working directory of a source directory. It allows
-// Gremlins not to work in the actual source directory messing up
+// imp not to work in the actual source directory messing up
 // with the source code files.
 type CachedDealer struct {
 	mutex   *sync.RWMutex

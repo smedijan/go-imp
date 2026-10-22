@@ -19,11 +19,11 @@ imp can be configured with a configuration file.
 
 The configuration file can be placed in (in order of precedence)
 
-1. `./.gremlins.yaml` (the current directory)
+1. `./.imp.yaml` (the current directory)
 2. The module root
-3. `/etc/gremlins/.gremlins.yaml`
-4. `$XDG_CONFIG_HOME/gremlins/.gremlins.yaml`
-5. `$HOME/.gremlins.yaml`
+3. `/etc/imp/.imp.yaml`
+4. `$XDG_CONFIG_HOME/imp/.imp.yaml`
+5. `$HOME/.imp.yaml`
 
 [//]: # (@formatter:off)
 !!! hint
@@ -36,7 +36,7 @@ The configuration file can be placed in (in order of precedence)
 The config file can be overridden with the `--config` flag.
 
 ```shell
-imp unleash --config=myConfig.yaml
+imp run --config=myConfig.yaml
 ```
 
 ### Reference
@@ -45,7 +45,7 @@ Here is a complete configuration file with all the properties set to their defau
 
 ```yaml
 silent: false
-unleash:
+run:
   integration: false
   dry-run: false
   tags: ""
@@ -97,14 +97,14 @@ For further information check the specific command documentation.
 [//]: # (@formatter:off)
 !!! tip
     You can validate the configuration file using the provided JSON Schema (ex. using it in your editor). The schema
-    can be found at [{{ config.site_url }}/schema/configuration.json]({{ config.site_url }}/schema/configuration.json). 
+    can be found at [the configuration schema](../schema/configuration.json).
 
 [//]: # (@formatter:on)
 
 ## Environment variables
 
 imp can be configured via environment variables as well. You can construct the variable name referring to the
-configuration file format. They start with `GREMLINS_`, and each dot and dash becomes an underscore.
+configuration file format. They start with `IMP_`, and each dot and dash becomes an underscore.
 
 For example:
 
@@ -117,5 +117,5 @@ mutants:
 Can be set with:
 
 ```shell
-export GREMLINS_MUTANTS_ARITHMETIC_BASE=true
+export IMP_MUTANTS_ARITHMETIC_BASE=true
 ```

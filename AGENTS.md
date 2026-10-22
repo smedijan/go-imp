@@ -3,7 +3,7 @@ working with code in this repository.
 
 ## Project Overview
 
-Gremlins is a mutation testing tool for Go that validates test
+imp is a mutation testing tool for Go that validates test
 effectiveness by introducing mutations to source code and verifying if
 tests catch them. It works best on small to medium-sized Go modules
 (microservices).
@@ -42,14 +42,14 @@ make goimports
 make fieldalignment
 ```
 
-### Running Gremlins
+### Running imp
 
 ```bash
 # Basic mutation testing
-imp unleash              # Or: imp run, imp r
+imp run              # Or: imp r
 
 # Dry-run mode (find mutations without testing)
-imp unleash --dry-run    # Or: -d
+imp run --dry-run    # Or: -d
 
 # Configuration file
 # Uses .imp.yaml in project root
@@ -124,7 +124,7 @@ make clean
 
 **Mutation Testing Flow:**
 
-1. `cmd/unleash.go` → `run()` initializes components
+1. `cmd/run.go` → `run()` initializes components
 2. Coverage analysis determines testable code
 3. `Engine.Run()` walks file tree, parses Go AST
 4. For each token, check `TokenMutantType` mapping for applicable
@@ -148,7 +148,7 @@ make clean
 4. Implement mutation logic in `internal/engine/tokenmutator.go`
    (`ApplyMutation`)
 5. Add configuration key in `internal/configuration/`
-6. Update flag registration in `cmd/unleash.go`
+6. Update flag registration in `cmd/run.go`
 
 ### Important Patterns
 
@@ -174,7 +174,7 @@ make clean
 ## Module Structure
 
 ```text
-cmd/                    - CLI commands (main.go, unleash.go, cobra setup)
+cmd/                    - CLI commands (main.go, run.go, cobra setup)
 internal/
   configuration/        - Config handling (Viper-based)
   coverage/            - Test coverage analysis
@@ -193,6 +193,6 @@ internal/
 - Go 1.21+ required
 - Comprehensive linter configuration (`.golangci.yml`) with 30+
   enabled rules
-- Test coverage tracked (Codecov integration)
+
 - All commits must pass: lint, tests, build
 - Mutation testing runs on itself (`.imp.yaml` configured)

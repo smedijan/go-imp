@@ -1,13 +1,15 @@
 # Docker
 
-imp can be used in CI pipelines using the prebuilt Docker images.
+Build the `imp` binary and Docker image from this repository; published container images are not available yet.
 
 ## As a pipeline step
 
 In the _continuous integration_ tool of your choice, you can execute a step using the following syntax:
 
 ```shell
-docker run --rm -v $(pwd):/app -w /app gogremlins/gremlins:{{ release.full_version }} imp unleash .
+go build -o imp ./cmd/imp
+docker build -t imp:local .
+docker run --rm -v "$(pwd)":/app -w /app imp:local run .
 ```
 
 The exact way to specify a runner step in the pipeline script depends on the tool of choice.
@@ -17,9 +19,9 @@ The exact way to specify a runner step in the pipeline script depends on the too
 imp can be also run as a stage in the `Dockerfile`.
 
 ```dockerfile
-FROM gogremlins/gremlins:{{ release.full_version }} AS mutation-testing
+FROM imp:local AS mutation-testing
 WORKDIR /my/project/source
-RUN imp unleash
+RUN imp run
 ```
 
 For further details, please refer to

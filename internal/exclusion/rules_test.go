@@ -15,7 +15,7 @@ var testPath = []string{
 func TestRules_IsFileExcluded(t *testing.T) {
 	t.Run("must exclude files by regexp", func(t *testing.T) {
 		ss := []any{"test", "internal"}
-		configuration.Set(configuration.UnleashExcludeFiles, ss)
+		configuration.Set(configuration.RunExcludeFiles, ss)
 
 		rules, err := New()
 		if err != nil || countTrue(testPath, rules.IsFileExcluded) != 2 {
@@ -25,7 +25,7 @@ func TestRules_IsFileExcluded(t *testing.T) {
 
 	t.Run("must return parsing error", func(t *testing.T) {
 		ss := []any{"test", "internal[[["}
-		configuration.Set(configuration.UnleashExcludeFiles, ss)
+		configuration.Set(configuration.RunExcludeFiles, ss)
 
 		rules, err := New()
 		if err == nil || rules != nil {
@@ -34,7 +34,7 @@ func TestRules_IsFileExcluded(t *testing.T) {
 	})
 
 	t.Run("no rules", func(t *testing.T) {
-		configuration.Set(configuration.UnleashExcludeFiles, []string(nil))
+		configuration.Set(configuration.RunExcludeFiles, []string(nil))
 
 		rules, err := New()
 		if err != nil || len(rules) != 0 {

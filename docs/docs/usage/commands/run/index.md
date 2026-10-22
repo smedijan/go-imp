@@ -1,23 +1,22 @@
-# Unleash
+# Run
 
-The main command in `imp` is `unleash`; it runs mutation tests on your code.
-If `unleash` is too long to type for you, you can use its aliases `run` and `r`.
+The `run` command performs mutation testing on your code. Use `imp r` as a shorthand.
 
 To execute a mutation testing run just type
 
 ```shell
-imp unleash
+imp run
 ```
 
 If the module build requires tags
 
 ```shell
-imp unleash --tags "tag1,tag2"
+imp run --tags "tag1,tag2"
 ```
 
 ## Flags
 
-`unleash` supports several flags to fine tune its behaviour.
+`run` supports several flags to fine tune its behaviour.
 
 ### Arithmetic base
 
@@ -26,7 +25,7 @@ imp unleash --tags "tag1,tag2"
 Enables/disables the [ARITHMETIC BASE](../../mutations/arithmetic_base.md) mutant type.
 
 ```shell
-imp unleash --arithmetic-base=false
+imp run --arithmetic-base=false
 ```
 
 ### Conditionals-boundary
@@ -36,7 +35,7 @@ imp unleash --arithmetic-base=false
 Enables/disables the [CONDITIONALS BOUNDARY](../../mutations/conditionals_boundary.md) mutant type.
 
 ```shell
-imp unleash --conditionals_boundary=false
+imp run --conditionals_boundary=false
 ```
 
 ### Conditionals negation
@@ -46,7 +45,7 @@ imp unleash --conditionals_boundary=false
 Enables/disables the [CONDITIONALS NEGATION](../../mutations/conditionals_negation.md) mutant type.
 
 ```shell
-imp unleash --conditionals_negation=false
+imp run --conditionals_negation=false
 ```
 
 ### Cover packages
@@ -57,7 +56,7 @@ Apply coverage analysis in each test to packages matching the patterns.
 The default is for each test to analyze only the package being tested.
 
 ```shell
-imp unleash --coverpkg "./internal/...,./pkg/..."
+imp run --coverpkg "./internal/...,./pkg/..."
 ```
 
 ### Exclude files
@@ -71,13 +70,13 @@ If a file path matches a regular expression, it is skipped from execution and th
 The default is to skip only test files.
 
 ```shell
-imp unleash --exclude-files "_(gen|wrap).go"
+imp run --exclude-files "_(gen|wrap).go"
 ```
 
 You can provide a few rules. File is skipped if matches any regexp.
 
 ```shell
-imp unleash -E "_(gen|wrap).go$" -E "^(generate|wrap)/" -E "internal/super_old/"
+imp run -E "_(gen|wrap).go$" -E "^(generate|wrap)/" -E "internal/super_old/"
 ```
 
 ### Diff
@@ -90,19 +89,19 @@ The default is each mutant covered by tests.
 #### Branch merge base
 
 ```shell
-imp unleash --diff "origin/main"
+imp run --diff "origin/main"
 ```
 
 #### Commit
 
 ```shell
-imp unleash --diff "b62af323"
+imp run --diff "b62af323"
 ```
 
 #### PR
 
 ```shell
-imp unleash --diff "origin/$GITHUB_BASE_REF"
+imp run --diff "origin/$GITHUB_BASE_REF"
 ```
 
 Use `actions/checkout@v4` with `fetch-depth: 0` to fetch all history.
@@ -114,7 +113,7 @@ Use `actions/checkout@v4` with `fetch-depth: 0` to fetch all history.
 Just performs the analysis but not the mutation testing.
 
 ```shell
-imp unleash --dry-run
+imp run --dry-run
 ```
 
 ### Statuses output
@@ -131,7 +130,7 @@ Flag do not change json file and stats report content.
 #### Show only `LIVED` and `NOT COVERED`
 
 ```shell
-imp unleash --output-statuses "lc"
+imp run --output-statuses "lc"
 ```
 
 Output
@@ -144,7 +143,7 @@ Output
 #### Filter out out `SKIPPED`, `KILLED`.
 
 ```shell
-imp unleash --S lctv
+imp run --S lctv
 ```
 
 Output
@@ -182,7 +181,7 @@ This flag works in combination with `--output-statuses`: a mutant that is hidden
 ##### Show diff for survived mutants
 
 ```shell
-imp unleash --output-diff-statuses l
+imp run --output-diff-statuses l
 ```
 
 Output
@@ -196,7 +195,7 @@ Output
 ##### Show diff for both lived and killed mutants
 
 ```shell
-imp unleash --output-diff-statuses lk
+imp run --output-diff-statuses lk
 ```
 
 ### Filter letters
@@ -211,7 +210,7 @@ imp unleash --output-diff-statuses lk
 Enables/disables the [INCREMENT DECREMENT](../../mutations/increment_decrement.md) mutant type.
 
 ```shell
-imp unleash --increment-decrement=false
+imp run --increment-decrement=false
 ```
 
 ### Integration mode
@@ -231,7 +230,7 @@ However, you should be aware that integration mode is generally much slower, and
 slightly different results depending on your test suite.
 
 ```shell
-imp unleash --integration
+imp run --integration
 ```
 
 ### Invert assignments
@@ -241,7 +240,7 @@ imp unleash --integration
 Enables/disables the [INVERT ASSIGNMENTS](../../mutations/invert_assignments.md) mutant type.
 
 ```shell
-imp unleash --invert-assignments
+imp run --invert-assignments
 ```
 
 ### Invert bitwise
@@ -251,7 +250,7 @@ imp unleash --invert-assignments
 Enables/disables the [INVERT BITWISE](../../mutations/invert_bitwise.md) mutant type.
 
 ```shell
-imp unleash --invert-bitwise
+imp run --invert-bitwise
 ```
 
 ### Invert bitwise assignments
@@ -261,7 +260,7 @@ imp unleash --invert-bitwise
 Enables/disables the [INVERT BWASSIGN](../../mutations/invert_bitwise_assignments.md) mutant type.
 
 ```shell
-imp unleash --invert-bwassign
+imp run --invert-bwassign
 ```
 
 ### Invert logical operators
@@ -271,7 +270,7 @@ imp unleash --invert-bwassign
 Enables/disables the [INVERT LOGICAL](../../mutations/invert_logical.md) mutant type.
 
 ```shell
-imp unleash --invert_logical
+imp run --invert_logical
 ```
 
 ### Invert loop control
@@ -281,7 +280,7 @@ imp unleash --invert_logical
 Enables/disables the [INVERT LOOP](../../mutations/invert_loop.md) mutant type.
 
 ```shell
-imp unleash --invert-loopctrl
+imp run --invert-loopctrl
 ```
 
 ### Invert negatives
@@ -291,7 +290,7 @@ imp unleash --invert-loopctrl
 Enables/disables the [INVERT NEGATIVES](../../mutations/invert_negatives.md) mutant type.
 
 ```shell
-imp unleash --invert_negatives=false
+imp run --invert_negatives=false
 ```
 
 ### Output
@@ -301,7 +300,7 @@ imp unleash --invert_negatives=false
 When set, imp will write the give output file with machine readable results.
 
 ```shell
-imp unleash --output=output.json
+imp run --output=output.json
 ```
 
 The output file in JSON format and has the following structure:
@@ -358,7 +357,7 @@ The output file in JSON format and has the following structure:
 Enables/disables the [REMOVE_SELF ASSIGNMENTS](../../mutations/remove_self_assignments.md) mutant type.
 
 ```shell
-imp unleash --remove-self-assignments
+imp run --remove-self-assignments
 ```
 
 ### Tags
@@ -368,7 +367,7 @@ imp unleash --remove-self-assignments
 Sets the `go` command build tags.
 
 ```shell
-imp unleash --tags "tag1,tag2"
+imp run --tags "tag1,tag2"
 ```
 
 ### Test CPU
@@ -383,7 +382,7 @@ imp unleash --tags "tag1,tag2"
 This flag overrides the number of CPUs the Go test tool will utilize. By default, imp doesn't set this value.
 
 ```shell
-imp unleash --test-cpu=1
+imp run --test-cpu=1
 ```
 
 ### Threshold efficacy
@@ -397,7 +396,7 @@ means imp never exits with an error.
 The _test efficacy_ is calculated as `KILLED / (KILLED + LIVED)` and assesses how effective are the tests.
 
 ```shell
-imp unleash --threshold-efficacy 80
+imp run --threshold-efficacy 80
 ```
 
 ### Threshold mutant coverage
@@ -411,7 +410,7 @@ The _mutant coverage_ is calculated as `(KILLED + LIVED) / (KILLED + LIVED + NOT
 are covered by tests.
 
 ```shell
-imp unleash --threshold-mcover 80
+imp run --threshold-mcover 80
 ```
 
 ### Timeout coefficient
@@ -437,7 +436,7 @@ coefficient. For example:
 - Coverage run takes 2s → timeout = 2s × 5 = 10 seconds
 
 ```shell
-imp unleash --timeout-coefficient=10
+imp run --timeout-coefficient=10
 ```
 
 [//]: # (@formatter:off)
@@ -474,5 +473,5 @@ available CPU cores.
 The `--workers` flag allows to override the number of CPUs to use (`0` means use the default).
 
 ```shell
-imp unleash --workers=4
+imp run --workers=4
 ```

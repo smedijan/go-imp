@@ -17,7 +17,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     env:
-      GR_VERSION_TAG: ${{ inputs.version || 'next' }}
+      IMP_VERSION_TAG: ${{ inputs.version || 'next' }}
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v6
@@ -36,34 +36,34 @@ jobs:
             mkdocs-macros-plugin \
             mike
       - name: Set version env
-        if: ${{ env.GR_VERSION_TAG != 'next' }}
+        if: ${{ env.IMP_VERSION_TAG != 'next' }}
         # v1.2.3 ->
-        #   GR_FULL_VERSION=1.2.3
-        #   GR_SHORT_VERSION=1.2
-        #   GR_PATCH_VERSION=2
+        #   IMP_FULL_VERSION=1.2.3
+        #   IMP_SHORT_VERSION=1.2
+        #   IMP_PATCH_VERSION=2
         run: |
-          version="${GR_VERSION_TAG##*/}"
+          version="${IMP_VERSION_TAG##*/}"
           full_version="${version#v}"
           short_version="${full_version%.*}"
           patch_version="${full_version##*.}"
           {
-            printf 'GR_FULL_VERSION=%s\n' "$full_version"
-            printf 'GR_SHORT_VERSION=%s\n' "$short_version"
-            printf 'GR_PATCH_VERSION=%s\n' "$patch_version"
+            printf 'IMP_FULL_VERSION=%s\n' "$full_version"
+            printf 'IMP_SHORT_VERSION=%s\n' "$short_version"
+            printf 'IMP_PATCH_VERSION=%s\n' "$patch_version"
           } >> "$GITHUB_ENV"
         # If it is a major or minor, we mark it as latest and default.
-      - if: ${{ env.GR_PATCH_VERSION == '0' && env.GR_VERSION_TAG != 'next' }}
+      - if: ${{ env.IMP_PATCH_VERSION == '0' && env.IMP_VERSION_TAG != 'next' }}
         run: |
-          mike deploy --update-aliases --push "${{ env.GR_SHORT_VERSION }}" latest
+          mike deploy --update-aliases --push "${{ env.IMP_SHORT_VERSION }}" latest
           mike list
         working-directory: docs
         # If it is a patch, we don't set it at latest
-      - if: ${{ env.GR_PATCH_VERSION != '0' && env.GR_VERSION_TAG != 'next' }}
+      - if: ${{ env.IMP_PATCH_VERSION != '0' && env.IMP_VERSION_TAG != 'next' }}
         run: |
-          mike deploy --update-aliases --push "${{ env.GR_SHORT_VERSION }}"
+          mike deploy --update-aliases --push "${{ env.IMP_SHORT_VERSION }}"
           mike list
         working-directory: docs
-      - if: ${{ env.GR_VERSION_TAG == 'next' }}
+      - if: ${{ env.IMP_VERSION_TAG == 'next' }}
         run: |
           mike deploy --update-aliases --push next
           mike list

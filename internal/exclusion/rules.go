@@ -18,8 +18,8 @@ func New() (Rules, error) {
 	var rules Rules
 
 	// TODO: modify and use configuration package
-	// NOTE: configuration.Get can't type cast to []string a value from .gremlins file, because viper.Get(k) returns []interface{}
-	flagValues := viper.GetStringSlice(configuration.UnleashExcludeFiles)
+	// NOTE: configuration.Get can't type cast to []string a value from .imp file, because viper.Get(k) returns []interface{}
+	flagValues := viper.GetStringSlice(configuration.RunExcludeFiles)
 
 	for i, s := range flagValues {
 		r, err := regexp.Compile(s)

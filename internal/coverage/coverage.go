@@ -68,9 +68,9 @@ func New(workdir string, mod gomodule.GoModule, opts ...Option) *Coverage {
 
 // NewWithCmd instantiates a Coverage element given a custom execContext.
 func NewWithCmd(cmdContext execContext, workdir string, mod gomodule.GoModule, opts ...Option) *Coverage {
-	buildTags := configuration.Get[string](configuration.UnleashTagsKey)
-	coverPkg := configuration.Get[string](configuration.UnleashCoverPkgKey)
-	integrationMode := configuration.Get[bool](configuration.UnleashIntegrationMode)
+	buildTags := configuration.Get[string](configuration.RunTagsKey)
+	coverPkg := configuration.Get[string](configuration.RunCoverPkgKey)
+	integrationMode := configuration.Get[bool](configuration.RunIntegrationMode)
 
 	c := &Coverage{
 		cmdContext:      cmdContext,

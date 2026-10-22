@@ -75,8 +75,8 @@ type Pool struct {
 // Initialize creates a new Pool with a name and the number of parallel
 // workers it will use.
 func Initialize(name string) *Pool {
-	wNum := configuration.Get[int](configuration.UnleashWorkersKey)
-	intMode := configuration.Get[bool](configuration.UnleashIntegrationMode)
+	wNum := configuration.Get[int](configuration.RunWorkersKey)
+	intMode := configuration.Get[bool](configuration.RunIntegrationMode)
 
 	p := &Pool{
 		size: size(wNum, intMode),

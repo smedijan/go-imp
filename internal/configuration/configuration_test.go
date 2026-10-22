@@ -44,18 +44,18 @@ func TestConfiguration(t *testing.T) {
 	}{
 		{
 			name:        "from single file",
-			configPaths: []string{"testdata/config1/.gremlins.yaml"},
+			configPaths: []string{"testdata/config1/.imp.yaml"},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": true,
-				"unleash.tags":    "tag1,tag2,tag3",
+				"run.dry-run": true,
+				"run.tags":    "tag1,tag2,tag3",
 			},
 		},
 		{
 			name:        "from returns error if unreadable",
-			configPaths: []string{"testdata/config1/.gremlin"},
+			configPaths: []string{"testdata/config1/.mutant"},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": true,
-				"unleash.tags":    "tag1,tag2,tag3",
+				"run.dry-run": true,
+				"run.tags":    "tag1,tag2,tag3",
 			},
 			expectErr: true,
 		},
@@ -63,38 +63,38 @@ func TestConfiguration(t *testing.T) {
 			name:        "from cfg",
 			configPaths: []string{"./testdata/config1"},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": true,
-				"unleash.tags":    "tag1,tag2,tag3",
+				"run.dry-run": true,
+				"run.tags":    "tag1,tag2,tag3",
 			},
 		},
 		{
 			name:        "from cfg multi",
 			configPaths: []string{"./testdata/config2", "./testdata/config1"},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": true,
-				"unleash.tags":    "tag1.2,tag2.2,tag3.2",
+				"run.dry-run": true,
+				"run.tags":    "tag1.2,tag2.2,tag3.2",
 			},
 		},
 		{
 			name: "from env",
 			envEntries: []envEntry{
-				{name: "GREMLINS_UNLEASH_DRY_RUN", value: "true"},
-				{name: "GREMLINS_UNLEASH_TAGS", value: "tag1,tag2,tag3"},
+				{name: "IMP_RUN_DRY_RUN", value: "true"},
+				{name: "IMP_RUN_TAGS", value: "tag1,tag2,tag3"},
 			},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": "true",
-				"unleash.tags":    "tag1,tag2,tag3",
+				"run.dry-run": "true",
+				"run.tags":    "tag1,tag2,tag3",
 			},
 		},
 		{
 			name: "from cfg override with env",
 			envEntries: []envEntry{
-				{name: "GREMLINS_UNLEASH_TAGS", value: "tag1env,tag2env,tag3env"},
+				{name: "IMP_RUN_TAGS", value: "tag1env,tag2env,tag3env"},
 			},
 			configPaths: []string{"./testdata/config1"},
 			wantedConfig: map[string]interface{}{
-				"unleash.dry-run": true,
-				"unleash.tags":    "tag1env,tag2env,tag3env",
+				"run.dry-run": true,
+				"run.tags":    "tag1env,tag2env,tag3env",
 			},
 		},
 	}
@@ -140,13 +140,13 @@ func TestConfigPaths(t *testing.T) {
 
 		// First global
 		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/gremlins")
+			want = append(want, "/etc/imp")
 		}
 
 		// Then $XDG_CONFIG_HOME and $HOME
 		want = append(want,
-			filepath.Join(home, ".config", "gremlins", "gremlins"),
-			filepath.Join(home, ".gremlins"),
+			filepath.Join(home, ".config", "imp", "imp"),
+			filepath.Join(home, ".imp"),
 		)
 
 		// Then module root
@@ -174,13 +174,13 @@ func TestConfigPaths(t *testing.T) {
 
 		// First global
 		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/gremlins")
+			want = append(want, "/etc/imp")
 		}
 
 		// Then $XDG_CONFIG_HOME and $HOME
 		want = append(want,
-			filepath.Join(home, ".config", "gremlins", "gremlins"),
-			filepath.Join(home, ".gremlins"),
+			filepath.Join(home, ".config", "imp", "imp"),
+			filepath.Join(home, ".imp"),
 		)
 
 		// Last current folder
@@ -207,13 +207,13 @@ func TestConfigPaths(t *testing.T) {
 
 		// First global
 		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/gremlins")
+			want = append(want, "/etc/imp")
 		}
 
 		// Then $XDG_CONFIG_HOME and $HOME
 		want = append(want,
-			filepath.Join(customPath, "gremlins", "gremlins"),
-			filepath.Join(home, ".gremlins"))
+			filepath.Join(customPath, "imp", "imp"),
+			filepath.Join(home, ".imp"))
 
 		// Then Go module root
 		moduleRoot, _ := os.Getwd()

@@ -14,5 +14,5 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go install github.com/smedijan/go-imp/cmd/imp@main
-      - run: imp unleash --silent
+      - run: imp run --silent
 ```

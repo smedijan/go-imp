@@ -23,7 +23,7 @@ type execCmd interface {
 // NewWithCmd creates a new Diff by parsing git diff output using a custom command executor.
 // This is useful for testing.
 func NewWithCmd[T execCmd](cmdContext func(name string, args ...string) T) (Diff, error) {
-	diffRef := configuration.Get[string](configuration.UnleashDiffRef)
+	diffRef := configuration.Get[string](configuration.RunDiffRef)
 	if diffRef == "" {
 		return nil, nil
 	}

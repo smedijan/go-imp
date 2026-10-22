@@ -26,15 +26,18 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-func TestUnleash(t *testing.T) {
-	c, err := newUnleashCmd(context.Background())
+func TestRun(t *testing.T) {
+	c, err := newRunCmd(context.Background())
 	if err != nil {
-		t.Fatal("newUnleashCmd should no fail")
+		t.Fatal("newRunCmd should no fail")
 	}
 	cmd := c.cmd
 
-	if cmd.Name() != "unleash" {
-		t.Errorf("expected 'unleash', got %q", cmd.Name())
+	if cmd.Name() != "run" {
+		t.Errorf("expected 'run', got %q", cmd.Name())
+	}
+	if len(cmd.Aliases) != 1 || cmd.Aliases[0] != "r" {
+		t.Errorf("expected only alias 'r', got %v", cmd.Aliases)
 	}
 
 	flags := cmd.Flags()

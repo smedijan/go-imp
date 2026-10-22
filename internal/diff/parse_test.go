@@ -22,7 +22,7 @@ func TestNewWithCmd(t *testing.T) {
 	})
 
 	t.Run("must return error", func(t *testing.T) {
-		viper.Set(configuration.UnleashDiffRef, "test")
+		viper.Set(configuration.RunDiffRef, "test")
 
 		m := &mock{
 			outputErr: errors.New("test"),
@@ -47,7 +47,7 @@ func TestNewWithCmd(t *testing.T) {
 	})
 
 	t.Run("must return diff error", func(t *testing.T) {
-		viper.Set(configuration.UnleashDiffRef, "test")
+		viper.Set(configuration.RunDiffRef, "test")
 
 		m := &mock{
 			output: []byte(testErrDiff),
@@ -60,7 +60,7 @@ func TestNewWithCmd(t *testing.T) {
 	})
 
 	t.Run("must return changes", func(t *testing.T) {
-		viper.Set(configuration.UnleashDiffRef, "test")
+		viper.Set(configuration.RunDiffRef, "test")
 
 		m := &mock{
 			output: []byte(testDiff),

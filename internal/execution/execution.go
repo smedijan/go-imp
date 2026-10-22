@@ -46,7 +46,7 @@ var errorMapping = map[ErrorType]int{
 }
 
 // ExitError is a special Error that is raised when special conditions require
-// Gremlins to exit with a specific errorCode.
+// imp to exit with a specific errorCode.
 // If this error is returned and/or properly wrapped, it will reach the main
 // function. In the main, the exitCode will be set as the exit code of the
 // execution.
