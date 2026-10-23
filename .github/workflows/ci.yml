@@ -32,11 +32,9 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.14.0
-          skip-cache: true
 
   test:
     name: Run the test suite with race detection
-    needs: lint
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -49,5 +47,5 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
-      - name: Run tests
-        run: go test -race ./...
+      - name: Run tests with coverage
+        run: go test -race -covermode=atomic -cover -coverprofile coverage.out ./...
