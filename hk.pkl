@@ -1,0 +1,70 @@
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
+
+local fast_checks = new Mapping<String, Step> {
+    ["go-fmt"] = (Builtins.go_fmt) {
+        glob = "**/*.go"
+    }
+    ["go-vet"] = (Builtins.go_vet) {
+        glob = "**/*.go"
+    }
+    ["go-lint"] = (Builtins.golangci_lint) {
+        glob = "**/*.go"
+    }
+    ["go-test"] {
+        glob = "**/*.go"
+        check = "go test -race ./..."
+    }
+    ["go-mod-tidy"] = (Builtins.gomod_tidy) {
+        glob = List("**/*.go", "**/go.mod", "**/go.sum")
+    }
+    ["actionlint"] = (Builtins.actionlint) {
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+    }
+    ["pinact"] = (Builtins.pinact) {
+        glob = List(
+            ".github/workflows/*.yml",
+            ".github/workflows/*.yaml",
+            "action.yml",
+            "action.yaml",
+            "**/action.yml",
+            "**/action.yaml",
+        )
+        types = List("yaml")
+    }
+    ["zizmor"] = (Builtins.zizmor) {
+        glob = List(
+            ".github/workflows/*.yml",
+            ".github/workflows/*.yaml",
+            ".github/dependabot.yml",
+            ".github/dependabot.yaml",
+            "action.yml",
+            "action.yaml",
+            "**/action.yml",
+            "**/action.yaml",
+        )
+    }
+}
+
+local full_checks = (fast_checks) {
+    ["go-sec"] = (Builtins.go_sec) {
+        glob = "**/*.go"
+    }
+    ["go-vuln-check"] = (Builtins.go_vuln_check) {
+        glob = "**/*.go"
+    }
+}
+
+steps = fast_checks
+
+hooks {
+    ["pre-push"] {
+        steps = full_checks
+    }
+    ["commit-msg"] {
+        steps {
+            ["conventional-commit"] = Builtins.check_conventional_commit
+        }
+    }
+}

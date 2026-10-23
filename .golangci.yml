@@ -38,6 +38,8 @@ linters:
         linters:
           - cyclop
   settings:
+    goconst:
+      ignore-tests: true
     revive:
       severity: warning
       confidence: 0.8

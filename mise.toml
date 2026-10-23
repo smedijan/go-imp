@@ -1,8 +1,58 @@
 [tools]
 go = "1.25"
-golangci-lint = "2"
+golangci-lint = "2.14.0"
+goreleaser = "2"
+hk = "2.5.0"
+actionlint = "latest"
+shellcheck = "latest"
+pinact = "latest"
+zizmor = "latest"
+"go:github.com/securego/gosec/v2/cmd/gosec" = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+"go:golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment" = "latest"
 python = "3.13"
 uv = "latest"
+
+[tasks.all]
+description = "Run lint, tests, and build"
+depends = ["lint", "test", "build"]
+
+[tasks.build]
+description = "Build imp to dist/bin/imp"
+run = "mkdir -p dist/bin && go build -o dist/bin/imp ./cmd/imp"
+
+[tasks.test]
+description = "Run all Go tests with the race detector"
+run = "go test -race ./..."
+
+[tasks.cover]
+description = "Run tests with race detection and write coverage.out"
+run = "go test -race -covermode=atomic -cover -coverprofile=coverage.out ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.goimports]
+description = "Format Go imports"
+run = "goimports --local 'github.com/smedijan/go-imp' -v -w ."
+
+[tasks.fieldalignment]
+description = "Fix Go struct field alignment"
+run = "fieldalignment -fix ./..."
+
+[tasks.snapshot]
+description = "Build a GoReleaser snapshot"
+run = "goreleaser release --snapshot --clean"
+
+[tasks.snap]
+description = "Run lint and tests, then build a GoReleaser snapshot"
+depends = ["lint", "test", "snapshot"]
+
+[tasks.clean]
+description = "Remove Go build artifacts and coverage output"
+run = "go clean && rm -rf dist && rm -f coverage.out"
 
 [tasks.docs-serve]
 description = "Serve the documentation locally with live reload"

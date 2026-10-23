@@ -542,7 +542,7 @@ func TestMutantSkipDisabled(t *testing.T) {
 			defer c()
 
 			viperSet(map[string]any{
-				configuration.RunDryRunKey:         true,
+				configuration.RunDryRunKey:             true,
 				configuration.MutantTypeEnabledKey(mt): false,
 			})
 			defer viperReset()
@@ -566,7 +566,7 @@ func TestDisablingOneMutantTypeDoesNotDisableOthersForSameToken(t *testing.T) {
 	defer c()
 
 	viperSet(map[string]any{
-		configuration.RunDryRunKey:                                   true,
+		configuration.RunDryRunKey:                                       true,
 		configuration.MutantTypeEnabledKey(mutator.ConditionalsBoundary): false,
 		configuration.MutantTypeEnabledKey(mutator.ConditionalsNegation): true,
 	})

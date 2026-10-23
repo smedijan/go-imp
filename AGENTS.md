@@ -10,36 +10,33 @@ tests catch them. It works best on small to medium-sized Go modules
 
 ## Essential Commands
 
-### Build & Test
+### Build, test & quality checks
 
 ```bash
-# Build the binary
-make build                    # Creates dist/bin/imp
+# Install pinned tools and install Git hooks
+mise install
+hk install
 
-# Run all tests with race detector
-make test                     # go test -race ./...
+# Run local checks on changed files, or all files
+hk check
+hk check --all
 
-# Run specific package tests
+# Run the complete quality, test, and build workflow
+mise run all
+
+# Run individual tasks
+mise run build          # Creates dist/bin/imp
+mise run test           # go test -race ./...
+mise run cover          # Creates coverage.out
+mise run lint           # golangci-lint run ./...
+mise run goimports
+mise run fieldalignment
+mise run snapshot
+mise run clean
+
+# Run focused tests
 go test -race ./internal/engine/...
-
-# Run single test
 go test -race ./internal/engine/ -run TestEngineFindMutations
-
-# Generate coverage report
-make cover                    # Creates coverage.out
-```
-
-### Linting & Formatting
-
-```bash
-# Run linter (golangci-lint)
-make lint
-
-# Format imports (with local package priority)
-make goimports
-
-# Fix struct field alignment
-make fieldalignment
 ```
 
 ### Running imp
@@ -53,22 +50,6 @@ imp run --dry-run    # Or: -d
 
 # Configuration file
 # Uses .imp.yaml in project root
-```
-
-### Development Workflow
-
-```bash
-# Install required tools
-make requirements
-
-# Full development cycle
-make all                      # lint + test + build
-
-# Create snapshot release
-make snap                     # lint + test + snapshot
-
-# Clean build artifacts
-make clean
 ```
 
 ## Architecture
