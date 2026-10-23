@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: [ 'v*' ]
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -29,16 +29,7 @@ jobs:
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
         with:
           distribution: goreleaser
-          version: '~> v2'
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ github.token }}
-  documentation:
-    name: Build documentation
-    permissions:
-      contents: write
-    if: ${{ github.event_name != 'pull_request' }}
-    needs: goreleaser
-    uses: ./.github/workflows/docs.yml # zizmor: ignore[self-repository]
-    with:
-      version: ${{ github.ref }}
