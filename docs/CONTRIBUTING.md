@@ -1,116 +1,35 @@
 # Contributing to imp
 
-First, thanks for you wanting to contribute, the imp project welcomes contributors!
+We welcome contributions that solve a clear problem and meet the project's quality standards.
 
-## What can I contribute?
+## Discuss substantial changes first
 
-### Report bugs
+Before starting a feature, behavioral change, or major refactor, open an
+[issue](https://github.com/smedijan/go-imp/issues) describing the problem and proposed approach. Wait for discussion
+before opening a PR. Small fixes can be submitted directly; when unsure, ask first.
 
-Bug reports are always welcome. Before submitting one, please verify that a similar bug hasn't been already reported. If
-it already exists, consider to comment there instead of opening a new one.
+## Pull requests
 
-#### To submit a good bug report
+- You may have at most **two open PRs** at a time.
+- Keep each PR focused. Explain the change and link the related issue.
+- Add or update tests and documentation as needed.
+- Run `hk check`; use `hk check --all` for all configured checks. `mise run all` also builds the binary.
+- Address review feedback and keep your PR current.
 
-Use the appropriate template to submit bugs.
+PRs submitted without meaningful review, understanding, or validation will be closed. We encourage AI tools, and
+expect contributors to use them thoughtfully, understand and verify their output, and deliver high-quality changes.
+Substantial work submitted without prior discussion may also be closed.
 
-- Use a clear and descriptive title.
-- Describe each step to reproduce using as much detail as you can.
-- Describe the behaviour you observed after following the steps.
-- Explain why it is different from the behaviour you would expect.
+## DCO sign-off required
 
-### Suggest enhancements
+Sign off **every commit** under the [Developer Certificate of Origin](https://developercertificate.org/)
+with `git commit -s`. This certifies you have the right to submit the contribution under the project license.
+Never sign off on someone else's behalf.
 
-Before making a feature request/enhancement request, please verify that there isn't already a request for the same or
-very similar feature. If a similar enhancement request already exists, you can expand on it via comments.
-There is a specific issue type for feature requests.
+## Quality and community
 
-### Send pull requests
+Install pinned tools with `mise install`. Keep changes focused and idiomatic; include tests for new behavior.
+If you cannot run a check, say why in the PR.
 
-Pull request are welcome, but it's not guaranteed they will be accepted. We are quite strict on code quality, style and
-code metrics, bear with us if we ask you to make changes before accepting your PR.
-
-## Becoming a contributor
-
-imp is fully developed on GitHub and the best way to contribute is by forking the repository and, once you complete
-your work, opening a _pull request_.
-
-### Before contributing
-
-All contributions are welcome, but, before submitting any significant change, it is better to coordinate with the
-imp' team before starting the work. It is a good idea to start at
-the [issue tracker](https://github.com/smedijan/go-imp/issues) and file a new issue or claim an existing one.
-
-### Open an issue
-
-Apart from trivial changes, every contribution to the imp should be linked to an issue. Feel free to propose a
-change and expose your plans, so that everyone can contribute in its validation, and the chances of your _pull request_
-being accepted will increase.
-
-### Submit a contribution
-
-imp is released with semantic versioning and
-follows [GitHub flow](https://docs.github.com/en/get-started/quickstart/github-flow), with the only difference that we
-open release branches when there is a _fix version_ to release.
-
-When you open a _pull request_, a series of automatic checks kicks off. You can verify if your change makes those checks
-fail and adjust the code accordingly.
-
-At this point, a member of the imp team will review your code, possibly will
-discuss with you to understand it better, maybe ask for some changes and so on. Please expect that this process will be
-more thorough if you are a first time contributor: we need to know each other.
-
-Feel free to make more than one commit in your _pull request_, but bear in mind that once it has been properly reviewed
-and accepted, all the commits will be squashed into one before merging. This way we can maintain a linear commit
-history.
-
-Before a release, the code base will be frozen and no _pull request_ will be accepted until the release is done, with
-the only exception of bug fixes. If you send a _pull request_ during a code freeze, you will have to wait a little more
-before seeing it merged.
-
-### Commit messages
-
-Commit messages follow a convention. Here is an example:
-
-```
-area: do a specific thing
-
-Expand on what and how it is done, possibly spanning multiple lines and
-being descriptive.
-
-Fixes #123
-```
-
-#### First line
-
-This is a short one line summary of what has been done in the commit, prefixed by the package affected (ex. `mutator`
-, `docs`, etc.). The commit message should be written as it is answering the question "This commit changes imp to
-..."
-
-The first line is separated from the rest by a blank line.
-
-#### Message body
-
-The message body expands on the first line, adding details in a descriptive way. Try to use correct grammar and
-punctuation, and don't use Markdown, HTML or other markup languages.
-
-#### Reference
-
-If the commit is related to an issue (most of the time it does), you can add a reference in the format
-`KEYWORD #ISSUE_NUMBER`. This helps
-[GitHub link](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
-the commit to the appropriate issue and update its status.
-
-The recognized keywords are:
-
-- close
-- closes
-- closed
-- fix
-- fixes
-- fixed
-- resolve
-- resolves
-- resolved
-
-Sometimes the team members as well forget to respect all of these rules, but we do our best to be consistent. If you
-forget or make mistakes, we will help during the review process.
+Report bugs and propose ideas in the [issue tracker](https://github.com/smedijan/go-imp/issues).
+Follow the [Code of Conduct](https://github.com/smedijan/go-imp/blob/main/CODE_OF_CONDUCT.md).
