@@ -21,17 +21,13 @@ hk install
 hk check
 hk check --all
 
-# Run the complete quality, test, and build workflow
+# Run the full quality, test, and build workflow
 mise run all
 
-# Run individual tasks
+# Run individual tasks not covered by hk checks
 mise run build          # Creates dist/bin/imp
-mise run test           # go test -race ./...
 mise run cover          # Creates coverage.out
-mise run lint           # golangci-lint run ./...
 mise run goimports
-mise run fieldalignment
-mise run snapshot
 mise run clean
 
 # Run focused tests
