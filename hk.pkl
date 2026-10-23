@@ -19,6 +19,12 @@ local fast_checks = new Mapping<String, Step> {
     ["go-mod-tidy"] = (Builtins.gomod_tidy) {
         glob = List("**/*.go", "**/go.mod", "**/go.sum")
     }
+    ["markdown-lint"] = (Builtins.rumdl) {
+        glob = "**/*.md"
+    }
+    ["markdown-format"] = (Builtins.rumdl_format) {
+        glob = "**/*.md"
+    }
     ["actionlint"] = (Builtins.actionlint) {
         glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     }

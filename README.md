@@ -6,7 +6,8 @@
   <img src="docs/docs/assets/images/imp-logo.png" alt="imp — mutation testing for Go" width="320">
 </p>
 
-`imp` is a mutation-testing tool for Go that helps developers—and coding agents—write more testable code and stronger tests. It introduces small, realistic changes to your code and reports which ones your test suite catches.
+`imp` is a mutation-testing tool for Go that helps developers—and coding agents—write more testable code and stronger
+tests. It introduces small, realistic changes to your code and reports which ones your test suite catches.
 
 ## Install
 
@@ -26,8 +27,10 @@ See [the installation guide](docs/docs/install.md) and [usage documentation](doc
 
 ## License
 
-The source code is licensed under [Apache-2.0](LICENSE). Carried-over documentation remains under [CC BY-SA 4.0](http://creativecommons.org/licenses/by-sa/4.0/).
+The source code is licensed under [Apache-2.0](LICENSE). Carried-over documentation remains under
+[CC BY-SA 4.0](http://creativecommons.org/licenses/by-sa/4.0/).
 
 ---
 
-`imp` is an independent continuation of [go-gremlins/gremlins](https://github.com/go-gremlins/gremlins), with its Git history preserved.
+`imp` is an independent continuation of [go-gremlins/gremlins](https://github.com/go-gremlins/gremlins), with its Git
+history preserved.

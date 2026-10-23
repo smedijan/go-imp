@@ -95,9 +95,9 @@ punctuation, and don't use Markdown, HTML or other markup languages.
 
 #### Reference
 
-If the commit is related to an issue (most of the time it does), you can add a reference in the
-format `KEYWORD #ISSUE_NUMBER`. This
-helps [GitHub link](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
+If the commit is related to an issue (most of the time it does), you can add a reference in the format
+`KEYWORD #ISSUE_NUMBER`. This helps
+[GitHub link](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 the commit to the appropriate issue and update its status.
 
 The recognized keywords are:
