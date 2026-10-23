@@ -1,23 +1,29 @@
 # Install
 
-`imp` is currently distributed with `go install`.
+Install the latest imp with mise or Go.
 
-## Requirements
+=== "mise"
 
-Install a supported version of the [Go toolchain](https://go.dev/dl/).
+    Install and [activate mise](https://mise.jdx.dev/getting-started.html), then run:
 
-## Install the main branch
+    ```sh
+    mise use -g github:smedijan/go-imp@latest
+    ```
 
-Until the first `imp` release is tagged, install the main branch:
+=== "Go"
 
-```sh
-go install github.com/smedijan/go-imp/cmd/imp@main
-```
+    Go 1.25+:
 
-Make sure `$(go env GOPATH)/bin` (or `$(go env GOBIN)`, if set) is on your `PATH`. Verify the installation with:
+    ```sh
+    go install github.com/smedijan/go-imp/cmd/imp@latest
+    ```
+
+    Make sure `$(go env GOPATH)/bin` (or `GOBIN`, if set) is on your `PATH`.
+
+Verify the installation:
 
 ```sh
 imp --help
 ```
 
-Homebrew packages and pre-built binary releases are not available yet.
+[Run your first meta-test :material-arrow-right:](quick-start.md){ .md-button .md-button--primary }

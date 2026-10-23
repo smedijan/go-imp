@@ -13,6 +13,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go install github.com/smedijan/go-imp/cmd/imp@main
+      - run: go install github.com/smedijan/go-imp/cmd/imp@latest
       - run: imp run --silent
 ```

@@ -1,8 +1,8 @@
 site_name: imp
 repo_url: https://github.com/smedijan/go-imp
 edit_uri: edit/main/docs/docs
-site_description: A mutation testing tool for Go.
-copyright: Documentation adapted from the original project; licensed under CC BY-SA 4.0.
+site_description: Meta-testing for Go. Find weak tests and hard-to-test code, and keep coding agents focused on behavior—not just coverage.
+copyright: Copyright &copy; The imp authors. Documentation licensed under CC BY-SA 4.0.
 repo_name: smedijan/go-imp
 extra_css:
   - assets/stylesheets/extra.css
@@ -12,16 +12,24 @@ theme:
   logo: assets/images/imp-logo.png
   favicon: assets/images/favicon.png
   language: en
+  font: false
   palette:
-    primary: blue
-    accent: red
+    scheme: slate
+    primary: custom
+    accent: custom
   features:
     - search.suggest
     - search.highlight
     - search.share
     - content.code.annotate
     - content.tabs.link
+    - content.code.copy
     - navigation.indexes
+    - navigation.tabs
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - toc.follow
 extra:
   social:
     - icon: fontawesome/brands/github-alt
@@ -55,6 +63,7 @@ nav:
       - Continuous integration:
           - usage/ci/github-action.md
           - usage/ci/docker.md
+  - FAQ: faq.md
   - Contributing: CONTRIBUTING.md
 
 plugins:

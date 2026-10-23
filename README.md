@@ -6,15 +6,18 @@
   <img src="docs/docs/assets/images/imp-logo.png" alt="imp — mutation testing for Go" width="320">
 </p>
 
-`imp` is a mutation-testing tool for Go that helps developers—and coding agents—write more testable code and stronger
-tests. It introduces small, realistic changes to your code and reports which ones your test suite catches.
+`imp` is meta-testing for Go: it tests whether your tests catch broken behavior. It introduces small, realistic
+faults into your code and reports which ones your suite misses. Find weak assertions, missing edge cases, and
+hard-to-test code—and keep coding agents focused on correctness, not just green checkmarks.
+
+Coverage tells you which code ran. imp helps you find out whether your tests would notice if it were wrong.
 
 ## Install
 
-Requires Go. Until the first `imp` release, install the main branch with:
+Install the latest release with:
 
 ```sh
-go install github.com/smedijan/go-imp/cmd/imp@main
+go install github.com/smedijan/go-imp/cmd/imp@latest
 ```
 
 Then run it from a Go module:
@@ -23,11 +26,23 @@ Then run it from a Go module:
 imp run
 ```
 
-See [the installation guide](docs/docs/install.md) and [usage documentation](docs/docs/index.md).
+See the [installation guide](docs/docs/install.md) for mise and Go options.
+Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/docs/faq.md).
+
+## Documentation
+
+Documentation tracks the latest imp; there are no versioned docs. The site uses
+[Zensical](https://zensical.org/), with the existing `docs/mkdocs.yml` configuration format.
+The tasks resolve the latest available Zensical release:
+
+```sh
+mise run docs-serve  # Live preview at http://127.0.0.1:8000
+mise run docs-build  # Strict production build
+```
 
 ## License
 
-The source code is licensed under [Apache-2.0](LICENSE). Carried-over documentation remains under
+The source code is licensed under [Apache-2.0](LICENSE). Documentation by the imp authors is licensed under
 [CC BY-SA 4.0](http://creativecommons.org/licenses/by-sa/4.0/).
 
 ---
