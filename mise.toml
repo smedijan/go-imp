@@ -1,6 +1,6 @@
 [tools]
-go = "1.25"
-golangci-lint = "2.14.0"
+go = "1.27"
+golangci-lint = "2.15"
 goreleaser = "2"
 hk = "2.5.0"
 actionlint = "latest"
