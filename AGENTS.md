@@ -167,6 +167,7 @@ internal/
 
 ## Quality Standards
 
+- Sign off every commit (`git commit -s`); CI rejects commits without a `Signed-off-by` footer.
 - Go 1.21+ required
 - Comprehensive linter configuration (`.golangci.yml`) with 30+
   enabled rules
