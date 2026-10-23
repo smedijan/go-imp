@@ -36,8 +36,8 @@ run = "go clean && rm -rf dist && rm -f coverage.out"
 
 [tasks.docs-serve]
 description = "Serve the documentation locally with live reload"
-run = "uv run --with-requirements docs/requirements.txt mkdocs serve --config-file docs/mkdocs.yml --dev-addr 127.0.0.1:8000"
+run = "uv run --upgrade --with-requirements docs/requirements.txt zensical serve --config-file docs/mkdocs.yml --dev-addr 127.0.0.1:8000"
 
 [tasks.docs-build]
 description = "Build the documentation site"
-run = "uv run --with-requirements docs/requirements.txt mkdocs build --config-file docs/mkdocs.yml --strict"
+run = "uv run --upgrade --with-requirements docs/requirements.txt zensical build --config-file docs/mkdocs.yml --strict"

@@ -6,11 +6,11 @@ copyright: Documentation adapted from the original project; licensed under CC BY
 repo_name: smedijan/go-imp
 extra_css:
   - assets/stylesheets/extra.css
+# Zensical supports this configuration format natively; no MkDocs dependency.
 theme:
-  name: material
+  variant: classic
   logo: assets/images/imp-logo.png
   favicon: assets/images/favicon.png
-  custom_dir: overrides
   language: en
   palette:
     primary: blue
@@ -22,19 +22,11 @@ theme:
     - content.code.annotate
     - content.tabs.link
     - navigation.indexes
-  # Don't include MkDocs' JavaScript
-  include_search_page: false
-  search_index_only: true
 extra:
   social:
     - icon: fontawesome/brands/github-alt
       link: https://github.com/smedijan/go-imp
       name: GitHub
-  version:
-    provider: mike
-  release:
-    full_version: !ENV [IMP_FULL_VERSION, 'X.Y.Z']
-    short_version: !ENV [IMP_SHORT_VERSION, 'X.Y']
 
 nav:
   - Home: index.md
@@ -66,7 +58,6 @@ nav:
   - Contributing: CONTRIBUTING.md
 
 plugins:
-  - macros
   - search
 
 markdown_extensions:
@@ -90,8 +81,8 @@ markdown_extensions:
   - pymdownx.caret
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:zensical.extensions.emoji.twemoji
+      emoji_generator: !!python/name:zensical.extensions.emoji.to_svg
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.keys
