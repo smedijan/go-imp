@@ -90,7 +90,11 @@ jobs:
           version: v2.19.0
           args: check
       - name: Build release snapshot
-        run: goreleaser release --snapshot --clean
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --snapshot --clean
 
   test:
     name: Tests with coverage
