@@ -31,7 +31,7 @@ Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/d
 
 ## Documentation
 
-The [website](https://smedijan.github.io/go-imp/) has installation, usage, and configuration guides.
+The [website](https://imp.smedijan.se/) has installation, usage, and configuration guides.
 
 Documentation tracks the latest imp; there are no versioned docs. The site uses
 [Zensical](https://zensical.org/), with the existing `docs/mkdocs.yml` configuration format.
