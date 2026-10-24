@@ -31,6 +31,8 @@ Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/d
 
 ## Documentation
 
+The [website](https://smedijan.github.io/go-imp/) has installation, usage, and configuration guides.
+
 Documentation tracks the latest imp; there are no versioned docs. The site uses
 [Zensical](https://zensical.org/), with the existing `docs/mkdocs.yml` configuration format.
 The tasks resolve the latest available Zensical release:
@@ -47,5 +49,5 @@ The source code is licensed under [Apache-2.0](LICENSE). Documentation by the im
 
 ---
 
-`imp` is an independent continuation of [go-gremlins/gremlins](https://github.com/go-gremlins/gremlins), with its Git
-history preserved.
+`imp` is an independent continuation of [go-gremlins/gremlins](https://github.com/go-gremlins/gremlins), helping
+developers and coding agents build Go test suites that catch behavioral regressions.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema",
-  "$id": "https://imp.dev/schema/configuration.json",
+  "$id": "https://smedijan.github.io/go-imp/schema/configuration.json",
   "title": "The imp configuration schema",
   "type": "object",
   "properties": {

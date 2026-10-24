@@ -1,4 +1,5 @@
 site_name: imp
+site_url: https://smedijan.github.io/go-imp/
 repo_url: https://github.com/smedijan/go-imp
 edit_uri: edit/main/docs/docs
 site_description: Meta-testing for Go. Find weak tests and hard-to-test code, and keep coding agents focused on behavior—not just coverage.

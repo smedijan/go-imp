@@ -14,7 +14,7 @@ python = "3.13"
 uv = "latest"
 
 [env]
-PINACT_GITHUB_TOKEN = "{{ env.MISE_GITHUB_TOKEN }}"
+PINACT_GITHUB_TOKEN = "{{ get_env(name='PINACT_GITHUB_TOKEN', default=get_env(name='MISE_GITHUB_TOKEN', default='')) }}"
 
 [tasks.all]
 description = "Run all hk checks and build imp"
