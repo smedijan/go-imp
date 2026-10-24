@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/go-gremlins/gremlins/internal/log"
+	"github.com/smedijan/go-imp/internal/log"
 )
 
 func TestUninitialised(t *testing.T) {

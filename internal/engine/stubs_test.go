@@ -26,10 +26,10 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/engine/workerpool"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/engine/workerpool"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 var viperMutex sync.RWMutex
@@ -63,13 +63,16 @@ func loadFixture(fixture, fromPackage string) (fstest.MapFS, gomodule.GoModule, 
 		filename: {Data: src},
 	}
 
-	return mapFS, gomodule.GoModule{
-			Name:       "example.com",
-			Root:       ".",
-			CallingDir: fromPackage,
-		}, func() {
-			_ = f.Close()
-		}
+	module := gomodule.GoModule{
+		Name:       "example.com",
+		Root:       ".",
+		CallingDir: fromPackage,
+	}
+	cleanup := func() {
+		_ = f.Close()
+	}
+
+	return mapFS, module, cleanup
 }
 
 func filenameFromFixture(fix string) string {

@@ -28,51 +28,51 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 // This is the list of the keys available in config files and as flags.
 const (
-	GremlinsSilentKey            = "silent"
-	UnleashDryRunKey             = "unleash.dry-run"
-	UnleashOutputStatusesKey     = "unleash.output-statuses"
-	UnleashOutputKey             = "unleash.output"
-	UnleashTagsKey               = "unleash.tags"
-	UnleashCoverPkgKey           = "unleash.coverpkg"
-	UnleashWorkersKey            = "unleash.workers"
-	UnleashTestCPUKey            = "unleash.test-cpu"
-	UnleashTimeoutCoefficientKey = "unleash.timeout-coefficient"
-	UnleashIntegrationMode       = "unleash.integration"
-	UnleashExcludeFiles          = "unleash.exclude-files"
-	UnleashDiffRef               = "unleash.diff"
-	UnleashThresholdEfficacyKey  = "unleash.threshold.efficacy"
-	UnleashThresholdMCoverageKey = "unleash.threshold.mutant-coverage"
-	UnleashOutputDiffStatusesKey = "unleash.output-diff-statuses"
+	ImpSilentKey             = "silent"
+	RunDryRunKey             = "run.dry-run"
+	RunOutputStatusesKey     = "run.output-statuses"
+	RunOutputKey             = "run.output"
+	RunTagsKey               = "run.tags"
+	RunCoverPkgKey           = "run.coverpkg"
+	RunWorkersKey            = "run.workers"
+	RunTestCPUKey            = "run.test-cpu"
+	RunTimeoutCoefficientKey = "run.timeout-coefficient"
+	RunIntegrationMode       = "run.integration"
+	RunExcludeFiles          = "run.exclude-files"
+	RunDiffRef               = "run.diff"
+	RunThresholdEfficacyKey  = "run.threshold.efficacy"
+	RunThresholdMCoverageKey = "run.threshold.mutant-coverage"
+	RunOutputDiffStatusesKey = "run.output-diff-statuses"
 )
 
 const (
-	gremlinsCfgName      = ".gremlins"
-	gremlinsEnvVarPrefix = "GREMLINS"
+	impCfgName      = ".imp"
+	impEnvVarPrefix = "IMP"
 
 	xdgConfigHomeKey = "XDG_CONFIG_HOME"
 
 	windowsOs = "windows"
 )
 
-// Init initializes the viper configuration for Gremlins.
+// Init initializes the viper configuration for imp.
 //
-// It sets the configuration file name as .gremlins.yaml, adds the passed paths as ConfigPaths
-// AutomaticEnv configuration having GREMLINS as prefix.
+// It sets the configuration file name as .imp.yaml, adds the passed paths as ConfigPaths
+// AutomaticEnv configuration having IMP as prefix.
 // The environment variables take precedence over the configuration file and must be set in the
 // format:
 //
-//	GREMLINS_<COMMAND NAME>_<FLAG NAME>
+//	IMP_<COMMAND NAME>_<FLAG NAME>
 func Init(cPaths []string) error {
 	replacer := strings.NewReplacer(".", "_", "-", "_")
 	viper.SetEnvKeyReplacer(replacer)
-	viper.SetEnvPrefix(gremlinsEnvVarPrefix)
+	viper.SetEnvPrefix(impEnvVarPrefix)
 	viper.AutomaticEnv()
-	viper.SetConfigName(gremlinsCfgName)
+	viper.SetConfigName(impCfgName)
 	viper.SetConfigType("yaml")
 
 	if isSpecificFile(cPaths) {
@@ -122,7 +122,7 @@ func defaultConfigPaths() []string {
 
 	// First global config
 	if runtime.GOOS != windowsOs {
-		result = append(result, "/etc/gremlins")
+		result = append(result, "/etc/imp")
 	}
 
 	// Then $XDG_CONFIG_HOME
@@ -130,11 +130,11 @@ func defaultConfigPaths() []string {
 	if x := os.Getenv(xdgConfigHomeKey); x != "" {
 		xchLocation = x
 	}
-	xchLocation = filepath.Join(xchLocation, "gremlins", "gremlins")
+	xchLocation = filepath.Join(xchLocation, "imp", "imp")
 	result = append(result, xchLocation)
 
 	// Then $HOME
-	homeLocation, err := homedir.Expand("~/.gremlins")
+	homeLocation, err := homedir.Expand("~/.imp")
 	if err != nil {
 		return result
 	}

@@ -26,12 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/engine/workdir"
-	"github.com/go-gremlins/gremlins/internal/engine/workerpool"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/internal/log"
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/engine/workdir"
+	"github.com/smedijan/go-imp/internal/engine/workerpool"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/log"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 // DefaultTimeoutCoefficient is the default multiplier for the timeout length
@@ -76,11 +76,11 @@ func WithExecContext(c execContext) ExecutorDealerOption {
 
 // NewExecutorDealer initialises a MutantExecutorDealer.
 func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.Duration, opts ...ExecutorDealerOption) *MutantExecutorDealer {
-	buildTags := configuration.Get[string](configuration.UnleashTagsKey)
-	dryRun := configuration.Get[bool](configuration.UnleashDryRunKey)
-	integrationMode := configuration.Get[bool](configuration.UnleashIntegrationMode)
-	testCPU := configuration.Get[int](configuration.UnleashTestCPUKey)
-	tCoefficient := configuration.Get[int](configuration.UnleashTimeoutCoefficientKey)
+	buildTags := configuration.Get[string](configuration.RunTagsKey)
+	dryRun := configuration.Get[bool](configuration.RunDryRunKey)
+	integrationMode := configuration.Get[bool](configuration.RunIntegrationMode)
+	testCPU := configuration.Get[int](configuration.RunTestCPUKey)
+	tCoefficient := configuration.Get[int](configuration.RunTimeoutCoefficientKey)
 
 	coefficient := DefaultTimeoutCoefficient
 	if tCoefficient != 0 {
@@ -231,7 +231,7 @@ func (m *mutantExecutor) getTestArgs(pkg string) []string {
 	if m.buildTags != "" {
 		args = append(args, "-tags", m.buildTags)
 	}
-	// Here we add some seconds to the timeout to be sure it's gremlins that catches the test
+	// Here we add some seconds to the timeout to be sure it's imp that catches the test
 	// timeout and not the test itself. The timeout on the test prevents the test.* processes
 	// from hanging forever.
 	args = append(args, "-timeout", (2*time.Second + m.testExecutionTime).String())

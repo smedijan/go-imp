@@ -71,7 +71,7 @@ func (ms Status) String() string {
 // or `>=` in case of ConditionalsNegation.
 type Type int
 
-// The currently supported Type in Gremlins.
+// The currently supported Type in imp.
 const (
 	ArithmeticBase Type = iota
 	ConditionalsBoundary

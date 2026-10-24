@@ -1,0 +1,27 @@
+[global]
+line-length = 120
+flavor = "mkdocs"
+disable = [
+    "MD001",
+    "MD007",
+    "MD012",
+    "MD014",
+    "MD024",
+    "MD025",
+    "MD026",
+    "MD031",
+    "MD033",
+    "MD034",
+    "MD039",
+    "MD040",
+    "MD041",
+    "MD042",
+    "MD047",
+    "MD064",
+    "MD076",
+]
+fixable = ["MD013"]
+
+[MD013]
+line-length = 120
+reflow = true

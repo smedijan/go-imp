@@ -1,0 +1,45 @@
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
+
+local fast_checks = new Mapping<String, Step> {
+    ["go-fmt"] = Builtins.go_fmt
+    ["go-vet"] = Builtins.go_vet
+    ["go-lint"] = Builtins.golangci_lint
+    ["go-test"] {
+        glob = "**/*.go"
+        check = "go test -race ./..."
+    }
+    ["go-mod-tidy"] = Builtins.gomod_tidy
+    ["markdown-lint"] = Builtins.rumdl
+    ["markdown-format"] = Builtins.rumdl_format
+    ["actionlint"] = Builtins.actionlint
+    ["pinact"] = Builtins.pinact
+    ["zizmor"] = Builtins.zizmor
+}
+
+local full_checks = (fast_checks) {
+    ["go-sec"] = (Builtins.go_sec) {
+        check = new Config.CommandSpec {
+            command = "gosec -quiet ./..."
+            effect = "write"
+        }
+    }
+    ["go-vuln-check"] = (Builtins.go_vuln_check) {
+        glob = "**/*.go"
+    }
+}
+
+steps = fast_checks
+
+hooks {
+    ["pre-push"] {
+        steps = full_checks
+    }
+    ["commit-msg"] {
+        steps {
+            ["conventional-commit"] = Builtins.check_conventional_commit
+        }
+    }
+}

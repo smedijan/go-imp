@@ -27,11 +27,11 @@ import (
 	"github.com/fatih/color"
 	"github.com/hako/durafmt"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/execution"
-	"github.com/go-gremlins/gremlins/internal/log"
-	"github.com/go-gremlins/gremlins/internal/mutator"
-	"github.com/go-gremlins/gremlins/internal/report/internal"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/execution"
+	"github.com/smedijan/go-imp/internal/log"
+	"github.com/smedijan/go-imp/internal/mutator"
+	"github.com/smedijan/go-imp/internal/report/internal"
 )
 
 var (
@@ -151,7 +151,7 @@ func reportMutatorType(m mutator.Mutator, rep *reportStatus) {
 }
 
 func (*reportStatus) isDryRun() bool {
-	return configuration.Get[bool](configuration.UnleashDryRunKey)
+	return configuration.Get[bool](configuration.RunDryRunKey)
 }
 
 func (r *reportStatus) reportFindings() {
@@ -164,7 +164,7 @@ func (r *reportStatus) reportFindings() {
 }
 
 func (r *reportStatus) fileReport() {
-	if output := configuration.Get[string](configuration.UnleashOutputKey); output != "" {
+	if output := configuration.Get[string](configuration.RunOutputKey); output != "" {
 		files := make([]internal.OutputFile, 0, len(r.files))
 		for fName, mutations := range r.files {
 			of := internal.OutputFile{Filename: fName}
@@ -231,16 +231,16 @@ func (r *reportStatus) assess(tEfficacy, rCoverage float64) error {
 		return nil
 	}
 
-	et := configuration.Get[float64](configuration.UnleashThresholdEfficacyKey)
+	et := configuration.Get[float64](configuration.RunThresholdEfficacyKey)
 	if et == 0 {
-		et = float64(configuration.Get[int](configuration.UnleashThresholdEfficacyKey))
+		et = float64(configuration.Get[int](configuration.RunThresholdEfficacyKey))
 	}
 	if et > 0 && tEfficacy <= et {
 		return execution.NewExitErr(execution.EfficacyThreshold)
 	}
-	ct := configuration.Get[float64](configuration.UnleashThresholdMCoverageKey)
+	ct := configuration.Get[float64](configuration.RunThresholdMCoverageKey)
 	if ct == 0 {
-		ct = float64(configuration.Get[int](configuration.UnleashThresholdMCoverageKey))
+		ct = float64(configuration.Get[int](configuration.RunThresholdMCoverageKey))
 	}
 	if ct > 0 && rCoverage <= ct {
 		return execution.NewExitErr(execution.MutantCoverageThreshold)
@@ -250,7 +250,7 @@ func (r *reportStatus) assess(tEfficacy, rCoverage float64) error {
 }
 
 // Do generates the report of the Results received.
-// This function uses the log package in gremlins to write to the
+// This function uses the log package in imp to write to the
 // chosen io.Writer, so it is necessary to call log.Init before
 // the report generation.
 func Do(results Results) error {
@@ -267,7 +267,7 @@ func Do(results Results) error {
 
 // Mutant logs a mutator.Mutator.
 // It reports the mutant.Status, the mutator.Type and its position.
-// This function uses the log package in gremlins to write to the
+// This function uses the log package in imp to write to the
 // chosen io.Writer, so it is necessary to call log.Init before
 // the report generation.
 func Mutant(m mutator.Mutator) {
@@ -288,7 +288,7 @@ func Mutant(m mutator.Mutator) {
 }
 
 // MutantDiff logs the unified diff between the original and mutated code snippets.
-// This function uses the log package in gremlins to write to the
+// This function uses the log package in imp to write to the
 // chosen io.Writer, so it is necessary to call log.Init before
 // the report generation.
 func MutantDiff(m mutator.Mutator) {

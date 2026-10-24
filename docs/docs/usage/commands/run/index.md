@@ -1,23 +1,22 @@
-# Unleash
+# Run
 
-The main command used in Gremlins is `unleash`, that _unleashes_ the _gremlins_ and starts a mutation test of your code.
-If `unleash` is too long to type for you, you can use its aliases `run` and `r`.
+The `run` command performs mutation testing on your code. Use `imp r` as a shorthand.
 
 To execute a mutation testing run just type
 
 ```shell
-gremlins unleash
+imp run
 ```
 
 If the module build requires tags
 
 ```shell
-gremlins unleash --tags "tag1,tag2"
+imp run --tags "tag1,tag2"
 ```
 
 ## Flags
 
-`unleash` supports several flags to fine tune its behaviour.
+`run` supports several flags to fine tune its behaviour.
 
 ### Arithmetic base
 
@@ -26,7 +25,7 @@ gremlins unleash --tags "tag1,tag2"
 Enables/disables the [ARITHMETIC BASE](../../mutations/arithmetic_base.md) mutant type.
 
 ```shell
-gremlins unleash --arithmetic-base=false
+imp run --arithmetic-base=false
 ```
 
 ### Conditionals-boundary
@@ -36,7 +35,7 @@ gremlins unleash --arithmetic-base=false
 Enables/disables the [CONDITIONALS BOUNDARY](../../mutations/conditionals_boundary.md) mutant type.
 
 ```shell
-gremlins unleash --conditionals_boundary=false
+imp run --conditionals_boundary=false
 ```
 
 ### Conditionals negation
@@ -46,7 +45,7 @@ gremlins unleash --conditionals_boundary=false
 Enables/disables the [CONDITIONALS NEGATION](../../mutations/conditionals_negation.md) mutant type.
 
 ```shell
-gremlins unleash --conditionals_negation=false
+imp run --conditionals_negation=false
 ```
 
 ### Cover packages
@@ -57,7 +56,7 @@ Apply coverage analysis in each test to packages matching the patterns.
 The default is for each test to analyze only the package being tested.
 
 ```shell
-gremlins unleash --coverpkg "./internal/...,./pkg/..."
+imp run --coverpkg "./internal/...,./pkg/..."
 ```
 
 ### Exclude files
@@ -71,13 +70,13 @@ If a file path matches a regular expression, it is skipped from execution and th
 The default is to skip only test files.
 
 ```shell
-gremlins unleash --exclude-files "_(gen|wrap).go"
+imp run --exclude-files "_(gen|wrap).go"
 ```
 
 You can provide a few rules. File is skipped if matches any regexp.
 
 ```shell
-gremlins unleash -E "_(gen|wrap).go$" -E "^(generate|wrap)/" -E "internal/super_old/"
+imp run -E "_(gen|wrap).go$" -E "^(generate|wrap)/" -E "internal/super_old/"
 ```
 
 ### Diff
@@ -90,19 +89,19 @@ The default is each mutant covered by tests.
 #### Branch merge base
 
 ```shell
-gremlins unleash --diff "origin/main"
+imp run --diff "origin/main"
 ```
 
 #### Commit
 
 ```shell
-gremlins unleash --diff "b62af323"
+imp run --diff "b62af323"
 ```
 
 #### PR
 
 ```shell
-gremlins unleash --diff "origin/$GITHUB_BASE_REF"
+imp run --diff "origin/$GITHUB_BASE_REF"
 ```
 
 Use `actions/checkout@v4` with `fetch-depth: 0` to fetch all history.
@@ -114,7 +113,7 @@ Use `actions/checkout@v4` with `fetch-depth: 0` to fetch all history.
 Just performs the analysis but not the mutation testing.
 
 ```shell
-gremlins unleash --dry-run
+imp run --dry-run
 ```
 
 ### Statuses output
@@ -122,7 +121,7 @@ gremlins unleash --dry-run
 :material-flag: `--output-statuses`/`-S` · :material-sign-direction: Default: empty - show all
 
 Filters stdout to print only statuses from flag. Useful to filter important findings in big project output.
-Alternative to `gremlins r | grep LIVED` configured from file.
+Alternative to `imp r | grep LIVED` configured from file.
 
 Flag do not change json file and stats report content.
 
@@ -131,7 +130,7 @@ Flag do not change json file and stats report content.
 #### Show only `LIVED` and `NOT COVERED`
 
 ```shell
-gremlins unleash --output-statuses "lc"
+imp run --output-statuses "lc"
 ```
 
 Output
@@ -144,7 +143,7 @@ Output
 #### Filter out out `SKIPPED`, `KILLED`.
 
 ```shell
-gremlins unleash --S lctv
+imp run --S lctv
 ```
 
 Output
@@ -182,7 +181,7 @@ This flag works in combination with `--output-statuses`: a mutant that is hidden
 ##### Show diff for survived mutants
 
 ```shell
-gremlins unleash --output-diff-statuses l
+imp run --output-diff-statuses l
 ```
 
 Output
@@ -196,7 +195,7 @@ Output
 ##### Show diff for both lived and killed mutants
 
 ```shell
-gremlins unleash --output-diff-statuses lk
+imp run --output-diff-statuses lk
 ```
 
 ### Filter letters
@@ -211,18 +210,18 @@ gremlins unleash --output-diff-statuses lk
 Enables/disables the [INCREMENT DECREMENT](../../mutations/increment_decrement.md) mutant type.
 
 ```shell
-gremlins unleash --increment-decrement=false
+imp run --increment-decrement=false
 ```
 
 ### Integration mode
 
 :material-flag:`--integration`/`-i` · :material-sign-direction: Default: false
 
-In _normal mode_, Gremlins executes only the tests of the packages where the mutant is found.
+In _normal mode_, imp executes only the tests of the packages where the mutant is found.
 This is done to optimize the performance, running less test cases for each mutation.
 
 The drawback of this approach lies in the fact that if a mutation in a package influences the tests
-of another package, this is not caught by Gremlins. In general, this is an acceptable drawback
+of another package, this is not caught by imp. In general, this is an acceptable drawback
 because packages should rely on their own tests, not on the tests of other packages.
 
 Nonetheless, there may be cases where you may want to run all the test suite for each mutation, for
@@ -231,7 +230,7 @@ However, you should be aware that integration mode is generally much slower, and
 slightly different results depending on your test suite.
 
 ```shell
-gremlins unleash --integration
+imp run --integration
 ```
 
 ### Invert assignments
@@ -241,7 +240,7 @@ gremlins unleash --integration
 Enables/disables the [INVERT ASSIGNMENTS](../../mutations/invert_assignments.md) mutant type.
 
 ```shell
-gremlins unleash --invert-assignments
+imp run --invert-assignments
 ```
 
 ### Invert bitwise
@@ -251,7 +250,7 @@ gremlins unleash --invert-assignments
 Enables/disables the [INVERT BITWISE](../../mutations/invert_bitwise.md) mutant type.
 
 ```shell
-gremlins unleash --invert-bitwise
+imp run --invert-bitwise
 ```
 
 ### Invert bitwise assignments
@@ -261,7 +260,7 @@ gremlins unleash --invert-bitwise
 Enables/disables the [INVERT BWASSIGN](../../mutations/invert_bitwise_assignments.md) mutant type.
 
 ```shell
-gremlins unleash --invert-bwassign
+imp run --invert-bwassign
 ```
 
 ### Invert logical operators
@@ -271,7 +270,7 @@ gremlins unleash --invert-bwassign
 Enables/disables the [INVERT LOGICAL](../../mutations/invert_logical.md) mutant type.
 
 ```shell
-gremlins unleash --invert_logical
+imp run --invert_logical
 ```
 
 ### Invert loop control
@@ -281,7 +280,7 @@ gremlins unleash --invert_logical
 Enables/disables the [INVERT LOOP](../../mutations/invert_loop.md) mutant type.
 
 ```shell
-gremlins unleash --invert-loopctrl
+imp run --invert-loopctrl
 ```
 
 ### Invert negatives
@@ -291,17 +290,17 @@ gremlins unleash --invert-loopctrl
 Enables/disables the [INVERT NEGATIVES](../../mutations/invert_negatives.md) mutant type.
 
 ```shell
-gremlins unleash --invert_negatives=false
+imp run --invert_negatives=false
 ```
 
 ### Output
 
 :material-flag: `--output`/`-o` · :material-sign-direction: Default: empty
 
-When set, Gremlins will write the give output file with machine readable results.
+When set, imp will write the give output file with machine readable results.
 
 ```shell
-gremlins unleash --output=output.json
+imp run --output=output.json
 ```
 
 The output file in JSON format and has the following structure:
@@ -310,7 +309,7 @@ The output file in JSON format and has the following structure:
 
 ```json
 {
-  "go_module": "github.com/go-gremlins/gremlins",
+  "go_module": "github.com/smedijan/go-imp",
   "test_efficacy": 82.00,
   //(1)
   "mutations_coverage": 80.00,
@@ -358,7 +357,7 @@ The output file in JSON format and has the following structure:
 Enables/disables the [REMOVE_SELF ASSIGNMENTS](../../mutations/remove_self_assignments.md) mutant type.
 
 ```shell
-gremlins unleash --remove-self-assignments
+imp run --remove-self-assignments
 ```
 
 ### Tags
@@ -368,7 +367,7 @@ gremlins unleash --remove-self-assignments
 Sets the `go` command build tags.
 
 ```shell
-gremlins unleash --tags "tag1,tag2"
+imp run --tags "tag1,tag2"
 ```
 
 ### Test CPU
@@ -380,38 +379,38 @@ gremlins unleash --tags "tag1,tag2"
     To understand better the use of these flag, check [workers](workers.md)
 [//]: # (@formatter:on)
 
-This flag overrides the number of CPUs the Go test tool will utilize. By default, Gremlins doesn't set this value.
+This flag overrides the number of CPUs the Go test tool will utilize. By default, imp doesn't set this value.
 
 ```shell
-gremlins unleash --test-cpu=1
+imp run --test-cpu=1
 ```
 
 ### Threshold efficacy
 
 :material-flag: `--threshold-efficacy` · :material-sign-direction: Default: 0
 
-When set, it makes Gremlins exit with an error (code 10) if the _test efficacy_ threshold is not met. By default it is
+When set, it makes imp exit with an error (code 10) if the _test efficacy_ threshold is not met. By default it is
 zero, which
-means Gremlins never exits with an error.
+means imp never exits with an error.
 
 The _test efficacy_ is calculated as `KILLED / (KILLED + LIVED)` and assesses how effective are the tests.
 
 ```shell
-gremlins unleash --threshold-efficacy 80
+imp run --threshold-efficacy 80
 ```
 
 ### Threshold mutant coverage
 
 :material-flag: `--threshold-mcover` · :material-sign-direction: Default: 0
 
-When set, it makes Gremlins exit with an error (code 11) if the _mutant coverage_ threshold is not met. By default
-it is zero, which means Gremlins never exits with an error.
+When set, it makes imp exit with an error (code 11) if the _mutant coverage_ threshold is not met. By default
+it is zero, which means imp never exits with an error.
 
 The _mutant coverage_ is calculated as `(KILLED + LIVED) / (KILLED + LIVED + NOT_COVERED)` and assesses how many mutants
 are covered by tests.
 
 ```shell
-gremlins unleash --threshold-mcover 80
+imp run --threshold-mcover 80
 ```
 
 ### Timeout coefficient
@@ -424,20 +423,20 @@ Default: `0` (uses default value of `5`)
     To understand better the use of these flag, check [workers](workers.md)
 [//]: # (@formatter:on)
 
-Gremlins determines the timeout for each Go test run by multiplying by a
+imp determines the timeout for each Go test run by multiplying by a
 coefficient the time it took to perform the coverage run. The default
 coefficient is `5`, which can be overridden with this flag (`0` means use
 the default).
 
 To ensure reasonable timeouts even when the coverage run is very fast,
-Gremlins enforces a minimum base timeout of 1 second before applying the
+imp enforces a minimum base timeout of 1 second before applying the
 coefficient. For example:
 
 - Coverage run takes 500ms → timeout = max(500ms, 1s) × 5 = 5 seconds
 - Coverage run takes 2s → timeout = 2s × 5 = 10 seconds
 
 ```shell
-gremlins unleash --timeout-coefficient=10
+imp run --timeout-coefficient=10
 ```
 
 [//]: # (@formatter:off)
@@ -465,14 +464,14 @@ gremlins unleash --timeout-coefficient=10
     To understand better the use of these flag, check [workers](workers.md)
 [//]: # (@formatter:on)
 
-Gremlins runs in parallel mode, which means that more than one test at a time will be performed, based on the number of
+imp runs in parallel mode, which means that more than one test at a time will be performed, based on the number of
 CPU cores available.
 
-By default, Gremlins will use all the available CPU cores of, and , in _integration mode_, it will use half of the
+By default, imp will use all the available CPU cores of, and , in _integration mode_, it will use half of the
 available CPU cores.
 
 The `--workers` flag allows to override the number of CPUs to use (`0` means use the default).
 
 ```shell
-gremlins unleash --workers=4
+imp run --workers=4
 ```

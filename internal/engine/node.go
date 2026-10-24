@@ -29,7 +29,7 @@ type NodeToken struct {
 }
 
 // NewTokenNode checks if the ast.Node implementation is supported by
-// Gremlins and gets its Tok/Op and relative position.
+// imp and gets its Tok/Op and relative position.
 // It returns false as second parameter if the implementation is not
 // supported.
 func NewTokenNode(n ast.Node) (*NodeToken, bool) {

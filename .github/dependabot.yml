@@ -3,6 +3,12 @@ updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
-      interval: daily
-    labels:
-      - "c/dependencies"
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

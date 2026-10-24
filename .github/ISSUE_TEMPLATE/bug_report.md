@@ -3,7 +3,6 @@ name: 'Bug report'
 about: 'Create a report to help us improve'
 title: '[bug] '
 labels: 'c/bug, c/to-triage'
-assignees: k3rn31
 
 ---
 
@@ -20,7 +19,7 @@ A clear and concise description of what the bug is.
 Steps to reproduce the behavior:
 
 1. Go to '...'
-2. Execute Gremlins on '...'
+2. Execute imp on '...'
 3. Scroll down to '....'
 
 ### Found behaviour

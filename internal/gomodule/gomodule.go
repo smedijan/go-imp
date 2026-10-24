@@ -25,11 +25,11 @@ import (
 	"path/filepath"
 )
 
-// GoModule represents the current execution context in Gremlins.
+// GoModule represents the current execution context in imp.
 //
-//	Name is the module name of the Go module being tested by Gremlins.
+//	Name is the module name of the Go module being tested by imp.
 //	Root is the root folder of the Go module.
-//	CallingDir is the folder in which Gremlins is running.
+//	CallingDir is the folder in which imp is running.
 type GoModule struct {
 	Name       string
 	Root       string

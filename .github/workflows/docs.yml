@@ -1,68 +1,62 @@
-name: Documentation
+name: Publish docs
 
 on:
   push:
-    branches: [ 'main' ]
-  workflow_call:
-    inputs:
-      version:
-        description: The version tag (v0.1.2)
-        required: false
-        type: string
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  documentation:
-    name: Build documentation
-    permissions:
-      contents: write
+  build:
+    name: Build docs
     runs-on: ubuntu-latest
-    env:
-      GR_VERSION_TAG: ${{ inputs.version || 'next' }}
-    if: ${{ github.event_name != 'pull_request' }}
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: '0'
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: 3.x
-      - run: git fetch origin gh-pages --depth=1
-      - run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-      - run: |
-          pip install \
-            mkdocs-material \
-            mkdocs-macros-plugin \
-            mike
-      - name: Set version env
-        if: ${{ env.GR_VERSION_TAG != 'next' }}
-        # v1.2.3 ->
-        #   GR_FULL_VERSION=1.2.3
-        #   GR_SHORT_VERSION=1.2
-        #   GR_PATCH_VERSION=2
+          python-version: '3.13'
+      - name: Build documentation
         run: |
-          echo "GR_FULL_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -c2-)" >> $GITHUB_ENV
-          echo "GR_SHORT_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -d '.' -f 1,2 | cut -c2-)" >> $GITHUB_ENV
-          echo "GR_PATCH_VERSION=$(echo $GR_VERSION_TAG | cut -d '/' -f 3 | cut -d '.' -f 3)" >> $GITHUB_ENV
-        # If it is a major or minor, we mark it as latest and default.
-      - if: ${{ env.GR_PATCH_VERSION == '0' && env.GR_VERSION_TAG != 'next' }}
-        run: |
-          mike deploy --update-aliases --push ${{ env.GR_SHORT_VERSION }} latest
-          mike list
-        working-directory: docs
-        # If it is a patch, we don't set it at latest
-      - if: ${{ env.GR_PATCH_VERSION != '0' && env.GR_VERSION_TAG != 'next' }}
-        run: |
-          mike deploy --update-aliases --push ${{ env.GR_SHORT_VERSION }}
-          mike list
-        working-directory: docs
-      - if: ${{ env.GR_VERSION_TAG == 'next' }}
-        run: |
-          mike deploy --update-aliases --push next
-          mike list
-        working-directory: docs
-      - run: |
-          mike set-default --push latest
-          mike list
-        working-directory: docs
+          python -m pip install --upgrade pip
+          python -m pip install -r docs/requirements.txt
+          zensical build --config-file docs/mkdocs.yml --strict
+      - name: Upload site artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: docs/site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

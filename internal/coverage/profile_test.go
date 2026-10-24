@@ -20,7 +20,7 @@ import (
 	"go/token"
 	"testing"
 
-	"github.com/go-gremlins/gremlins/internal/coverage"
+	"github.com/smedijan/go-imp/internal/coverage"
 )
 
 func TestIsCovered(t *testing.T) {

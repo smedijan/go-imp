@@ -21,9 +21,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/engine/workerpool"
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/engine/workerpool"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 type ExecutorMock struct {
@@ -70,7 +70,7 @@ func TestWorker(t *testing.T) {
 
 func TestPool(t *testing.T) {
 	t.Run("test executes work", func(t *testing.T) {
-		configuration.Set(configuration.UnleashWorkersKey, 1)
+		configuration.Set(configuration.RunWorkersKey, 1)
 		defer configuration.Reset()
 
 		outCh := make(chan mutator.Mutator)
@@ -101,7 +101,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("default uses runtime CPUs as number of workers", func(t *testing.T) {
-		configuration.Set(configuration.UnleashWorkersKey, 0)
+		configuration.Set(configuration.RunWorkersKey, 0)
 		defer configuration.Reset()
 
 		pool := workerpool.Initialize("test")
@@ -114,8 +114,8 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("default uses half of runtime CPUs as number of workers in integration mode", func(t *testing.T) {
-		configuration.Set(configuration.UnleashWorkersKey, 0)
-		configuration.Set(configuration.UnleashIntegrationMode, true)
+		configuration.Set(configuration.RunWorkersKey, 0)
+		configuration.Set(configuration.RunIntegrationMode, true)
 		defer configuration.Reset()
 
 		pool := workerpool.Initialize("test")
@@ -128,7 +128,7 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("can override CPUs", func(t *testing.T) {
-		configuration.Set(configuration.UnleashWorkersKey, 3)
+		configuration.Set(configuration.RunWorkersKey, 3)
 		defer configuration.Reset()
 
 		pool := workerpool.Initialize("test")
@@ -141,8 +141,8 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("in integration mode, overrides CPUs by half", func(t *testing.T) {
-		configuration.Set(configuration.UnleashWorkersKey, 2)
-		configuration.Set(configuration.UnleashIntegrationMode, true)
+		configuration.Set(configuration.RunWorkersKey, 2)
+		configuration.Set(configuration.RunIntegrationMode, true)
 		defer configuration.Reset()
 
 		pool := workerpool.Initialize("test")

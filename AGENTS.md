@@ -3,72 +3,49 @@ working with code in this repository.
 
 ## Project Overview
 
-Gremlins is a mutation testing tool for Go that validates test
+imp is a mutation testing tool for Go that validates test
 effectiveness by introducing mutations to source code and verifying if
 tests catch them. It works best on small to medium-sized Go modules
 (microservices).
 
 ## Essential Commands
 
-### Build & Test
+### Build, test & quality checks
 
 ```bash
-# Build the binary
-make build                    # Creates dist/bin/gremlins
+# Install pinned tools and install Git hooks
+mise install
+hk install
 
-# Run all tests with race detector
-make test                     # go test -race ./...
+# Run local checks on changed files, or all files
+hk check
+hk check --all
 
-# Run specific package tests
+# Run the full quality, test, and build workflow
+mise run all
+
+# Run individual tasks not covered by hk checks
+mise run build          # Creates dist/bin/imp
+mise run cover          # Creates coverage.out
+mise run goimports
+mise run clean
+
+# Run focused tests
 go test -race ./internal/engine/...
-
-# Run single test
 go test -race ./internal/engine/ -run TestEngineFindMutations
-
-# Generate coverage report
-make cover                    # Creates coverage.out
 ```
 
-### Linting & Formatting
-
-```bash
-# Run linter (golangci-lint)
-make lint
-
-# Format imports (with local package priority)
-make goimports
-
-# Fix struct field alignment
-make fieldalignment
-```
-
-### Running Gremlins
+### Running imp
 
 ```bash
 # Basic mutation testing
-gremlins unleash              # Or: gremlins run, gremlins r
+imp run              # Or: imp r
 
 # Dry-run mode (find mutations without testing)
-gremlins unleash --dry-run    # Or: -d
+imp run --dry-run    # Or: -d
 
 # Configuration file
-# Uses .gremlins.yaml in project root
-```
-
-### Development Workflow
-
-```bash
-# Install required tools
-make requirements
-
-# Full development cycle
-make all                      # lint + test + build
-
-# Create snapshot release
-make snap                     # lint + test + snapshot
-
-# Clean build artifacts
-make clean
+# Uses .imp.yaml in project root
 ```
 
 ## Architecture
@@ -115,7 +92,7 @@ make clean
 
 **Configuration (`internal/configuration/`)**
 
-- Manages settings via flags, config file (.gremlins.yaml), and
+- Manages settings via flags, config file (.imp.yaml), and
   environment
 - Uses Viper for configuration handling
 - Controls which mutation types are enabled
@@ -124,7 +101,7 @@ make clean
 
 **Mutation Testing Flow:**
 
-1. `cmd/unleash.go` → `run()` initializes components
+1. `cmd/run.go` → `run()` initializes components
 2. Coverage analysis determines testable code
 3. `Engine.Run()` walks file tree, parses Go AST
 4. For each token, check `TokenMutantType` mapping for applicable
@@ -148,7 +125,7 @@ make clean
 4. Implement mutation logic in `internal/engine/tokenmutator.go`
    (`ApplyMutation`)
 5. Add configuration key in `internal/configuration/`
-6. Update flag registration in `cmd/unleash.go`
+6. Update flag registration in `cmd/run.go`
 
 ### Important Patterns
 
@@ -174,7 +151,7 @@ make clean
 ## Module Structure
 
 ```text
-cmd/                    - CLI commands (main.go, unleash.go, cobra setup)
+cmd/                    - CLI commands (main.go, run.go, cobra setup)
 internal/
   configuration/        - Config handling (Viper-based)
   coverage/            - Test coverage analysis
@@ -190,9 +167,10 @@ internal/
 
 ## Quality Standards
 
+- Sign off every commit (`git commit -s`); CI rejects commits without a `Signed-off-by` footer.
 - Go 1.21+ required
 - Comprehensive linter configuration (`.golangci.yml`) with 30+
   enabled rules
-- Test coverage tracked (Codecov integration)
+
 - All commits must pass: lint, tests, build
-- Mutation testing runs on itself (`.gremlins.yaml` configured)
+- Mutation testing runs on itself (`.imp.yaml` configured)

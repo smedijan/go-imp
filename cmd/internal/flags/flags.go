@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-// Package flags provides common command-line flag definitions for Gremlins commands.
+// Package flags provides common command-line flag definitions for imp commands.
 package flags
 
 import (

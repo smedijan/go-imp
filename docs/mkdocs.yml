@@ -1,42 +1,41 @@
-site_name: Gremlins
-site_url: https://gremlins.dev
-repo_url: https://github.com/go-gremlins/gremlins
+site_name: imp
+site_url: https://imp.smedijan.se/
+repo_url: https://github.com/smedijan/go-imp
 edit_uri: edit/main/docs/docs
-site_description: A mutation testing tool for Go.
-copyright: Made with ❤️ by Gremlins contributors. <span xmlns:cc="http://creativecommons.org/ns#" >This work is licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/?ref=chooser-v1" target="_blank" rel="license noopener noreferrer" style="display:inline-block;">CC BY-SA 4.0<img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/cc.svg?ref=chooser-v1"><img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/by.svg?ref=chooser-v1"><img style="height:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/sa.svg?ref=chooser-v1"></a></span>
-repo_name: go-gremlins/gremlins
+site_description: Meta-testing for Go. Find weak tests and hard-to-test code, and keep coding agents focused on behavior—not just coverage.
+copyright: Copyright &copy; The imp authors. Documentation licensed under CC BY-SA 4.0.
+repo_name: smedijan/go-imp
+extra_css:
+  - assets/stylesheets/extra.css
+# Zensical supports this configuration format natively; no MkDocs dependency.
 theme:
-  name: material
-  logo: assets/images/logo.png
+  variant: classic
+  logo: assets/images/imp-logo.png
   favicon: assets/images/favicon.png
-  custom_dir: overrides
   language: en
+  font: false
   palette:
-    primary: cyan
-    accent: amber
+    scheme: slate
+    primary: custom
+    accent: custom
   features:
     - search.suggest
     - search.highlight
     - search.share
     - content.code.annotate
     - content.tabs.link
+    - content.code.copy
     - navigation.indexes
-  # Don't include MkDocs' JavaScript
-  include_search_page: false
-  search_index_only: true
+    - navigation.tabs
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - toc.follow
 extra:
   social:
     - icon: fontawesome/brands/github-alt
-      link: https://github.com/go-gremlins
+      link: https://github.com/smedijan/go-imp
       name: GitHub
-    - icon: fontawesome/brands/docker
-      link: https://hub.docker.com/r/gogremlins/gremlins
-      name: Docker
-  version:
-    provider: mike
-  release:
-    full_version: !ENV [GR_FULL_VERSION, 'X.Y.Z']
-    short_version: !ENV [GR_SHORT_VERSION, 'X.Y']
 
 nav:
   - Home: index.md
@@ -45,9 +44,9 @@ nav:
   - Usage:
       - Commands:
           - usage/commands/index.md
-          - Unleash:
-            - usage/commands/unleash/index.md
-            - usage/commands/unleash/workers.md
+          - Run:
+            - usage/commands/run/index.md
+            - usage/commands/run/workers.md
       - usage/configuration.md
       - Mutations:
           - usage/mutations/index.md
@@ -65,10 +64,10 @@ nav:
       - Continuous integration:
           - usage/ci/github-action.md
           - usage/ci/docker.md
+  - FAQ: faq.md
   - Contributing: CONTRIBUTING.md
 
 plugins:
-  - macros
   - search
 
 markdown_extensions:
@@ -92,8 +91,8 @@ markdown_extensions:
   - pymdownx.caret
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:zensical.extensions.emoji.twemoji
+      emoji_generator: !!python/name:zensical.extensions.emoji.to_svg
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.keys

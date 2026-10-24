@@ -24,11 +24,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/go-gremlins/gremlins/configuration"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/pkg/coverage"
-	"github.com/go-gremlins/gremlins/pkg/mutant"
-	"github.com/go-gremlins/gremlins/pkg/mutator"
+	"github.com/smedijan/go-imp/configuration"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/pkg/coverage"
+	"github.com/smedijan/go-imp/pkg/mutant"
+	"github.com/smedijan/go-imp/pkg/mutator"
 )
 
 const (
@@ -247,7 +247,7 @@ func TestMutations(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			viperSet(map[string]any{configuration.UnleashDryRunKey: true})
+			viperSet(map[string]any{configuration.RunDryRunKey: true})
 			defer viperReset()
 
 			mapFS, mod, c := loadFixture(tc.fixture, ".")
@@ -292,7 +292,7 @@ func TestMutantSkipDisabled(t *testing.T) {
 			defer c()
 
 			viperSet(map[string]any{
-				configuration.UnleashDryRunKey:         true,
+				configuration.RunDryRunKey:         true,
 				configuration.MutantTypeEnabledKey(mt): false,
 			})
 			defer viperReset()
@@ -324,7 +324,7 @@ func TestSkipTestAndNonGoFiles(t *testing.T) {
 		Root:       ".",
 		CallingDir: ".",
 	}
-	viperSet(map[string]any{configuration.UnleashDryRunKey: true})
+	viperSet(map[string]any{configuration.RunDryRunKey: true})
 	defer viperReset()
 	mut := mutator.New(mod, coverage.Result{}, newJobDealerStub(t), mutator.WithDirFs(sys))
 	res := mut.Run(context.Background())
@@ -374,8 +374,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -420,8 +420,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -466,8 +466,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -512,8 +512,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -558,8 +558,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -604,8 +604,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -649,8 +649,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -694,8 +694,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -739,8 +739,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -784,8 +784,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -829,8 +829,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -874,8 +874,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -919,8 +919,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -964,8 +964,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -1009,8 +1009,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -1054,8 +1054,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -1099,8 +1099,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)
@@ -1144,8 +1144,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)

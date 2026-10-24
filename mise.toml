@@ -1,3 +1,46 @@
 [tools]
-go = "1.25"
-golangci-lint = "2"
+go = "1.27"
+golangci-lint = "2.15"
+hk = "2.5.0"
+rumdl = "latest"
+actionlint = "latest"
+shellcheck = "latest"
+pinact = "latest"
+zizmor = "latest"
+"go:github.com/securego/gosec/v2/cmd/gosec" = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+python = "3.13"
+uv = "latest"
+
+[env]
+PINACT_GITHUB_TOKEN = "{{ get_env(name='PINACT_GITHUB_TOKEN', default=get_env(name='MISE_GITHUB_TOKEN', default='')) }}"
+
+[tasks.all]
+description = "Run all hk checks and build imp"
+depends = ["build"]
+run = "hk check --all"
+
+[tasks.build]
+description = "Build imp to dist/bin/imp"
+run = "mkdir -p dist/bin && go build -o dist/bin/imp ./cmd/imp"
+
+[tasks.cover]
+description = "Run tests with race detection and write coverage.out"
+run = "go test -race -covermode=atomic -cover -coverprofile=coverage.out ./..."
+
+[tasks.goimports]
+description = "Format Go imports"
+run = "goimports --local 'github.com/smedijan/go-imp' -v -w ."
+
+[tasks.clean]
+description = "Remove Go build artifacts and coverage output"
+run = "go clean && rm -rf dist && rm -f coverage.out"
+
+[tasks.docs-serve]
+description = "Serve the documentation locally with live reload"
+run = "uv run --upgrade --with-requirements docs/requirements.txt zensical serve --config-file docs/mkdocs.yml --dev-addr 127.0.0.1:8000"
+
+[tasks.docs-build]
+description = "Build the documentation site"
+run = "uv run --upgrade --with-requirements docs/requirements.txt zensical build --config-file docs/mkdocs.yml --strict"

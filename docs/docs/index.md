@@ -1,39 +1,44 @@
-![Gremlins mascotte](assets/images/gremlins_mascotte.png){ align=right }
+---
+title: Test your tests
+hide:
+  - navigation
+  - toc
+---
 
-# Welcome to Gremlins
+<div class="imp-hero" markdown>
 
-Gremlins is a mutation testing tool for Go. It has been made to work well on _smallish_ Go modules, for example
-_microservices_, on which it helps validate the test suite, aids the TDD process and can be used as a CI quality gate.
+![imp](assets/images/imp-logo.png){ .imp-hero-logo width="160" height="160" }
 
-As of now, Gremlins doesn't work very well on very big Go modules, mainly because a run can take hours to complete.
+# Test your tests.
 
-![](assets/images/gremlins-term.webp)
+Mutation testing for Go. Find weak tests and missed behavior—and keep coding agents focused on code that works,
+not just tests that pass.
 
-[//]: # (@formatter:off)
-!!! warning
-    Gremlins is still in its 0.x.x release, which, as per SemVer, doesn't guarantee backward compatibility. What this 
-    means for Gremlins is that configuration flags and/or configuration files can change among minor releases. This may
-    be important if you use Gremlins in automated builds, for example in _continuous integration_ pipelines.
+[Get started :material-arrow-right:](install.md){ .md-button .md-button--primary }
+[See the workflow](quick-start.md){ .md-button }
 
-    Also, while in 0.x.x releases, only the current minor release will be maintained; if we are in v0.2.0, no patch
-    releases will be provided for the v0.1.0 line.
-    Once Gremlins will reach it's 1.x.x release, it will start to be backward compatible, and we'll decide how many
-    releases to maintain at the same time (ex. up to two minors before, as Go itself does).
+</div>
 
-[//]: # (@formatter:on)
+<div class="grid cards" markdown>
 
-## What is Mutation Testing
+-   :material-test-tube: **Find tests that don't test enough**
 
-Code coverage is unreliable as a measure of test quality. It is too easy to have tests that exercise a piece of code but
-don't test anything at all. Mutation testing works by mutating the code exercised by the tests and verifying if the
-mutation is caught by the test suite. Imagine gremlins going into your code and messing around: will your test suit
-catch their damage?
+    ---
 
-## Features
+    Spot missing assertions and untested boundaries, even in code your coverage report marks as covered.
 
-- Discovers mutant candidates and tests them
-- Only tests mutants covered by tests
-- Can test mutants only in PR changes
-- Supports five mutant types
-- Yaml-based configuration
-- Can run as quality gate on CI
+-   :material-robot-outline: **Give agents actionable feedback**
+
+    ---
+
+    Use surviving mutations as concrete review tasks. Ask the agent to explain the behavior before changing
+    code or tests.
+
+-   :material-code-braces: **Improve the code, too**
+
+    ---
+
+    Hard-to-test behavior can expose tangled responsibilities, unnecessary branches, or unclear contracts.
+    Sometimes the right fix is a simpler design.
+
+</div>

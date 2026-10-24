@@ -1,3 +1,3 @@
-unleash:
+run:
   dry-run: true
   tags: tag1.2,tag2.2,tag3.2

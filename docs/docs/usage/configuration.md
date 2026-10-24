@@ -1,6 +1,6 @@
 # Configuration
 
-Gremlins can be configured via (in order of precedence):
+imp can be configured via (in order of precedence):
 
 1. command flags
 2. environment variables
@@ -13,17 +13,17 @@ command documentation to learn how to use them.
 
 ## Configuration files
 
-Gremlins can be configured with a configuration file.
+imp can be configured with a configuration file.
 
 ### Location
 
 The configuration file can be placed in (in order of precedence)
 
-1. `./.gremlins.yaml` (the current directory)
+1. `./.imp.yaml` (the current directory)
 2. The module root
-3. `/etc/gremlins/.gremlins.yaml`
-4. `$XDG_CONFIG_HOME/gremlins/.gremlins.yaml`
-5. `$HOME/.gremlins.yaml`
+3. `/etc/imp/.imp.yaml`
+4. `$XDG_CONFIG_HOME/imp/.imp.yaml`
+5. `$HOME/.imp.yaml`
 
 [//]: # (@formatter:off)
 !!! hint
@@ -36,7 +36,7 @@ The configuration file can be placed in (in order of precedence)
 The config file can be overridden with the `--config` flag.
 
 ```shell
-gremlins unleash --config=myConfig.yaml
+imp run --config=myConfig.yaml
 ```
 
 ### Reference
@@ -45,7 +45,7 @@ Here is a complete configuration file with all the properties set to their defau
 
 ```yaml
 silent: false
-unleash:
+run:
   integration: false
   dry-run: false
   tags: ""
@@ -86,7 +86,7 @@ mutants:
 
 ```
 
-1. By default `0`, which means that Gremlins will use the system CPUs number.
+1. By default `0`, which means that imp will use the system CPUs number.
 2. By default `0`, which means that no test process CPU will be enforced.
 3. By default `0`, which means a default coefficient of `5` will be enforced.
 4. Thresholds are set by default to `0`, which means they are not enforced.
@@ -97,14 +97,14 @@ For further information check the specific command documentation.
 [//]: # (@formatter:off)
 !!! tip
     You can validate the configuration file using the provided JSON Schema (ex. using it in your editor). The schema
-    can be found at [{{ config.site_url }}/schema/configuration.json]({{ config.site_url }}/schema/configuration.json). 
+    can be found at [the configuration schema](../schema/configuration.json).
 
 [//]: # (@formatter:on)
 
 ## Environment variables
 
-Gremlins can be configured via environment variables as well. You can construct the variable name referring to the
-configuration file format. They start with `GREMLINS_`, and each dot and dash becomes an underscore.
+imp can be configured via environment variables as well. You can construct the variable name referring to the
+configuration file format. They start with `IMP_`, and each dot and dash becomes an underscore.
 
 For example:
 
@@ -117,5 +117,5 @@ mutants:
 Can be set with:
 
 ```shell
-export GREMLINS_MUTANTS_ARITHMETIC_BASE=true
+export IMP_MUTANTS_ARITHMETIC_BASE=true
 ```

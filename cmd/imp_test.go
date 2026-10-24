@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestGremlins(t *testing.T) {
+func TestRootCommand(t *testing.T) {
 	const boolType = "bool"
 
 	c, err := newRootCmd(context.Background(), "1.2.3")
@@ -30,6 +30,10 @@ func TestGremlins(t *testing.T) {
 	}
 	_ = c.execute()
 	cmd := c.cmd
+
+	if cmd.Use != "imp" {
+		t.Errorf("expected command name %q, got %q", "imp", cmd.Use)
+	}
 
 	if cmd.Version != "1.2.3" {
 		t.Errorf("expected %q, got %q", "1.2.3", cmd.Version)

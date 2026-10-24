@@ -24,12 +24,12 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/coverage"
-	"github.com/go-gremlins/gremlins/internal/diff"
-	"github.com/go-gremlins/gremlins/internal/engine"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/coverage"
+	"github.com/smedijan/go-imp/internal/diff"
+	"github.com/smedijan/go-imp/internal/engine"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 const (
@@ -497,7 +497,7 @@ func TestMutations(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			viperSet(map[string]any{configuration.UnleashDryRunKey: true})
+			viperSet(map[string]any{configuration.RunDryRunKey: true})
 			defer viperReset()
 
 			mapFS, mod, c := loadFixture(tc.fixture, ".")
@@ -542,7 +542,7 @@ func TestMutantSkipDisabled(t *testing.T) {
 			defer c()
 
 			viperSet(map[string]any{
-				configuration.UnleashDryRunKey:         true,
+				configuration.RunDryRunKey:             true,
 				configuration.MutantTypeEnabledKey(mt): false,
 			})
 			defer viperReset()
@@ -566,7 +566,7 @@ func TestDisablingOneMutantTypeDoesNotDisableOthersForSameToken(t *testing.T) {
 	defer c()
 
 	viperSet(map[string]any{
-		configuration.UnleashDryRunKey:                                   true,
+		configuration.RunDryRunKey:                                       true,
 		configuration.MutantTypeEnabledKey(mutator.ConditionalsBoundary): false,
 		configuration.MutantTypeEnabledKey(mutator.ConditionalsNegation): true,
 	})
@@ -606,7 +606,7 @@ func TestSkipTestAndNonGoFiles(t *testing.T) {
 		Root:       ".",
 		CallingDir: ".",
 	}
-	viperSet(map[string]any{configuration.UnleashDryRunKey: true})
+	viperSet(map[string]any{configuration.RunDryRunKey: true})
 	defer viperReset()
 	mut := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(sys))
 	res := mut.Run(context.Background())
@@ -629,7 +629,7 @@ func TestSkipNotDiffMutants(t *testing.T) {
 		Root:       ".",
 		CallingDir: ".",
 	}
-	viperSet(map[string]any{configuration.UnleashDryRunKey: true})
+	viperSet(map[string]any{configuration.RunDryRunKey: true})
 	defer viperReset()
 
 	codeData := engine.CodeData{Diff: diff.Diff{
@@ -688,8 +688,8 @@ func TestPackageDiscovery(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         "tag1 tag2",
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         "tag1 tag2",
 			})
 			defer viperReset()
 			mapFS, mod, c := loadFixture(defaultFixture, tc.fromPkg)

@@ -28,11 +28,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/engine"
-	"github.com/go-gremlins/gremlins/internal/engine/workerpool"
-	"github.com/go-gremlins/gremlins/internal/gomodule"
-	"github.com/go-gremlins/gremlins/internal/mutator"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/engine"
+	"github.com/smedijan/go-imp/internal/engine/workerpool"
+	"github.com/smedijan/go-imp/internal/gomodule"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
 
 func TestApplyAndRollback(t *testing.T) {
@@ -155,7 +155,7 @@ func TestMutatorTestExecution(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			viperSet(map[string]any{configuration.UnleashDryRunKey: false})
+			viperSet(map[string]any{configuration.RunDryRunKey: false})
 			defer viperReset()
 			wdDealer := newWdDealerStub(t)
 			holder := &commandHolder{}
@@ -266,11 +266,11 @@ func TestMutatorRun(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			settings := map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTagsKey:         tc.tags,
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTagsKey:         tc.tags,
 			}
 			if tc.timeoutCoefficient != 0 {
-				settings[configuration.UnleashTimeoutCoefficientKey] = tc.timeoutCoefficient
+				settings[configuration.RunTimeoutCoefficientKey] = tc.timeoutCoefficient
 			}
 			viperSet(settings)
 			defer viperReset()
@@ -359,8 +359,8 @@ func TestCPU(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{
-				configuration.UnleashIntegrationMode: tc.intMode,
-				configuration.UnleashTestCPUKey:      tc.testCPU,
+				configuration.RunIntegrationMode: tc.intMode,
+				configuration.RunTestCPUKey:      tc.testCPU,
 			})
 			defer viperReset()
 
@@ -480,7 +480,7 @@ func TestMutatorRunInTheCorrectFolder(t *testing.T) {
 	})
 	t.Run("integration mode: mutation should run in the wd root folder", func(t *testing.T) {
 		viperSet(map[string]any{
-			configuration.UnleashIntegrationMode: true,
+			configuration.RunIntegrationMode: true,
 		})
 		defer viperReset()
 		callingDir := "test/dir"

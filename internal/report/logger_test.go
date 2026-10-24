@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/go-gremlins/gremlins/internal/configuration"
-	"github.com/go-gremlins/gremlins/internal/log"
-	"github.com/go-gremlins/gremlins/internal/mutator"
-	"github.com/go-gremlins/gremlins/internal/report"
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/log"
+	"github.com/smedijan/go-imp/internal/mutator"
+	"github.com/smedijan/go-imp/internal/report"
 )
 
 func Test_parseFilter(t *testing.T) {
@@ -127,19 +127,19 @@ func TestLogger(t *testing.T) {
 
 	m := stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
 
-	configuration.Set(configuration.UnleashOutputStatusesKey, "lp")
+	configuration.Set(configuration.RunOutputStatusesKey, "lp")
 	logger := report.NewLogger() // prints error
 
 	logger.Mutant(m) // prints Not covered because no filter
 
 	m.status = mutator.Killed
 
-	configuration.Set(configuration.UnleashOutputStatusesKey, "")
+	configuration.Set(configuration.RunOutputStatusesKey, "")
 	logger = report.NewLogger()
 
 	logger.Mutant(m) // prints Killed because no filter
 
-	configuration.Set(configuration.UnleashOutputStatusesKey, "l")
+	configuration.Set(configuration.RunOutputStatusesKey, "l")
 	logger = report.NewLogger()
 
 	logger.Mutant(m) // Killed filtered
@@ -167,8 +167,8 @@ func TestLoggerOutputStatusesAndDiffStatusesTogether(t *testing.T) {
 		log.Init(out, errOut)
 		defer log.Reset()
 
-		configuration.Set(configuration.UnleashOutputStatusesKey, "k")
-		configuration.Set(configuration.UnleashOutputDiffStatusesKey, "l")
+		configuration.Set(configuration.RunOutputStatusesKey, "k")
+		configuration.Set(configuration.RunOutputDiffStatusesKey, "l")
 		defer configuration.Reset()
 
 		logger := report.NewLogger()
@@ -193,8 +193,8 @@ func TestLoggerOutputStatusesAndDiffStatusesTogether(t *testing.T) {
 		log.Init(out, &bytes.Buffer{})
 		defer log.Reset()
 
-		configuration.Set(configuration.UnleashOutputStatusesKey, "k")
-		configuration.Set(configuration.UnleashOutputDiffStatusesKey, "k")
+		configuration.Set(configuration.RunOutputStatusesKey, "k")
+		configuration.Set(configuration.RunOutputDiffStatusesKey, "k")
 		defer configuration.Reset()
 
 		logger := report.NewLogger()
@@ -231,7 +231,7 @@ func TestLoggerOutputDiffStatuses(t *testing.T) {
 		out := &bytes.Buffer{}
 		log.Init(out, &bytes.Buffer{})
 		defer log.Reset()
-		configuration.Set(configuration.UnleashOutputDiffStatusesKey, "l")
+		configuration.Set(configuration.RunOutputDiffStatusesKey, "l")
 		defer configuration.Reset()
 
 		logger := report.NewLogger()
@@ -250,7 +250,7 @@ func TestLoggerOutputDiffStatuses(t *testing.T) {
 		out := &bytes.Buffer{}
 		log.Init(out, &bytes.Buffer{})
 		defer log.Reset()
-		configuration.Set(configuration.UnleashOutputDiffStatusesKey, "k")
+		configuration.Set(configuration.RunOutputDiffStatusesKey, "k")
 		defer configuration.Reset()
 
 		logger := report.NewLogger()
