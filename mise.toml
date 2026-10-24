@@ -13,6 +13,9 @@ zizmor = "latest"
 python = "3.13"
 uv = "latest"
 
+[env]
+PINACT_GITHUB_TOKEN = "{{ env.MISE_GITHUB_TOKEN }}"
+
 [tasks.all]
 description = "Run all hk checks and build imp"
 depends = ["build"]
