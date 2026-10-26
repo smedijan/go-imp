@@ -121,6 +121,7 @@ func newDocument(results Results, ordered []mutator.Mutator, options Options) in
 	document := internal.OutputResult{
 		SchemaVersion: 1, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
+		TestEfficacy: 100, MutationsCoverage: 100,
 		SelectedStatuses:  make([]string, 0, len(options.Statuses)),
 		Groups:            make(map[string]map[string][]internal.Mutation),
 		MutatorStatistics: make(map[string]int),
