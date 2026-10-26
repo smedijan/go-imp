@@ -26,22 +26,22 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/fatih/color"
-
 	"github.com/smedijan/go-imp/cmd"
-	"github.com/smedijan/go-imp/internal/execution"
 	"github.com/smedijan/go-imp/internal/log"
 )
 
 var version = "dev"
 
 func main() {
-	var exitErr *execution.ExitError
+	var exitErr interface {
+		error
+		ExitCode() int
+	}
 	var exitCode int
 	defer func() {
 		os.Exit(exitCode)
 	}()
-	log.Init(color.Output, color.Error)
+	log.Init(os.Stderr)
 	ctx := ctxDoneOnSignal()
 	err := cmd.Execute(ctx, buildVersion(version))
 	if err != nil {
@@ -50,6 +50,9 @@ func main() {
 	}
 	if errors.As(err, &exitErr) {
 		exitCode = exitErr.ExitCode()
+	}
+	if errors.Is(err, context.Canceled) {
+		exitCode = 130
 	}
 }
 

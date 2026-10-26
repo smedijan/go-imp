@@ -26,6 +26,15 @@ Then run it from a Go module:
 imp run
 ```
 
+Use grouped JSON for agents and scripts, with optional status filtering:
+
+```sh
+imp run --json --statuses lived,not-covered --output findings.json
+```
+
+Omit `--output` to write the selected format to stdout. Counts and quality gates
+always describe the whole run, even when findings are filtered.
+
 See the [installation guide](docs/docs/install.md) for mise and Go options.
 Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/docs/faq.md).
 

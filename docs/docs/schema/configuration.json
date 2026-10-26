@@ -4,14 +4,39 @@
   "title": "The imp configuration schema",
   "type": "object",
   "properties": {
+    "quiet": {
+      "title": "Quiet mode",
+      "description": "Suppress interactive progress, never the report or errors",
+      "type": "boolean",
+      "default": false
+    },
+    "no-color": {
+      "title": "Disable color",
+      "description": "Disable ANSI colors in reports and diagnostics",
+      "type": "boolean",
+      "default": false
+    },
     "run": {
       "type": "object",
       "properties": {
-        "silent": {
-          "title": "Silent mode",
-          "description": "All the STDOUT output is suppressed",
+        "json": {
+          "title": "JSON report",
+          "description": "Write grouped JSON instead of human-readable text",
           "type": "boolean",
           "default": false
+        },
+        "verbose": {
+          "title": "Verbose report",
+          "description": "Expand source context and test commands for every selected status in human output",
+          "type": "boolean",
+          "default": false
+        },
+        "statuses": {
+          "title": "Selected statuses",
+          "description": "Comma-separated lived, not-covered, timed-out, runnable, killed, skipped, not-viable; empty selects all. Filters findings in every format, not aggregate metrics.",
+          "type": "string",
+          "default": "",
+          "examples": ["lived,not-covered", "killed"]
         },
         "dry-run": {
           "title": "Dry-run mode",
@@ -39,7 +64,7 @@
         },
         "output": {
           "title": "Output",
-          "description": "The output file for machine readable results",
+          "description": "Destination for the selected report format; empty or - means stdout. Does not infer format from the filename.",
           "type": "string",
           "default": "",
           "examples": [

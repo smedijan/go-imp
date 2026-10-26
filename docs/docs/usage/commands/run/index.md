@@ -1,477 +1,230 @@
 # Run
 
-The `run` command performs mutation testing on your code. Use `imp r` as a shorthand.
-
-To execute a mutation testing run just type
+`imp run [path]` tests how effectively a Go module's tests detect mutations. `imp r`
+is a shorthand. Without a path, imp uses the current directory.
 
 ```shell
 imp run
+imp run --statuses lived,not-covered
+imp run --statuses killed --verbose
+imp run --json | jq '.groups.LIVED'
+imp run --json --statuses lived --output survivors.json
+imp run --dry-run --json
 ```
 
-If the module build requires tags
+Help groups flags into **Reporting**, **Scope**, **Execution**, **Quality gates**
+and **Mutation operators**. Run `imp run --help` for the full flag list.
+
+## Reporting
+
+### Human output
+
+The default report groups findings by status, then file, with source locations and
+mutation operators. All nonempty status groups are included, in triage order:
+survivors, uncovered code, timeouts, runnable mutants, killed, skipped and invalid mutants.
+The run summary follows the findings at the bottom of the report.
+
+Short source diffs are shown for survivors and uncovered code. Survivor test commands
+are included when available. Use `--verbose` / `-v` to expand source diffs and test
+commands for every selected status. Commands describe package or integration scope,
+build tags, CPU and timeout options; they do not attribute results to individual tests.
+
+Counts for every status and efficacy/coverage rates describe the whole run. Survivors
+require judgment: equivalent mutations and intentional behavior are possible.
+
+### JSON
+
+`--json` selects grouped JSON instead of human-readable text. It writes exactly one
+JSON document, without progress messages, ANSI escapes or source snippets.
 
 ```shell
-imp run --tags "tag1,tag2"
+imp run --json --statuses lived,not-covered | jq '.groups'
 ```
 
-## Flags
-
-`run` supports several flags to fine tune its behaviour.
-
-### Arithmetic base
-
-:material-flag: `--arithmetic-base` · :material-sign-direction: Default: `true`
-
-Enables/disables the [ARITHMETIC BASE](../../mutations/arithmetic_base.md) mutant type.
-
-```shell
-imp run --arithmetic-base=false
-```
-
-### Conditionals-boundary
-
-:material-flag: `--conditionals-boundary` · :material-sign-direction: Default: `true`
-
-Enables/disables the [CONDITIONALS BOUNDARY](../../mutations/conditionals_boundary.md) mutant type.
-
-```shell
-imp run --conditionals_boundary=false
-```
-
-### Conditionals negation
-
-:material-flag: `--conditionals-negation` · :material-sign-direction: Default: `true`
-
-Enables/disables the [CONDITIONALS NEGATION](../../mutations/conditionals_negation.md) mutant type.
-
-```shell
-imp run --conditionals_negation=false
-```
-
-### Cover packages
-
-:material-flag: `--coverpkg` · :material-sign-direction: Default: empty
-
-Apply coverage analysis in each test to packages matching the patterns.
-The default is for each test to analyze only the package being tested.
-
-```shell
-imp run --coverpkg "./internal/...,./pkg/..."
-```
-
-### Exclude files
-
-:material-flag: `--exclude-files/-E` · :material-sign-direction: Default: empty
-
-Allows to exclude generated or not important files.
-
-If a file path matches a regular expression, it is skipped from execution and threshold calculation.
-
-The default is to skip only test files.
-
-```shell
-imp run --exclude-files "_(gen|wrap).go"
-```
-
-You can provide a few rules. File is skipped if matches any regexp.
-
-```shell
-imp run -E "_(gen|wrap).go$" -E "^(generate|wrap)/" -E "internal/super_old/"
-```
-
-### Diff
-
-:material-flag: `--diff`/`-D` · :material-sign-direction: Default: empty
-
-Run tests only for mutants inside code changes between current state and git reference (branch or commit).
-The default is each mutant covered by tests.
-
-#### Branch merge base
-
-```shell
-imp run --diff "origin/main"
-```
-
-#### Commit
-
-```shell
-imp run --diff "b62af323"
-```
-
-#### PR
-
-```shell
-imp run --diff "origin/$GITHUB_BASE_REF"
-```
-
-Use `actions/checkout@v4` with `fetch-depth: 0` to fetch all history.
-
-### Dry run
-
-:material-flag:`--dry-run`/`-d` · :material-sign-direction: Default: false
-
-Just performs the analysis but not the mutation testing.
-
-```shell
-imp run --dry-run
-```
-
-### Statuses output
-
-:material-flag: `--output-statuses`/`-S` · :material-sign-direction: Default: empty - show all
-
-Filters stdout to print only statuses from flag. Useful to filter important findings in big project output.
-Alternative to `imp r | grep LIVED` configured from file.
-
-Flag do not change json file and stats report content.
-
-### Examples
-
-#### Show only `LIVED` and `NOT COVERED`
-
-```shell
-imp run --output-statuses "lc"
-```
-
-Output
-
-```
-       LIVED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
- NOT COVERED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
-```
-
-#### Filter out out `SKIPPED`, `KILLED`.
-
-```shell
-imp run --S lctv
-```
-
-Output
-
-```
-       LIVED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
- NOT COVERED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
-  NOT VIABLE CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
-   TIMED OUT CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
-```
-
-### Filter letters
-
-- `l` - LIVED
-- `c` - NOT COVERED
-- `t` - TIMED OUT
-- `k` - KILLED
-- `v` - NOT VIABLE
-- `s` - SKIPPED
-- `r` - RUNNABLE
-
-### Diff statuses output
-
-:material-flag: `--output-diff-statuses` · :material-sign-direction: Default: empty - no diffs shown
-
-Prints a unified diff of the original vs mutated code snippet for mutants whose status matches
-the filter. Only `l` (LIVED) and `k` (KILLED) are accepted — other statuses are not valid because
-diffs are only meaningful for mutants that were actually executed and had their source changed.
-
-This flag works in combination with `--output-statuses`: a mutant that is hidden by
-`--output-statuses` will produce no output at all — no status line and no diff.
-
-#### Examples
-
-##### Show diff for survived mutants
-
-```shell
-imp run --output-diff-statuses l
-```
-
-Output
-
-```
-       LIVED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3
-       -x > y
-       +x >= y
-```
-
-##### Show diff for both lived and killed mutants
-
-```shell
-imp run --output-diff-statuses lk
-```
-
-### Filter letters
-
-- `l` - LIVED
-- `k` - KILLED
-
-### Increment decrement
-
-:material-flag: `--increment-decrement` · :material-sign-direction: Default: `true`
-
-Enables/disables the [INCREMENT DECREMENT](../../mutations/increment_decrement.md) mutant type.
-
-```shell
-imp run --increment-decrement=false
-```
-
-### Integration mode
-
-:material-flag:`--integration`/`-i` · :material-sign-direction: Default: false
-
-In _normal mode_, imp executes only the tests of the packages where the mutant is found.
-This is done to optimize the performance, running less test cases for each mutation.
-
-The drawback of this approach lies in the fact that if a mutation in a package influences the tests
-of another package, this is not caught by imp. In general, this is an acceptable drawback
-because packages should rely on their own tests, not on the tests of other packages.
-
-Nonetheless, there may be cases where you may want to run all the test suite for each mutation, for
-example if you are analysing integration or E2E tests. In this scenario, you can enable _integration mode_.
-However, you should be aware that integration mode is generally much slower, and you can also get
-slightly different results depending on your test suite.
-
-```shell
-imp run --integration
-```
-
-### Invert assignments
-
-:material-flag: `--invert-assignments` · :material-sign-direction: Default: `false`
-
-Enables/disables the [INVERT ASSIGNMENTS](../../mutations/invert_assignments.md) mutant type.
-
-```shell
-imp run --invert-assignments
-```
-
-### Invert bitwise
-
-:material-flag: `--invert-bitwise` · :material-sign-direction: Default: `false`
-
-Enables/disables the [INVERT BITWISE](../../mutations/invert_bitwise.md) mutant type.
-
-```shell
-imp run --invert-bitwise
-```
-
-### Invert bitwise assignments
-
-:material-flag: `--invert-bwassign` · :material-sign-direction: Default: `false`
-
-Enables/disables the [INVERT BWASSIGN](../../mutations/invert_bitwise_assignments.md) mutant type.
-
-```shell
-imp run --invert-bwassign
-```
-
-### Invert logical operators
-
-:material-flag: `--invert-logical` · :material-sign-direction: Default: `false`
-
-Enables/disables the [INVERT LOGICAL](../../mutations/invert_logical.md) mutant type.
-
-```shell
-imp run --invert_logical
-```
-
-### Invert loop control
-
-:material-flag: `--invert-loopctrl` · :material-sign-direction: Default: `false`
-
-Enables/disables the [INVERT LOOP](../../mutations/invert_loop.md) mutant type.
-
-```shell
-imp run --invert-loopctrl
-```
-
-### Invert negatives
-
-:material-flag: `--invert-negatives` · :material-sign-direction: Default: `true`
-
-Enables/disables the [INVERT NEGATIVES](../../mutations/invert_negatives.md) mutant type.
-
-```shell
-imp run --invert_negatives=false
-```
-
-### Output
-
-:material-flag: `--output`/`-o` · :material-sign-direction: Default: empty
-
-When set, imp will write the give output file with machine readable results.
-
-```shell
-imp run --output=output.json
-```
-
-The output file in JSON format and has the following structure:
-
-[//]: # (@formatter:off)
+The schema has `schema_version: 1`. Findings are grouped by status and then filename,
+so status and filename are not repeated on every mutation. `test_command` is a string
+and is omitted when unavailable. Command arguments use POSIX shell quoting, preserving
+literal whitespace, quotes and shell metacharacters; they are not native PowerShell or
+`cmd.exe` command lines. The example below selects only survivors:
 
 ```json
 {
-  "go_module": "github.com/smedijan/go-imp",
-  "test_efficacy": 82.00,
-  //(1)
-  "mutations_coverage": 80.00,
-  //(2)
-  "mutants_total": 100,
-  "mutants_killed": 82,
-  "mutants_lived": 8,
-  "mutants_not_viable": 2,
-  //(3)
-  "mutants_not_covered": 10,
-  "elapsed_time": 123.456,
-  //(4)
-  "files": [
-    {
-      "file_name": "myFile.go",
-      "mutations": [
+  "schema_version": 1,
+  "go_module": "example.com/pkg",
+  "dry_run": false,
+  "selected_statuses": ["lived"],
+  "groups": {
+    "LIVED": {
+      "example.go": [
         {
-          "line": 10,
-          "column": 8,
-          "type": "CONDITIONALS_NEGATION",
-          "status": "KILLED"
+          "type": "CONDITIONALS_BOUNDARY",
+          "line": 12,
+          "column": 9,
+          "test_command": "go test -timeout 7s -failfast example.com/pkg"
         }
       ]
     }
-  ]
+  },
+  "test_efficacy": 50,
+  "mutations_coverage": 66.66666666666666,
+  "mutants_total": 3,
+  "mutants_killed": 1,
+  "mutants_lived": 1,
+  "mutants_not_viable": 0,
+  "mutants_not_covered": 1,
+  "mutants_timed_out": 0,
+  "mutants_skipped": 0,
+  "mutants_runnable": 0,
+  "elapsed_time": 2.345,
+  "mutator_statistics": {
+    "arithmetic_base": 1,
+    "conditionals_boundary": 1,
+    "conditionals_negation": 1
+  }
 }
 ```
 
-[//]: # (@formatter:on)
+JSON object key order is not significant. Findings within each file are sorted by
+location and operator, independent of worker completion order. Elapsed time is in
+seconds. Empty or unmatched results produce a valid report with `"groups": {}`.
 
-1. This is a percentage expressed as floating point number.
-2. This is a percentage expressed as floating point number.
-3. NOT VIABLE mutants are excluded from all the calculations.
-4. The elapsed time is expressed in seconds, expressed as floating point number.
+### Status filtering
 
-[//]: # (@formatter:off)
-!!! warning
-    The JSON output file is not _pretty printed_; it is optimised for machine reading.
-[//]: # (@formatter:on)
+`--statuses LIST` selects findings in **every output format and destination**. The
+comma-separated names are explicit rather than abbreviated letters. Default: all statuses.
 
-### Remove self-assignments
-
-:material-flag: `--remove-self-assignments` · :material-sign-direction: Default: `false`
-
-Enables/disables the [REMOVE_SELF ASSIGNMENTS](../../mutations/remove_self_assignments.md) mutant type.
-
-```shell
-imp run --remove-self-assignments
-```
-
-### Tags
-
-:material-flag: `--tags`/`-t` · :material-sign-direction: Default: empty
-
-Sets the `go` command build tags.
+| Flag value | Report group | Meaning |
+| --- | --- | --- |
+| `lived` | `LIVED` | Tests passed with the mutation |
+| `not-covered` | `NOT COVERED` | Coverage did not exercise the code; mutation not tested |
+| `timed-out` | `TIMED OUT` | Test execution exceeded the timeout |
+| `runnable` | `RUNNABLE` | Covered but not tested, for example during a dry run |
+| `killed` | `KILLED` | Tests detected the mutation |
+| `skipped` | `SKIPPED` | Outside the selected diff scope |
+| `not-viable` | `NOT VIABLE` | Mutation could not be built or executed as valid tests |
 
 ```shell
-imp run --tags "tag1,tag2"
+imp run --statuses lived,not-covered
+imp run --json --statuses killed --output killed.json
 ```
 
-### Test CPU
+Filtering does not change execution, aggregate metrics or quality gates. JSON includes
+`selected_statuses`, even when no findings match. Unknown names fail before execution.
 
-:material-flag: `--test-cpu` · :material-sign-direction: Default: `0`
+### Destination
 
-[//]: # (@formatter:off)
-!!! tip
-    To understand better the use of these flag, check [workers](workers.md)
-[//]: # (@formatter:on)
-
-This flag overrides the number of CPUs the Go test tool will utilize. By default, imp doesn't set this value.
+`--output FILE` / `-o FILE` writes the **selected format** to a file instead of stdout.
+It does not choose a format based on the extension. Omit the flag or use `--output -`
+for stdout. A file named `survivors.json` still needs `--json` to contain JSON.
 
 ```shell
-imp run --test-cpu=1
+imp run --output report.txt
+imp run --json --statuses lived --output survivors.json
+imp run --json --output -
 ```
 
-### Threshold efficacy
+Progress and errors go to stderr, never the report destination. File reports are staged
+in a temporary sibling and replace the destination only after a complete report is written.
+Failures and cancellation preserve any previous report; quality-gate failures still save
+the completed report. Output failures return an error rather than silently discarding results.
+File destinations must be regular files (or not yet exist); symlinks, pipes and devices
+are rejected rather than replaced. Use stdout and shell redirection to stream to them.
 
-:material-flag: `--threshold-efficacy` · :material-sign-direction: Default: 0
+### Quiet and color
 
-When set, it makes imp exit with an error (code 10) if the _test efficacy_ threshold is not met. By default it is
-zero, which
-means imp never exits with an error.
-
-The _test efficacy_ is calculated as `KILLED / (KILLED + LIVED)` and assesses how effective are the tests.
+`--quiet` / `-q` suppresses progress, not the report or errors. Progress goes to stderr;
+terminals get a 100-character file-based bar, while captured output gets concise checkpoints
+at roughly 5% intervals. A source file completes after all its mutants finish. Redirected
+reports never contain color; `--no-color`,
+`NO_COLOR` and `TERM=dumb` also disable it.
 
 ```shell
-imp run --threshold-efficacy 80
+imp run --json --quiet > results.json
 ```
 
-### Threshold mutant coverage
+### Migration
 
-:material-flag: `--threshold-mcover` · :material-sign-direction: Default: 0
+Grouped reporting is the default, not an experiment. The old file/mutation JSON schema
+has been replaced by the versioned grouped schema. Replace `--output-statuses lc` with
+`--statuses lived,not-covered`; use `--verbose` instead of `--output-diff-statuses`.
+Replace `--silent` with `--quiet`, noting that quiet no longer suppresses the report.
+Use `--json --output FILE` where `--output FILE` previously implied JSON.
 
-When set, it makes imp exit with an error (code 11) if the _mutant coverage_ threshold is not met. By default
-it is zero, which means imp never exits with an error.
+## Scope
 
-The _mutant coverage_ is calculated as `(KILLED + LIVED) / (KILLED + LIVED + NOT_COVERED)` and assesses how many mutants
-are covered by tests.
+| Flag | Purpose |
+| --- | --- |
+| `--diff REF` / `-D REF` | Test mutations in changes against the merge base with a branch or commit |
+| `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
+| `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
+| `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths; repeat for multiple rules |
 
 ```shell
-imp run --threshold-mcover 80
+imp run --diff origin/main
+imp run --tags tag1,tag2 --coverpkg './internal/...,./pkg/...'
+imp run -E '_(gen|wrap).go$' -E '^generated/'
 ```
 
-### Timeout coefficient
+Test files are always excluded from mutation discovery. Excluded files are omitted
+from threshold calculations. Diff filtering marks out-of-scope mutants as `SKIPPED`;
+the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
 
-:material-flag: `--timeout-coefficient` · :material-sign-direction:
-Default: `0` (uses default value of `5`)
+## Execution
 
-[//]: # (@formatter:off)
-!!! tip
-    To understand better the use of these flag, check [workers](workers.md)
-[//]: # (@formatter:on)
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--dry-run` / `-d` | `false` | Gather coverage and discover mutants without testing them |
+| `--integration` / `-i` | `false` | Run the complete module test suite for each mutation |
+| `--workers N` | `0` | Mutation workers; zero selects the CPU count (half in integration mode) |
+| `--test-cpu N` | `0` | Set the Go test CPU option; zero leaves it unset |
+| `--timeout-coefficient N` | `0` | Timeout multiplier; zero uses the default of five |
 
-imp determines the timeout for each Go test run by multiplying by a
-coefficient the time it took to perform the coverage run. The default
-coefficient is `5`, which can be overridden with this flag (`0` means use
-the default).
+### Integration mode
 
-To ensure reasonable timeouts even when the coverage run is very fast,
-imp enforces a minimum base timeout of 1 second before applying the
-coefficient. For example:
+Normally imp tests only the package containing the mutation. Integration mode catches
+cross-package effects at the cost of slower runs. See [workers](workers.md) for CPU
+and concurrency details.
 
-- Coverage run takes 500ms → timeout = max(500ms, 1s) × 5 = 5 seconds
-- Coverage run takes 2s → timeout = 2s × 5 = 10 seconds
+### Timeouts
 
-```shell
-imp run --timeout-coefficient=10
-```
+Each mutation's timeout is `max(coverage duration, 1 second) × coefficient`. For example,
+a 500 ms coverage run with coefficient five gets a five-second timeout. Timing-sensitive
+tests and system load can cause small variations between runs.
 
-[//]: # (@formatter:off)
-!!! note "Result Consistency"
-    You may observe small fluctuations in the number of
-    killed/lived/timed-out mutants between runs (typically ±2-4 mutants).
-    This is normal and can be caused by:
-    - **Race conditions**: Mutations may introduce or remove race
-      conditions that behave differently each run
-    - **Timing-sensitive tests**: Tests involving timeouts, concurrency,
-      or I/O timing
-    - **System variations**: CPU scheduling, system load, and other
-      OS-level factors
-    These minor variations do not indicate a problem with the mutation
-    testing process. Large variations or progressive degradation would
-    indicate an issue.
-[//]: # (@formatter:on)
+## Quality gates and exit codes
 
-### Workers
+| Flag | Calculation |
+| --- | --- |
+| `--threshold-efficacy PERCENT` | `KILLED / (KILLED + LIVED) × 100` |
+| `--threshold-mcover PERCENT` | `(KILLED + LIVED) / (KILLED + LIVED + NOT COVERED) × 100` |
 
-:material-flag: `--workers` · :material-sign-direction: Default: `0`
+Defaults are zero (disabled). A nonzero threshold fails if the rate is at or below it.
+The full selected report is emitted before a gate failure. Dry runs do not enforce gates;
+their coverage rate is `RUNNABLE / (RUNNABLE + NOT COVERED) × 100`.
 
-[//]: # (@formatter:off)
-!!! tip
-    To understand better the use of these flag, check [workers](workers.md)
-[//]: # (@formatter:on)
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Completed successfully |
+| `1` | Execution or output failure |
+| `2` | Invalid flags, arguments or configuration |
+| `10` | Efficacy threshold not met |
+| `11` | Mutant coverage threshold not met |
+| `130` | Interrupted |
 
-imp runs in parallel mode, which means that more than one test at a time will be performed, based on the number of
-CPU cores available.
+## Mutation operators
 
-By default, imp will use all the available CPU cores of, and , in _integration mode_, it will use half of the
-available CPU cores.
+Each flag enables its operator; append `=false` to disable it.
 
-The `--workers` flag allows to override the number of CPUs to use (`0` means use the default).
-
-```shell
-imp run --workers=4
-```
+| Flag | Default | Details |
+| --- | --- | --- |
+| `--arithmetic-base` | `true` | [Arithmetic base](../../mutations/arithmetic_base.md) |
+| `--conditionals-boundary` | `true` | [Conditional boundaries](../../mutations/conditionals_boundary.md) |
+| `--conditionals-negation` | `true` | [Conditional negation](../../mutations/conditionals_negation.md) |
+| `--increment-decrement` | `true` | [Increment/decrement](../../mutations/increment_decrement.md) |
+| `--invert-negatives` | `true` | [Negative signs](../../mutations/invert_negatives.md) |
+| `--invert-assignments` | `false` | [Assignments](../../mutations/invert_assignments.md) |
+| `--invert-bitwise` | `false` | [Bitwise operators](../../mutations/invert_bitwise.md) |
+| `--invert-bwassign` | `false` | [Bitwise assignments](../../mutations/invert_bitwise_assignments.md) |
+| `--invert-logical` | `false` | [Logical operators](../../mutations/invert_logical.md) |
+| `--invert-loopctrl` | `false` | [Loop control](../../mutations/invert_loop.md) |
+| `--remove-self-assignments` | `false` | [Self-assignments](../../mutations/remove_self_assignments.md) |

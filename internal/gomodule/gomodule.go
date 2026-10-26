@@ -57,7 +57,7 @@ func Init(path string) (GoModule, error) {
 
 func modPkg(path string) (string, string, error) {
 	root := findModuleRoot(path)
-	//nolint:gosec // root is internally determined, not user input
+	// #nosec G304 -- root is determined by locating the module; reading its go.mod is intentional.
 	file, err := os.Open(root + "/go.mod")
 	defer func(file *os.File) {
 		_ = file.Close()

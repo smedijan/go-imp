@@ -49,6 +49,11 @@ func TestCopyFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	dealer.Clean()
+	if _, err := os.Stat(dstDir); !os.IsNotExist(err) {
+		t.Errorf("working directory still exists after cleanup: %v", err)
+	}
 }
 
 func checkForDifferentFile(t *testing.T, srcDir string, dstDir string) func(path string, srcFileInfo fs.FileInfo, err error) error {

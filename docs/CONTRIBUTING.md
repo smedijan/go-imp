@@ -20,6 +20,37 @@ PRs submitted without meaningful review, understanding, or validation will be cl
 expect contributors to use them thoughtfully, understand and verify their output, and deliver high-quality changes.
 Substantial work submitted without prior discussion may also be closed.
 
+## Local checks and push gates
+
+Install the pinned tools and hooks in each checkout:
+
+```shell
+mise install
+hk install --mise
+```
+
+The hook configuration alone does not install Git hooks. `hk check` runs the fast
+checks; pre-push also runs security, vulnerability and mutation checks. Mutation testing
+is triggered only by changed Go files and runs against the merge-base with `origin/main`,
+using the efficacy and coverage thresholds in `.imp.yaml`. Only lived and uncovered
+findings are printed; filtering does not weaken the quality gates.
+
+Keep the comparison ref current and reproduce the push checks locally with:
+
+```shell
+git fetch origin main
+hk run pre-push --from-ref origin/main --to-ref HEAD
+```
+
+To run just the mutation gate:
+
+```shell
+hk run pre-push --from-ref origin/main --to-ref HEAD --step mutation-test
+```
+
+Do not skip a failed gate or lower its thresholds to publish a change. Improve the
+implementation/tests and rerun the checks.
+
 ## DCO sign-off required
 
 Sign off **every commit** under the [Developer Certificate of Origin](https://developercertificate.org/)

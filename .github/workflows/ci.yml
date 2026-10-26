@@ -50,7 +50,7 @@ jobs:
         with:
           go-version: "1.27"
       - name: Run imp
-        run: go run ./cmd/imp run --silent
+        run: go run ./cmd/imp run --quiet --json --output mutation-report.json
 
   lint:
     name: Lint and vet

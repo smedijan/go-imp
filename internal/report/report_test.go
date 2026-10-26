@@ -1,19 +1,3 @@
-/*
- * Copyright 2022 The Gremlins Authors
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *        http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
- */
-
 package report_test
 
 import (
@@ -21,601 +5,256 @@ import (
 	"encoding/json"
 	"errors"
 	"go/token"
-	"os"
-	"path/filepath"
-	"runtime"
+	"io"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/hectane/go-acl"
-	"github.com/spf13/viper"
 
-	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/execution"
-	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report"
 	"github.com/smedijan/go-imp/internal/report/internal"
 )
 
-var fakePosition = newPosition("aFolder/aFile.go", 3, 12)
-
-func TestReport(t *testing.T) {
-	const (
-		testingLine  = "Mutation testing completed in 2 minutes 22 seconds\n"
-		coverageLine = "Mutator coverage: 0.00%\n"
-	)
-
-	nrTestCases := []struct {
-		name    string
-		mutants []mutator.Mutator
-		want    string
-	}{
-		{
-			name: "reports findings in normal run",
-			mutants: []mutator.Mutator{
-				stubMutant{status: mutator.Lived, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.Killed, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.NotViable, mutantType: mutator.ConditionalsBoundary, position: fakePosition},
-				stubMutant{status: mutator.TimedOut, mutantType: mutator.ConditionalsBoundary, position: fakePosition},
-				stubMutant{status: mutator.Skipped, mutantType: mutator.ConditionalsBoundary, position: fakePosition},
-			},
-			want: "\n" +
-				// Limit the time reporting to the first two units (millis are excluded)
-				testingLine +
-				"Killed: 1, Lived: 1, Not covered: 1\n" +
-				"Timed out: 1, Not viable: 1, Skipped: 1\n" +
-				"Test efficacy: 50.00%\n" +
-				"Mutator coverage: 66.67%\n",
-		},
-		{
-			name: "reports findings with no coverage",
-			mutants: []mutator.Mutator{
-				stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-			},
-			want: "\n" +
-				// Limit the time reporting to the first two units (millis are excluded)
-				testingLine +
-				"Killed: 0, Lived: 0, Not covered: 1\n" +
-				"Timed out: 0, Not viable: 0, Skipped: 0\n" +
-				"Test efficacy: 0.00%\n" +
-				coverageLine,
-		},
-		{
-			name: "reports findings with timeouts",
-			mutants: []mutator.Mutator{
-				stubMutant{status: mutator.TimedOut, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.TimedOut, mutantType: mutator.ConditionalsBoundary, position: fakePosition},
-			},
-			want: "\n" +
-				// Limit the time reporting to the first two units (millis are excluded)
-				testingLine +
-				"Killed: 0, Lived: 0, Not covered: 0\n" +
-				"Timed out: 2, Not viable: 0, Skipped: 0\n" +
-				"Test efficacy: 0.00%\n" +
-				coverageLine,
-		},
-		{
-			name:    "reports nothing if no result",
-			mutants: []mutator.Mutator{},
-			want: "\n" +
-				"No results to report.\n",
-		},
-	}
-	for _, tc := range nrTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			out := &bytes.Buffer{}
-			log.Init(out, &bytes.Buffer{})
-			defer log.Reset()
-
-			data := report.Results{
-				Mutants: tc.mutants,
-				Elapsed: (2 * time.Minute) + (22 * time.Second) + (123 * time.Millisecond),
-			}
-
-			_ = report.Do(data)
-
-			got := out.String()
-
-			if !cmp.Equal(got, tc.want) {
-				t.Error(cmp.Diff(tc.want, got))
-			}
-		})
-	}
-
-	drTestCases := []struct {
-		name    string
-		mutants []mutator.Mutator
-		want    string
-	}{
-		{
-			name: "reports findings in dry-run",
-			mutants: []mutator.Mutator{
-				stubMutant{status: mutator.Runnable, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.Runnable, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-			},
-			want: "\n" +
-				// Limit the time reporting to the first two units (millis are excluded)
-				"Dry run completed in 2 minutes 22 seconds\n" +
-				"Runnable: 2, Not covered: 1\n" +
-				"Mutator coverage: 66.67%\n",
-		},
-		{
-			name: "reports coverage zero in dry-run with timeout",
-			mutants: []mutator.Mutator{
-				stubMutant{status: mutator.TimedOut, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-			},
-			want: "\n" +
-				// Limit the time reporting to the first two units (millis are excluded)
-				"Dry run completed in 2 minutes 22 seconds\n" +
-				"Runnable: 0, Not covered: 0\n" +
-				coverageLine,
-		},
-	}
-	for _, tc := range drTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			viper.Set(configuration.RunDryRunKey, true)
-			defer viper.Reset()
-
-			out := &bytes.Buffer{}
-			log.Init(out, &bytes.Buffer{})
-			defer log.Reset()
-
-			data := report.Results{
-				Mutants: tc.mutants,
-				Elapsed: (2 * time.Minute) + (22 * time.Second) + (123 * time.Millisecond),
-			}
-
-			_ = report.Do(data)
-
-			got := out.String()
-
-			if !cmp.Equal(got, tc.want) {
-				t.Error(cmp.Diff(tc.want, got))
-			}
-		})
-	}
-}
-
-func newPosition(filename string, col, line int) token.Position {
-	return token.Position{
-		Filename: filename,
-		Offset:   0,
-		Line:     line,
-		Column:   col,
-	}
-}
-
-func TestAssessment(t *testing.T) {
-	testCases := []struct {
-		value       any
-		name        string
-		confKey     string
-		expectError bool
-	}{
-		// Efficacy-threshold as float64
-		{
-			name:        "efficacy < efficacy-threshold",
-			confKey:     configuration.RunThresholdEfficacyKey,
-			value:       float64(51),
-			expectError: true,
-		},
-		{
-			name:        "efficacy >= efficacy-threshold",
-			confKey:     configuration.RunThresholdEfficacyKey,
-			value:       float64(50),
-			expectError: false,
-		},
-		{
-			name:        "efficacy-threshold == 0",
-			confKey:     configuration.RunThresholdEfficacyKey,
-			value:       float64(0),
-			expectError: false,
-		},
-		// Efficacy-threshold as float64
-		{
-			name:        "efficacy < efficacy-threshold",
-			confKey:     configuration.RunThresholdEfficacyKey,
-			value:       51,
-			expectError: true,
-		},
-		// Mutator coverage-threshold as float
-		{
-			name:        "coverage < coverage-threshold",
-			confKey:     configuration.RunThresholdMCoverageKey,
-			value:       float64(51),
-			expectError: true,
-		},
-		{
-			name:        "coverage >= coverage-threshold",
-			confKey:     configuration.RunThresholdMCoverageKey,
-			value:       float64(50),
-			expectError: false,
-		},
-		{
-			name:        "coverage-threshold == 0",
-			confKey:     configuration.RunThresholdMCoverageKey,
-			value:       float64(0),
-			expectError: false,
-		},
-		// Mutator coverage-threshold as int
-		{
-			name:        "coverage < coverage-threshold",
-			confKey:     configuration.RunThresholdMCoverageKey,
-			value:       51,
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			log.Init(&bytes.Buffer{}, &bytes.Buffer{})
-			defer log.Reset()
-
-			viper.Set(tc.confKey, tc.value)
-			defer viper.Reset()
-
-			// Always 50%
-			mutants := []mutator.Mutator{
-				stubMutant{status: mutator.Killed, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.Lived, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-				stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsNegation, position: fakePosition},
-			}
-			data := report.Results{
-				Mutants: mutants,
-				Elapsed: 1 * time.Minute,
-			}
-
-			err := report.Do(data)
-
-			if tc.expectError && err == nil {
-				t.Fatal("expected an error")
-			}
-			if !tc.expectError {
-				return
-			}
-			var exitErr *execution.ExitError
-			if errors.As(err, &exitErr) {
-				if exitErr.ExitCode() == 0 {
-					t.Errorf("expected exit code to be different from 0, got %d", exitErr.ExitCode())
-				}
-			} else {
-				t.Errorf("expected err to be ExitError")
-			}
-		})
-	}
-}
-
-func TestMutantNoDiff(t *testing.T) {
-	t.Run("does not print diff even when snippets are non-empty", func(t *testing.T) {
-		out := &bytes.Buffer{}
-		log.Init(out, &bytes.Buffer{})
-		defer log.Reset()
-
-		m := stubMutant{
-			status:         mutator.Lived,
-			mutantType:     mutator.ConditionalsBoundary,
-			position:       fakePosition,
-			originSnippet:  []byte("x > y\n"),
-			mutatedSnippet: []byte("x >= y\n"),
-		}
-		report.Mutant(m)
-
-		want := "       LIVED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n"
-		got := out.String()
-		if !cmp.Equal(got, want) {
-			t.Error(cmp.Diff(want, got))
-		}
-	})
-}
-
-func TestMutantDiff(t *testing.T) {
-	testCases := map[string]struct {
-		originSnippet  []byte
-		mutatedSnippet []byte
-		assertFunc     func(t *testing.T, out, errOut *bytes.Buffer)
-	}{
-		"should_print_nothing_when_both_snippets_are_empty": {
-			assertFunc: func(t *testing.T, out, errOut *bytes.Buffer) {
-				t.Helper()
-				if errOut.Len() > 0 {
-					t.Errorf("unexpected error logged: %q", errOut.String())
-				}
-				if out.Len() > 0 {
-					t.Errorf("expected no output for empty snippets, got: %q", out.String())
-				}
-			},
-		},
-		"should_print_nothing_when_only_origin_snippet_is_empty": {
-			mutatedSnippet: []byte("x >= y\n"),
-			assertFunc: func(t *testing.T, out, errOut *bytes.Buffer) {
-				t.Helper()
-				if errOut.Len() > 0 {
-					t.Errorf("unexpected error logged: %q", errOut.String())
-				}
-				if out.Len() > 0 {
-					t.Errorf("expected no output for empty origin snippet, got: %q", out.String())
-				}
-			},
-		},
-		"should_print_nothing_when_only_mutated_snippet_is_empty": {
-			originSnippet: []byte("x > y\n"),
-			assertFunc: func(t *testing.T, out, errOut *bytes.Buffer) {
-				t.Helper()
-				if errOut.Len() > 0 {
-					t.Errorf("unexpected error logged: %q", errOut.String())
-				}
-				if out.Len() > 0 {
-					t.Errorf("expected no output for empty mutated snippet, got: %q", out.String())
-				}
-			},
-		},
-		"should_print_nothing_when_snippets_are_identical": {
-			originSnippet:  []byte("x > y\n"),
-			mutatedSnippet: []byte("x > y\n"),
-			assertFunc: func(t *testing.T, out, errOut *bytes.Buffer) {
-				t.Helper()
-				if errOut.Len() > 0 {
-					t.Errorf("unexpected error logged: %q", errOut.String())
-				}
-				if out.Len() > 0 {
-					t.Errorf("expected no output for identical snippets, got: %q", out.String())
-				}
-			},
-		},
-		"should_print_diff_when_snippets_differ": {
-			originSnippet:  []byte("if x > y {\n  x = 10"),
-			mutatedSnippet: []byte("if x >= y {\n  x = 10"),
-			assertFunc: func(t *testing.T, out, errOut *bytes.Buffer) {
-				t.Helper()
-				if errOut.Len() > 0 {
-					t.Errorf("unexpected error logged: %q", errOut.String())
-				}
-				want := "       -if x > y {\n       +if x >= y {\n          x = 10\n"
-				got := out.String()
-				if !cmp.Equal(got, want) {
-					t.Error(cmp.Diff(want, got))
-				}
-			},
-		},
-	}
-
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			out := &bytes.Buffer{}
-			errOut := &bytes.Buffer{}
-
-			log.Init(out, errOut)
-			defer log.Reset()
-
-			m := stubMutant{
-				status:         mutator.Lived,
-				mutantType:     mutator.ConditionalsBoundary,
-				position:       fakePosition,
-				originSnippet:  tc.originSnippet,
-				mutatedSnippet: tc.mutatedSnippet,
-			}
-			report.MutantDiff(m)
-
-			tc.assertFunc(t, out, errOut)
-		})
-	}
-}
-
-func TestMutantLog(t *testing.T) {
-	out := &bytes.Buffer{}
-	defer out.Reset()
-	log.Init(out, &bytes.Buffer{})
-	defer log.Reset()
-
-	m := stubMutant{status: mutator.Lived, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.Killed, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.Runnable, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.NotViable, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.TimedOut, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-	m = stubMutant{status: mutator.Skipped, mutantType: mutator.ConditionalsBoundary, position: fakePosition}
-	report.Mutant(m)
-
-	got := out.String()
-
-	want := "" +
-		"       LIVED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		"      KILLED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		" NOT COVERED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		"    RUNNABLE CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		"  NOT VIABLE CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		"   TIMED OUT CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n" +
-		"     SKIPPED CONDITIONALS_BOUNDARY at aFolder/aFile.go:12:3\n"
-
-	if !cmp.Equal(got, want) {
-		t.Error(cmp.Diff(got, want))
-	}
-}
-
-func TestReportToFile(t *testing.T) {
-	outFile := "findings.json"
-	mutants := []mutator.Mutator{
-		stubMutant{status: mutator.Killed, mutantType: mutator.ConditionalsNegation, position: newPosition("file1.go", 3, 10)},
-		stubMutant{status: mutator.Lived, mutantType: mutator.ArithmeticBase, position: newPosition("file1.go", 8, 20)},
-		stubMutant{status: mutator.NotCovered, mutantType: mutator.IncrementDecrement, position: newPosition("file1.go", 7, 40)},
-		stubMutant{status: mutator.NotViable, mutantType: mutator.InvertAssignments, position: newPosition("file1.go", 8, 10)},
-		stubMutant{status: mutator.NotCovered, mutantType: mutator.InvertLoopCtrl, position: newPosition("file2.go", 3, 20)},
-		stubMutant{status: mutator.Killed, mutantType: mutator.IncrementDecrement, position: newPosition("file2.go", 17, 44)},
-		stubMutant{status: mutator.NotCovered, mutantType: mutator.ConditionalsBoundary, position: newPosition("file2.go", 3, 500)},
-		stubMutant{status: mutator.Lived, mutantType: mutator.InvertBitwise, position: newPosition("file2.go", 3, 100)},
-		stubMutant{status: mutator.Killed, mutantType: mutator.InvertBitwiseAssignments, position: newPosition("file2.go", 4, 10)},
-		stubMutant{status: mutator.Lived, mutantType: mutator.InvertLogical, position: newPosition("file2.go", 4, 11)},
-		stubMutant{status: mutator.NotViable, mutantType: mutator.InvertNegatives, position: newPosition("file3.go", 4, 200)},
-		stubMutant{status: mutator.Killed, mutantType: mutator.RemoveSelfAssignments, position: newPosition("file3.go", 4, 100)},
-	}
-	data := report.Results{
-		Module:  "example.com/go/module",
-		Mutants: mutants,
-		Elapsed: (2 * time.Minute) + (22 * time.Second) + (123 * time.Millisecond),
-	}
-	f, _ := os.ReadFile("testdata/normal_output.json")
-	want := internal.OutputResult{}
-	_ = json.Unmarshal(f, &want)
-
-	t.Run("it writes on file when output is set", func(t *testing.T) {
-		outDir := t.TempDir()
-		output := filepath.Join(outDir, outFile)
-		viper.Set(configuration.RunOutputKey, output)
-		defer viper.Reset()
-
-		if err := report.Do(data); err != nil {
-			t.Fatal("error not expected")
-		}
-
-		//nolint:gosec // test code reading test output file
-		file, err := os.ReadFile(output)
-		if err != nil {
-			t.Fatal("file not found")
-		}
-
-		var got internal.OutputResult
-		err = json.Unmarshal(file, &got)
-		if err != nil {
-			t.Fatal("impossible to unmarshal results")
-		}
-
-		if !cmp.Equal(got, want, cmpopts.SortSlices(sortOutputFile), cmpopts.SortSlices(sortMutation)) {
-			t.Error(cmp.Diff(got, want))
-		}
-	})
-
-	t.Run("it doesn't write on file when output isn't set", func(t *testing.T) {
-		outDir := t.TempDir()
-		output := filepath.Join(outDir, outFile)
-
-		if err := report.Do(data); err != nil {
-			t.Fatal("error not expected")
-		}
-
-		//nolint:gosec // test code reading test output
-		_, err := os.ReadFile(output)
-		if err == nil {
-			t.Errorf("expected file not found")
-		}
-	})
-
-	// In this case we don't want to stop the execution with an error, but we just want to log the fact.
-	t.Run("it doesn't report error when file is not writeable, but doesn't write file", func(t *testing.T) {
-		outDir, cl := notWriteableDir(t)
-		defer cl()
-		output := filepath.Join(outDir, outFile)
-		viper.Set(configuration.RunOutputKey, output)
-		defer viper.Reset()
-
-		if err := report.Do(data); err != nil {
-			t.Fatal("error not expected")
-		}
-
-		//nolint:gosec // test code reading test output
-		_, err := os.ReadFile(output)
-		if err == nil {
-			t.Errorf("expected file not found")
-		}
-	})
-}
-
-func notWriteableDir(t *testing.T) (string, func()) {
-	t.Helper()
-	tmp := t.TempDir()
-	outPath, _ := os.MkdirTemp(tmp, "test-")
-	_ = os.Chmod(outPath, 0o000)
-	clean := os.Chmod
-	if runtime.GOOS == "windows" {
-		_ = acl.Chmod(outPath, 0o000)
-		clean = acl.Chmod
-	}
-
-	return outPath, func() {
-		_ = clean(outPath, 0o700)
-	}
-}
-
-func sortOutputFile(x, y internal.OutputFile) bool {
-	return x.Filename < y.Filename
-}
-
-func sortMutation(x, y internal.Mutation) bool {
-	if x.Line == y.Line {
-		return x.Column < y.Column
-	}
-
-	return x.Line < y.Line
-}
-
 type stubMutant struct {
-	position       token.Position
-	status         mutator.Status
-	mutantType     mutator.Type
-	originSnippet  []byte
-	mutatedSnippet []byte
+	mutator.Mutator
+	position   token.Position
+	status     mutator.Status
+	mutantType mutator.Type
+	command    []string
+	original   []byte
+	mutated    []byte
 }
 
-func (s stubMutant) Type() mutator.Type {
-	return s.mutantType
+func (m stubMutant) Position() token.Position { return m.position }
+func (m stubMutant) Status() mutator.Status   { return m.status }
+func (m stubMutant) Type() mutator.Type       { return m.mutantType }
+func (m stubMutant) TestCommand() []string    { return m.command }
+func (m stubMutant) OrigSnippet() []byte      { return m.original }
+func (m stubMutant) MutatedSnippet() []byte   { return m.mutated }
+
+func fixtureResults() report.Results {
+	var mutants []mutator.Mutator
+	for _, status := range []mutator.Status{mutator.Lived, mutator.NotCovered, mutator.TimedOut,
+		mutator.Runnable, mutator.Killed, mutator.Skipped, mutator.NotViable} {
+		mutants = append(mutants, stubMutant{
+			position: token.Position{Filename: "source.go", Line: int(status) + 1, Column: 4},
+			status:   status, mutantType: mutator.ConditionalsBoundary,
+			command:  []string{"go", "test", "-tags", "tag1 tag2", "example.com/pkg"},
+			original: []byte("return a > b\n"), mutated: []byte("return a >= b\n"),
+		})
+	}
+
+	return report.Results{Module: "example.com", Mutants: mutants, Elapsed: 2345 * time.Millisecond}
 }
 
-func (stubMutant) SetType(_ mutator.Type) {
-	panic("implement me")
+func renderJSON(t *testing.T, results report.Results, options report.Options) (internal.OutputResult, string) {
+	t.Helper()
+	options.JSON = true
+	var out bytes.Buffer
+	if err := report.Write(&out, results, options); err != nil {
+		t.Fatal(err)
+	}
+	var document internal.OutputResult
+	decoder := json.NewDecoder(&out)
+	payload := out.String()
+	if err := decoder.Decode(&document); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		t.Fatalf("expected exactly one JSON document, got %v", err)
+	}
+
+	return document, payload
 }
 
-func (s stubMutant) Status() mutator.Status {
-	return s.status
+func TestParseStatuses(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    []mutator.Status
+		invalid bool
+	}{
+		{value: "lived,not-covered", want: []mutator.Status{mutator.Lived, mutator.NotCovered}},
+		{value: "killed,lived,lived", want: []mutator.Status{mutator.Lived, mutator.Killed}},
+		{value: " timed-out, runnable ", want: []mutator.Status{mutator.TimedOut, mutator.Runnable}},
+		{value: "skipped,not-viable", want: []mutator.Status{mutator.Skipped, mutator.NotViable}},
+		{value: "lc", invalid: true}, {value: "covered", invalid: true},
+		{value: "lived,", invalid: true}, {value: "typo", invalid: true},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			got, err := report.ParseStatuses(tc.value)
+			if (err != nil) != tc.invalid {
+				t.Fatalf("error = %v", err)
+			}
+			if !tc.invalid {
+				if diff := cmp.Diff(tc.want, got); diff != "" {
+					t.Error(diff)
+				}
+			}
+		})
+	}
+	all, err := report.ParseStatuses("")
+	if err != nil || len(all) != 7 {
+		t.Fatalf("default statuses = %v, %v", all, err)
+	}
 }
 
-func (stubMutant) SetStatus(_ mutator.Status) {
-	panic("implement me")
+func TestJSONReport(t *testing.T) {
+	document, payload := renderJSON(t, fixtureResults(), report.Options{Color: true, Verbose: true})
+	if document.SchemaVersion != 1 || document.GoModule != "example.com" || math.Abs(document.ElapsedTime-2.345) > 1e-9 {
+		t.Fatalf("incorrect metadata: %+v", document)
+	}
+	if document.MutantsTotal != 7 || len(document.Groups) != 7 || len(document.SelectedStatuses) != 7 {
+		t.Fatalf("missing statuses: %+v", document)
+	}
+	if document.TestEfficacy != 50 || math.Abs(document.MutationsCoverage-200.0/3.0) > 1e-9 {
+		t.Errorf("incorrect rates: efficacy %f, coverage %f", document.TestEfficacy, document.MutationsCoverage)
+	}
+	finding := document.Groups["LIVED"]["source.go"][0]
+	if finding.Line != int(mutator.Lived)+1 || finding.Column != 4 || finding.Type != "CONDITIONALS_BOUNDARY" ||
+		finding.TestCommand != `go test -tags 'tag1 tag2' example.com/pkg` {
+		t.Errorf("incorrect finding: %+v", finding)
+	}
+	for _, forbidden := range []string{`"original"`, `"mutated"`, `"status"`, `"file_name"`, "\x1b[", "Tests passed"} {
+		if strings.Contains(payload, forbidden) {
+			t.Errorf("unexpected JSON content: %q", forbidden)
+		}
+	}
 }
 
-func (s stubMutant) Position() token.Position {
-	return s.position
+func TestReportStatusFilter(t *testing.T) {
+	statuses, _ := report.ParseStatuses("killed")
+	document, _ := renderJSON(t, fixtureResults(), report.Options{Statuses: statuses})
+	if len(document.Groups) != 1 || len(document.Groups["KILLED"]["source.go"]) != 1 || document.MutantsTotal != 7 {
+		t.Fatalf("incorrect filtered report: %+v", document)
+	}
+	if document.MutantsLived != 1 || document.TestEfficacy != 50 || document.MutantsTimedOut != 1 {
+		t.Error("filter changed aggregate metrics")
+	}
+	if diff := cmp.Diff([]string{"killed"}, document.SelectedStatuses); diff != "" {
+		t.Error(diff)
+	}
+	var out bytes.Buffer
+	if err := report.Write(&out, fixtureResults(), report.Options{Statuses: statuses}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "LIVED (1)") || !strings.Contains(out.String(), "KILLED (1)") ||
+		!strings.Contains(out.String(), "Total: 7") {
+		t.Fatalf("bad text filtering: %s", &out)
+	}
 }
 
-func (stubMutant) Pos() token.Pos {
-	return 123
+func TestEmptyAndNoMatchingJSON(t *testing.T) {
+	statuses, _ := report.ParseStatuses("killed")
+	for _, results := range []report.Results{{Module: "empty"}, {Mutants: []mutator.Mutator{stubMutant{status: mutator.Lived}}}} {
+		document, payload := renderJSON(t, results, report.Options{Statuses: statuses})
+		if document.Groups == nil || len(document.Groups) != 0 || !strings.Contains(payload, `"groups":{}`) {
+			t.Fatalf("expected empty object: %s", payload)
+		}
+		if document.MutantsTotal != len(results.Mutants) {
+			t.Error("incorrect total")
+		}
+	}
 }
 
-func (stubMutant) Pkg() string {
-	panic("implement me")
+func TestReportStableOrdering(t *testing.T) {
+	results := fixtureResults()
+	results.Mutants = append(results.Mutants,
+		stubMutant{status: mutator.Lived, position: token.Position{Filename: "a.go", Line: 2, Column: 1}},
+		stubMutant{status: mutator.Lived, position: token.Position{Filename: "source.go", Line: 1, Column: 1}},
+	)
+	for _, jsonOutput := range []bool{false, true} {
+		var first, second bytes.Buffer
+		options := report.Options{JSON: jsonOutput}
+		if err := report.Write(&first, results, options); err != nil {
+			t.Fatal(err)
+		}
+		for i, j := 0, len(results.Mutants)-1; i < j; i, j = i+1, j-1 {
+			results.Mutants[i], results.Mutants[j] = results.Mutants[j], results.Mutants[i]
+		}
+		if err := report.Write(&second, results, options); err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(first.String(), second.String()); diff != "" {
+			t.Error(diff)
+		}
+	}
 }
 
-func (stubMutant) SetWorkdir(_ string) {
-	panic("implement me")
+func TestHumanReport(t *testing.T) {
+	var out bytes.Buffer
+	if err := report.Write(&out, fixtureResults(), report.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, status := range []string{"LIVED", "NOT COVERED", "TIMED OUT", "RUNNABLE", "KILLED", "SKIPPED", "NOT VIABLE"} {
+		if strings.Count(text, status+" (1)") != 1 {
+			t.Errorf("missing or repeated group %s", status)
+		}
+	}
+	for _, expected := range []string{"-return a > b", "+return a >= b", "equivalent mutations", "Test efficacy: 50.00%"} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("missing %q", expected)
+		}
+	}
+	for _, forbidden := range []string{"experimental", "Mutation (- original", "\x1b["} {
+		if strings.Contains(text, forbidden) {
+			t.Errorf("unexpected %q", forbidden)
+		}
+	}
+	// Only lived and uncovered mutants get diffs without verbose mode.
+	if strings.Count(text, "-return a > b") != 2 {
+		t.Errorf("unexpected default diff count: %s", text)
+	}
+	out.Reset()
+	if err := report.Write(&out, fixtureResults(), report.Options{Verbose: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(out.String(), "-return a > b") != 7 || strings.Count(out.String(), "Test command:") != 7 {
+		t.Errorf("verbose must expand every status: %s", &out)
+	}
 }
 
-func (stubMutant) Workdir() string {
-	panic("implement me")
+func TestReportDryRun(t *testing.T) {
+	results := report.Results{Mutants: []mutator.Mutator{stubMutant{status: mutator.Runnable}, stubMutant{status: mutator.NotCovered}}}
+	document, _ := renderJSON(t, results, report.Options{DryRun: true, EfficacyThreshold: 99, CoverageThreshold: 99})
+	if !document.DryRun || document.MutationsCoverage != 50 {
+		t.Errorf("incorrect dry-run metrics: %+v", document)
+	}
 }
 
-func (stubMutant) Apply() error {
-	panic("implement me")
+func TestQualityGatesAfterReport(t *testing.T) {
+	for _, tc := range []struct {
+		options report.Options
+		code    int
+	}{
+		{options: report.Options{JSON: true, EfficacyThreshold: 80}, code: 10},
+		{options: report.Options{JSON: true, CoverageThreshold: 80}, code: 11},
+	} {
+		var out bytes.Buffer
+		// Selecting a status with no matches must not bypass quality gates.
+		results := report.Results{Mutants: []mutator.Mutator{stubMutant{status: mutator.Lived}, stubMutant{status: mutator.NotCovered}}}
+		tc.options.Statuses = []mutator.Status{mutator.Killed}
+		err := report.Write(&out, results, tc.options)
+		var gate *execution.ExitError
+		if !errors.As(err, &gate) || gate.ExitCode() != tc.code {
+			t.Fatalf("expected %d, got %v", tc.code, err)
+		}
+		if !json.Valid(out.Bytes()) {
+			t.Fatalf("gate failure swallowed report: %s", &out)
+		}
+	}
 }
 
-func (stubMutant) Rollback() error {
-	panic("implement me")
-}
+type failedWriter struct{}
 
-func (s stubMutant) OrigSnippet() []byte {
-	return s.originSnippet
-}
+func (failedWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
-func (s stubMutant) MutatedSnippet() []byte {
-	return s.mutatedSnippet
+func TestReportWriteFailure(t *testing.T) {
+	if err := report.Write(failedWriter{}, fixtureResults(), report.Options{}); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("expected write error, got %v", err)
+	}
 }

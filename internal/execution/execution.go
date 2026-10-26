@@ -17,6 +17,20 @@
 // Package execution provides error types and status codes for command execution.
 package execution
 
+// UsageError identifies invalid flags, arguments or configuration.
+type UsageError struct{ cause error }
+
+// NewUsageError wraps an error with the invalid-usage exit code.
+func NewUsageError(err error) *UsageError { return &UsageError{cause: err} }
+
+func (e *UsageError) Error() string { return e.cause.Error() }
+
+// Unwrap exposes the original validation error.
+func (e *UsageError) Unwrap() error { return e.cause }
+
+// ExitCode returns the standard invalid-usage exit code.
+func (*UsageError) ExitCode() int { return 2 }
+
 // ErrorType is the type of the error that can generate a specific exit status.
 type ErrorType int
 

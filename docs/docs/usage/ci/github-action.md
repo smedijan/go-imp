@@ -14,5 +14,5 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go install github.com/smedijan/go-imp/cmd/imp@latest
-      - run: imp run --silent
+      - run: imp run --quiet --json --output mutation-report.json
 ```

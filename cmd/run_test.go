@@ -81,6 +81,11 @@ func TestRun(t *testing.T) {
 			defValue:  "false",
 		},
 		{
+			name:     "json",
+			flagType: "bool",
+			defValue: "false",
+		},
+		{
 			name:     "increment-decrement",
 			flagType: "bool",
 			defValue: "true",
@@ -127,6 +132,12 @@ func TestRun(t *testing.T) {
 			shorthand: "o",
 			flagType:  "string",
 			defValue:  "",
+		},
+		{
+			name: "statuses", flagType: "string", defValue: "",
+		},
+		{
+			name: "verbose", shorthand: "v", flagType: "bool", defValue: "false",
 		},
 		{
 			name:     "remove-self-assignments",
