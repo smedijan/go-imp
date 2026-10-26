@@ -51,6 +51,17 @@ hk run pre-push --from-ref origin/main --to-ref HEAD --step mutation-test
 Do not skip a failed gate or lower its thresholds to publish a change. Improve the
 implementation/tests and rerun the checks.
 
+## Black-box tests
+
+Write all Go tests in the external `<package>_test` package and exercise the same
+exported interface as callers. For CLI behavior, use `cmd.Execute` or the built binary.
+Assert observable results rather than private helpers or fields; do not export
+implementation details or add test-only export bridges to bypass this rule.
+
+The `testpackage` linter enforces this in local hooks and CI, including
+`export_test.go`, `*_internal_test.go`, and tests of `main` packages. Run
+`golangci-lint run ./...` to check the policy alongside the other Go linters.
+
 ## DCO sign-off required
 
 Sign off **every commit** under the [Developer Certificate of Origin](https://developercertificate.org/)

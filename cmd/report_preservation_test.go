@@ -1,7 +1,6 @@
-package cmd
+package cmd_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,14 +32,9 @@ func TestReport(t *testing.T) {
 			writeFixture(t, path, "previous successful report\n")
 			configuration.Set(configuration.RunOutputKey, path)
 			configuration.Set(configuration.RunJSONKey, jsonOutput)
-			command, err := newRunCmd(context.Background())
-			if err != nil {
-				t.Fatal(err)
-			}
-			var stdout bytes.Buffer
-			command.cmd.SetOut(&stdout)
 			t.Chdir(dir)
-			if err := command.cmd.RunE(command.cmd, nil); err != nil {
+			stdout, err := executeCLI(context.Background(), t, "test", "run")
+			if err != nil {
 				t.Fatal(err)
 			}
 			//nolint:gosec // test-owned output file under t.TempDir
@@ -51,7 +45,7 @@ func TestReport(t *testing.T) {
 			if json.Valid(payload) != jsonOutput {
 				t.Errorf("wrong report format: %s", payload)
 			}
-			if string(payload) == "previous successful report\n" || stdout.Len() != 0 {
+			if string(payload) == "previous successful report\n" || stdout != "" {
 				t.Error("successful report was not replaced exclusively at its file destination")
 			}
 		})
@@ -100,15 +94,9 @@ func TestExecutionFailurePreservesExistingReport(t *testing.T) {
 			if tc.cancel {
 				cancel()
 			}
-			command, err := newRunCmd(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var stdout bytes.Buffer
-			command.cmd.SetOut(&stdout)
 			// Coverage executes in the module root; keep that process-wide change scoped to this case.
 			t.Chdir(dir)
-			err = command.cmd.RunE(command.cmd, nil)
+			stdout, err := executeCLI(ctx, t, "test", "run")
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("expected %q error, got %v", tc.want, err)
 			}
@@ -123,8 +111,8 @@ func TestExecutionFailurePreservesExistingReport(t *testing.T) {
 			if string(got) != "previous successful report\n" {
 				t.Errorf("failed execution destroyed the previous report: %q", got)
 			}
-			if stdout.Len() != 0 {
-				t.Errorf("file output leaked to stdout: %s", &stdout)
+			if stdout != "" {
+				t.Errorf("file output leaked to stdout: %s", stdout)
 			}
 			leftovers, globErr := filepath.Glob(filepath.Join(dir, ".imp-report-*"))
 			if globErr != nil || len(leftovers) != 0 {

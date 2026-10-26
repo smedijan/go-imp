@@ -1,4 +1,4 @@
-package cmd
+package output_test
 
 import (
 	"io"
@@ -7,14 +7,16 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/smedijan/go-imp/internal/report/output"
 )
 
 func TestReportRejectsDevicesAtOpen(t *testing.T) {
 	for _, path := range []string{"/dev/null", "/dev/zero"} {
 		t.Run(path, func(t *testing.T) {
-			output, err := openReportOutput(io.Discard, path)
-			if output != nil {
-				_ = output.Close()
+			destination, err := output.Open(io.Discard, path)
+			if destination != nil {
+				_ = destination.Close()
 			}
 			if err == nil || !strings.Contains(err.Error(), "not a regular file") {
 				t.Fatalf("device must be rejected before staging: %v", err)
@@ -30,14 +32,14 @@ func TestReportRejectsSpecialDestinations(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				dir := t.TempDir()
 				path := filepath.Join(dir, "report")
-				var output *reportOutput
+				var destination *output.Destination
 				var err error
 				if !beforeOpen {
-					output, err = openReportOutput(io.Discard, path)
+					destination, err = output.Open(io.Discard, path)
 					if err != nil {
 						t.Fatal(err)
 					}
-					t.Cleanup(func() { _ = output.Close() })
+					t.Cleanup(func() { _ = destination.Close() })
 				}
 				switch kind {
 				case "FIFO":
@@ -63,12 +65,12 @@ func TestReportRejectsSpecialDestinations(t *testing.T) {
 					t.Fatal(err)
 				}
 				if beforeOpen {
-					output, err = openReportOutput(io.Discard, path)
+					destination, err = output.Open(io.Discard, path)
 				} else {
-					err = output.Commit()
+					err = destination.Commit()
 				}
 				if err == nil {
-					_ = output.Close()
+					_ = destination.Close()
 					t.Fatal("special destination was accepted")
 				}
 				after, err := os.Lstat(path)
@@ -78,8 +80,8 @@ func TestReportRejectsSpecialDestinations(t *testing.T) {
 				if before.Mode() != after.Mode() {
 					t.Fatalf("destination file type changed from %s to %s", before.Mode(), after.Mode())
 				}
-				if output != nil {
-					_ = output.Close()
+				if destination != nil {
+					_ = destination.Close()
 				}
 				assertNoTemporaryReports(t, dir)
 			})

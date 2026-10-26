@@ -30,6 +30,7 @@ linters:
     - revive
     - staticcheck
     - tagliatelle
+    - testpackage
     - unconvert
     - usestdlibvars
   exclusions:
@@ -68,6 +69,12 @@ linters:
         - name: unused-parameter
         - name: unreachable-code
         - name: redefines-builtin-id
+    testpackage:
+      # Do not exempt export_test.go, internal_test.go, or package main.
+      skip-regexp: '^$'
+      # An empty list retains the linter's default main exemption.
+      # This literal cannot match a valid Go package name.
+      allow-packages: ['no-same-package-tests']
     tagliatelle:
       case:
         rules:
