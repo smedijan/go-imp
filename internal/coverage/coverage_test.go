@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -187,7 +188,7 @@ func TestCoveragePreservesRepeatedModulePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got.Profile["example.com/pkg/file.go"]; !ok {
+	if _, ok := got.Profile[filepath.Join("example.com", "pkg", "file.go")]; !ok {
 		t.Fatalf("expected repeated module path to be preserved, got profile keys %v", got.Profile)
 	}
 }
