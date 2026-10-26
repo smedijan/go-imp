@@ -53,6 +53,23 @@ func TestDetectsModule(t *testing.T) {
 		}
 	})
 
+	t.Run("reads module directive after leading comments and blank lines", func(t *testing.T) {
+		const modName = "example.com/with-comments"
+		root := t.TempDir()
+		content := "// go version\n\n// module docs\nmodule " + modName + "\n\ngo 1.21\n"
+		if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+
+		mod, err := gomodule.Init(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mod.Name != modName {
+			t.Errorf("expected Go module to be %q, got %q", modName, mod.Name)
+		}
+	})
+
 	t.Run("returns error if go.mod is invalid", func(t *testing.T) {
 		path := t.TempDir()
 		goMod := path + "/go.mod"

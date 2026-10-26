@@ -18,11 +18,11 @@
 package gomodule
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"golang.org/x/mod/modfile"
 )
 
 // GoModule represents the current execution context in imp.
@@ -57,22 +57,23 @@ func Init(path string) (GoModule, error) {
 
 func modPkg(path string) (string, string, error) {
 	root := findModuleRoot(path)
+	if root == "" {
+		return "", "", fmt.Errorf("could not find go.mod")
+	}
 	// #nosec G304 -- root is determined by locating the module; reading its go.mod is intentional.
-	file, err := os.Open(root + "/go.mod")
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
+	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return "", "", err
 	}
-	r := bufio.NewReader(file)
-	line, _, err := r.ReadLine()
+	mod, err := modfile.Parse("go.mod", data, nil)
 	if err != nil {
 		return "", "", err
 	}
-	packageName := bytes.TrimPrefix(line, []byte("module "))
+	if mod.Module == nil {
+		return "", "", fmt.Errorf("go.mod does not declare a module")
+	}
 
-	return string(packageName), root, nil
+	return mod.Module.Mod.Path, root, nil
 }
 
 func findModuleRoot(path string) string {
