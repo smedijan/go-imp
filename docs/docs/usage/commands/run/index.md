@@ -42,7 +42,9 @@ imp run --json --statuses lived,not-covered | jq '.groups'
 
 The schema has `schema_version: 1`. Findings are grouped by status and then filename,
 so status and filename are not repeated on every mutation. `test_command` is a string
-and is omitted when unavailable. The example below selects only survivors:
+and is omitted when unavailable. Command arguments use POSIX shell quoting, preserving
+literal whitespace, quotes and shell metacharacters; they are not native PowerShell or
+`cmd.exe` command lines. The example below selects only survivors:
 
 ```json
 {
@@ -120,8 +122,12 @@ imp run --json --statuses lived --output survivors.json
 imp run --json --output -
 ```
 
-Progress and errors go to stderr, never the report destination. Output failures return
-an error rather than silently discarding results.
+Progress and errors go to stderr, never the report destination. File reports are staged
+in a temporary sibling and replace the destination only after a complete report is written.
+Failures and cancellation preserve any previous report; quality-gate failures still save
+the completed report. Output failures return an error rather than silently discarding results.
+File destinations must be regular files (or not yet exist); symlinks, pipes and devices
+are rejected rather than replaced. Use stdout and shell redirection to stream to them.
 
 ### Quiet and color
 

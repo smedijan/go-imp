@@ -3,7 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
-	"strconv"
+	"regexp"
 	"strings"
 	"time"
 
@@ -147,11 +147,14 @@ func testCommand(m mutator.Mutator) []string {
 	return nil
 }
 
+var shellWord = regexp.MustCompile(`^[a-zA-Z0-9_@%+=:,./-]+$`)
+
+// formatCommand uses POSIX shell quoting, never Go string literal escaping.
 func formatCommand(command []string) string {
 	parts := make([]string, len(command))
 	for i, part := range command {
-		if strings.ContainsAny(part, " \t\n\"'\\$`;&|<>()*?[]{}!") {
-			part = strconv.Quote(part)
+		if !shellWord.MatchString(part) {
+			part = "'" + strings.ReplaceAll(part, "'", "'\"'\"'") + "'"
 		}
 		parts[i] = part
 	}

@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -124,12 +125,12 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
-		output, closeOutput, err := openReportOutput(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
+		output, err := openReportOutput(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
 		if err != nil {
 			return err
 		}
-		defer func() { _ = closeOutput() }()
-		options.Color = log.ColorEnabled(output)
+		defer func() { _ = output.Close() }()
+		options.Color = log.ColorEnabled(output.Writer)
 
 		workDir, err := os.MkdirTemp(os.TempDir(), "imp-")
 		if err != nil {
@@ -145,8 +146,12 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 			return err
 		}
 		reportErr := report.Write(output, results, options)
-		if err := closeOutput(); err != nil {
-			return fmt.Errorf("close report: %w", err)
+		var gate *execution.ExitError
+		if reportErr != nil && !errors.As(reportErr, &gate) {
+			return reportErr
+		}
+		if err := output.Commit(); err != nil {
+			return err
 		}
 
 		return reportErr

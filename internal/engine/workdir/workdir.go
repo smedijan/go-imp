@@ -155,12 +155,12 @@ func copyPath(srcPath, dstPath string, info fs.FileInfo) error {
 }
 
 func doCopy(srcPath, dstPath string, fileMode fs.FileMode) error {
-	//nolint:gosec // srcPath is internally controlled, not user input
+	// #nosec G304 -- srcPath is produced by walking the module tree to copy its files.
 	s, err := os.Open(srcPath)
 	if err != nil {
 		return err
 	}
-	//nolint:gosec // dstPath is internally controlled, not user input
+	// #nosec G304 -- dstPath is the corresponding path in the isolated worker directory.
 	d, err := os.OpenFile(dstPath, os.O_CREATE|os.O_RDWR, fileMode)
 	if err != nil {
 		return err

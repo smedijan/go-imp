@@ -3,10 +3,11 @@ package report
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -102,18 +103,15 @@ func Write(out io.Writer, results Results, options Options) error {
 
 func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 	ordered := append([]mutator.Mutator(nil), mutants...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		a, b := ordered[i].Position(), ordered[j].Position()
-		switch {
-		case a.Filename != b.Filename:
-			return a.Filename < b.Filename
-		case a.Line != b.Line:
-			return a.Line < b.Line
-		case a.Column != b.Column:
-			return a.Column < b.Column
-		default:
-			return ordered[i].Type().String() < ordered[j].Type().String()
-		}
+	slices.SortStableFunc(ordered, func(a, b mutator.Mutator) int {
+		pa, pb := a.Position(), b.Position()
+
+		return cmp.Or(
+			cmp.Compare(pa.Filename, pb.Filename),
+			cmp.Compare(pa.Line, pb.Line),
+			cmp.Compare(pa.Column, pb.Column),
+			cmp.Compare(a.Type().String(), b.Type().String()),
+		)
 	})
 
 	return ordered

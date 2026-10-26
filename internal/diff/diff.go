@@ -35,19 +35,31 @@ func newChanges(file *gitdiff.File) (FileName, []Change) {
 	var changes []Change
 
 	for _, fragment := range file.TextFragments {
-		if fragment.LinesAdded == 0 {
-			continue
+		line := int(fragment.NewPosition)
+		for _, entry := range fragment.Lines {
+			switch entry.Op {
+			case gitdiff.OpAdd:
+				changes = appendChangedLine(changes, line)
+				line++
+			case gitdiff.OpContext:
+				line++
+			case gitdiff.OpDelete:
+				// Deleted lines do not advance positions in the current source.
+			}
 		}
-
-		startLine := int(fragment.NewPosition + fragment.LeadingContext)
-
-		changes = append(changes, Change{
-			StartLine: startLine,
-			EndLine:   startLine + int(fragment.LinesAdded-1),
-		})
 	}
 
 	return FileName(file.NewName), changes
+}
+
+func appendChangedLine(changes []Change, line int) []Change {
+	if len(changes) > 0 && changes[len(changes)-1].EndLine == line-1 {
+		changes[len(changes)-1].EndLine = line
+
+		return changes
+	}
+
+	return append(changes, Change{StartLine: line, EndLine: line})
 }
 
 // IsChanged returns true if the given position is within a changed region.

@@ -135,6 +135,7 @@ func TestCLIOutputContract(t *testing.T) {
 		{name: "JSON file", args: []string{"--json", "--statuses", "lived", "--output", "survivors.json"}, file: "survivors.json", json: true},
 		{name: "empty filter", args: []string{"--dry-run", "--json", "--statuses", "killed"}, json: true},
 		{name: "quality gate", args: []string{"--json", "--threshold-efficacy", "90"}, json: true, exit: 10},
+		{name: "quality gate file", args: []string{"--json", "--threshold-efficacy", "90", "--output", "gate-failed.json"}, file: "gate-failed.json", json: true, exit: 10},
 		{name: "invalid status", args: []string{"--statuses", "typo"}, exit: 2, noReport: true},
 		{name: "malformed config", config: "run: [broken", exit: 2, noReport: true},
 		{name: "unknown flag", args: []string{"--experimental", "detailed-report"}, exit: 2, noReport: true},

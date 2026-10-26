@@ -29,6 +29,11 @@ local full_checks = (fast_checks) {
     ["go-vuln-check"] = (Builtins.go_vuln_check) {
         glob = "**/*.go"
     }
+    ["mutation-test"] {
+        glob = "**/*.go"
+        check = "go run ./cmd/imp run --diff origin/main --statuses lived,not-covered"
+        exclusive = true
+    }
 }
 
 steps = fast_checks

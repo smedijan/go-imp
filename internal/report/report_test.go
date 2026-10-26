@@ -115,7 +115,7 @@ func TestJSONReport(t *testing.T) {
 	}
 	finding := document.Groups["LIVED"]["source.go"][0]
 	if finding.Line != int(mutator.Lived)+1 || finding.Column != 4 || finding.Type != "CONDITIONALS_BOUNDARY" ||
-		finding.TestCommand != `go test -tags "tag1 tag2" example.com/pkg` {
+		finding.TestCommand != `go test -tags 'tag1 tag2' example.com/pkg` {
 		t.Errorf("incorrect finding: %+v", finding)
 	}
 	for _, forbidden := range []string{`"original"`, `"mutated"`, `"status"`, `"file_name"`, "\x1b[", "Tests passed"} {
