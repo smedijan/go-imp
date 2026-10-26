@@ -176,6 +176,22 @@ func TestCoverageParsesOutput(t *testing.T) {
 	}
 }
 
+func TestCoveragePreservesRepeatedModulePath(t *testing.T) {
+	mod := gomodule.GoModule{
+		Name:       "example.com",
+		CallingDir: ".",
+	}
+	cov := coverage.NewWithCmd(fakeExecCommandSuccess(nil), "testdata/repeated-module", mod)
+
+	got, err := cov.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.Profile["example.com/pkg/file.go"]; !ok {
+		t.Fatalf("expected repeated module path to be preserved, got profile keys %v", got.Profile)
+	}
+}
+
 func TestParseOutputFail(t *testing.T) {
 	mod := gomodule.GoModule{
 		Name:       "example.com",
