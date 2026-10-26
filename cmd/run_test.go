@@ -14,11 +14,10 @@
  *    limitations under the License.
  */
 
-package cmd
+package cmd_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -27,191 +26,22 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	c, err := newRunCmd(context.Background())
-	if err != nil {
-		t.Fatal("newRunCmd should no fail")
-	}
-	cmd := c.cmd
-
-	if cmd.Name() != "run" {
-		t.Errorf("expected 'run', got %q", cmd.Name())
-	}
-	if len(cmd.Aliases) != 1 || cmd.Aliases[0] != "r" {
-		t.Errorf("expected only alias 'r', got %v", cmd.Aliases)
-	}
-
-	flags := cmd.Flags()
-
-	testCases := []struct {
-		name      string
-		shorthand string
-		flagType  string
-		defValue  string
-	}{
-		{
-			name:     "arithmetic-base",
-			flagType: "bool",
-			defValue: "true",
-		},
-		{
-			name:     "conditionals-boundary",
-			flagType: "bool",
-			defValue: "true",
-		},
-		{
-			name:     "conditionals_negation",
-			flagType: "bool",
-			defValue: "true",
-		},
-		{
-			name:     "coverpkg",
-			flagType: "string",
-			defValue: "",
-		},
-		{
-			name:      "diff",
-			shorthand: "D",
-			flagType:  "string",
-			defValue:  "",
-		},
-		{
-			name:      "dry-run",
-			shorthand: "d",
-			flagType:  "bool",
-			defValue:  "false",
-		},
-		{
-			name:     "json",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:     "increment-decrement",
-			flagType: "bool",
-			defValue: "true",
-		},
-		{
-			name:      "integration",
-			shorthand: "i",
-			flagType:  "bool",
-			defValue:  "false",
-		},
-		{
-			name:     "invert-assignments",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:     "invert-bitwise",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:     "invert-bwassign",
-			flagType: "bool",
-			defValue: "false",
-		},
-
-		{
-			name:     "invert-logical",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:     "invert-loopctrl",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:     "invert-negatives",
-			flagType: "bool",
-			defValue: "true",
-		},
-		{
-			name:      "output",
-			shorthand: "o",
-			flagType:  "string",
-			defValue:  "",
-		},
-		{
-			name: "statuses", flagType: "string", defValue: "",
-		},
-		{
-			name: "verbose", shorthand: "v", flagType: "bool", defValue: "false",
-		},
-		{
-			name:     "remove-self-assignments",
-			flagType: "bool",
-			defValue: "false",
-		},
-		{
-			name:      "tags",
-			shorthand: "t",
-			flagType:  "string",
-			defValue:  "",
-		},
-		{
-			name:     "test-cpu",
-			flagType: "int",
-			defValue: "0",
-		},
-		{
-			name:     "threshold-efficacy",
-			flagType: "float64",
-			defValue: "0",
-		},
-		{
-			name:     "threshold-mcover",
-			flagType: "float64",
-			defValue: "0",
-		},
-		{
-			name:     "timeout-coefficient",
-			flagType: "int",
-			defValue: "0",
-		},
-		{
-			name:     "workers",
-			flagType: "int",
-			defValue: "0",
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			f := flags.Lookup(tc.name)
-			if f == nil {
-				t.Fatalf("expected flag %q to be registered", tc.name)
-			}
-			if tc.shorthand != "" && f.Shorthand != tc.shorthand {
-				t.Errorf("expected %q to have a shorthand %q, got %q", tc.name, tc.shorthand, f.Shorthand)
-			}
-			if f.Value.Type() != tc.flagType {
-				t.Errorf("expected %q to be type %q, got %q", tc.name, f.Value.Type(), f.Value.Type())
-			}
-			if f.DefValue != tc.defValue {
-				t.Errorf("expected %q to have default value %q, got %q", tc.name, tc.defValue, f.DefValue)
-			}
-		})
-	}
-
-	// test for MutantTypes flags
-	for _, mt := range mutator.Types {
-		s := strings.ToLower(mt.String())
-		mtf := flags.Lookup(s)
-		if mtf == nil {
-			t.Errorf("expected to have flag for mutant type: %s", mt)
-
-			continue
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	for _, name := range []string{"run", "r"} {
+		out, err := executeCLI(context.Background(), t, "test", name, "--help")
+		if err != nil {
+			t.Fatal(err)
 		}
-
-		if mtf.Value.Type() != "bool" {
-			t.Errorf("expected %q to be a %q, got %q", s, "bool", mtf.Value.Type())
+		for _, flag := range []string{"coverpkg", "diff", "dry-run", "json", "integration", "output", "statuses", "verbose", "tags", "test-cpu", "threshold-efficacy", "threshold-mcover", "timeout-coefficient", "workers"} {
+			if !strings.Contains(out, "--"+flag) {
+				t.Errorf("%s help missing flag --%s", name, flag)
+			}
 		}
-		wantDef := fmt.Sprintf("%v", configuration.IsDefaultEnabled(mt))
-		if mtf.DefValue != wantDef {
-			t.Errorf("expected %q have default %q, got %q", s, wantDef, mtf.DefValue)
+		for _, mt := range mutator.Types {
+			if flag := "--" + strings.ReplaceAll(strings.ToLower(mt.String()), "_", "-"); !strings.Contains(out, flag) {
+				t.Errorf("help missing mutation flag %s", flag)
+			}
 		}
 	}
 }

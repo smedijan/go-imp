@@ -14,162 +14,66 @@
  *    limitations under the License.
  */
 
-package flags
+package flags_test
 
 import (
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/smedijan/go-imp/cmd/internal/flags"
 )
 
 type unsupportedType int
 
-type testCase struct {
-	flag        Flag
-	expectError bool
-}
-
 func TestSet(t *testing.T) {
-	testCases := []testCase{
-		{
-			flag: Flag{
-				Name:      "bool-flag-no-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "",
-				DefaultV:  true,
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "bool-flag-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  true,
-				Usage:     "test usage",
-			},
-		},
-
-		{
-			flag: Flag{
-				Name:      "string-flag-no-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "",
-				DefaultV:  "test",
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "string-flag-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  "test",
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "int-flag-no-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "",
-				DefaultV:  0,
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "int-flag-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  0,
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "float64-flag-no-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "",
-				DefaultV:  float64(0),
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "float64-flag-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  float64(0),
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "[]string-flag-no-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "",
-				DefaultV:  []string{},
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "[]string-flag-sh",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  []string{},
-				Usage:     "test usage",
-			},
-		},
-		{
-			flag: Flag{
-				Name:      "not-supported-type",
-				CfgKey:    "test.cfg",
-				Shorthand: "t",
-				DefaultV:  unsupportedType(0),
-				Usage:     "test usage",
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.flag.Name, func(t *testing.T) {
-			defer viper.Reset()
-
-			cmd := &cobra.Command{}
-
-			// #nosec G601 - We are in tests, we don't care
-			err := Set(cmd, &tc.flag)
-			checkFlag(t, err, cmd, tc)
-
-			tc.flag.Name += "_persistent"
-			// #nosec G601 - We are in tests, we don't care
-			err = SetPersistent(cmd, &tc.flag)
-			checkFlag(t, err, cmd, tc)
-		})
-	}
-}
-
-func checkFlag(t *testing.T, err error, cmd *cobra.Command, tc testCase) {
-	t.Helper()
-
-	if (tc.expectError && err == nil) || (!tc.expectError && err != nil) {
-		t.Fatal("error not expected")
-	}
-	if !tc.expectError {
-		flag := cmd.Flag(tc.flag.Name)
-
-		if flag == nil {
-			t.Errorf("expected flag to be present")
-
-			return
-		}
-
-		if tc.flag.Shorthand != flag.Shorthand {
-			t.Errorf("expected configured shorthand")
+	for _, tc := range []struct {
+		name      string
+		value     any
+		wantType  string
+		wantError bool
+	}{
+		{name: "bool", value: true, wantType: "bool"},
+		{name: "string", value: "test", wantType: "string"},
+		{name: "int", value: 0, wantType: "int"},
+		{name: "float64", value: float64(0), wantType: "float64"},
+		{name: "strings", value: []string{}, wantType: "stringArray"},
+		{name: "unsupported", value: unsupportedType(0), wantError: true},
+	} {
+		for _, shorthand := range []string{"", "t"} {
+			for _, persistent := range []bool{false, true} {
+				name := tc.name + "/" + shorthand + "/local"
+				if persistent {
+					name = tc.name + "/" + shorthand + "/persistent"
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Cleanup(viper.Reset)
+					cmd := &cobra.Command{}
+					flag := &flags.Flag{Name: "test-flag", CfgKey: "test.cfg", Shorthand: shorthand, DefaultV: tc.value, Usage: "test usage"}
+					set := flags.Set
+					if persistent {
+						set = flags.SetPersistent
+					}
+					err := set(cmd, flag)
+					if (err != nil) != tc.wantError {
+						t.Fatalf("unexpected error: %v", err)
+					}
+					if tc.wantError {
+						return
+					}
+					got := cmd.Flag(flag.Name)
+					if got == nil {
+						t.Fatal("flag not registered")
+					}
+					if got.Shorthand != shorthand || got.Value.Type() != tc.wantType {
+						t.Errorf("flag shorthand=%q, type=%q", got.Shorthand, got.Value.Type())
+					}
+					if persistent && cmd.PersistentFlags().Lookup(flag.Name) == nil {
+						t.Error("flag is not persistent")
+					}
+				})
+			}
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package diff
+package diff_test
 
 import (
 	"errors"
@@ -8,13 +8,16 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/diff"
 )
 
 func TestNewWithCmd(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
 	t.Run("must return nil on empty flag", func(t *testing.T) {
 		m := &mock{}
 
-		d, err := NewWithCmd(m.call)
+		d, err := diff.NewWithCmd(m.call)
 
 		if d != nil && err != nil {
 			t.Fatal("incorrect result")
@@ -28,7 +31,7 @@ func TestNewWithCmd(t *testing.T) {
 			outputErr: errors.New("test"),
 		}
 
-		_, err := NewWithCmd(m.call)
+		_, err := diff.NewWithCmd(m.call)
 		if err == nil {
 			t.Error("must return error")
 		}
@@ -53,7 +56,7 @@ func TestNewWithCmd(t *testing.T) {
 			output: []byte(testErrDiff),
 		}
 
-		_, err := NewWithCmd(m.call)
+		_, err := diff.NewWithCmd(m.call)
 		if err == nil {
 			t.Error("must return error")
 		}
@@ -66,11 +69,11 @@ func TestNewWithCmd(t *testing.T) {
 			output: []byte(testDiff),
 		}
 
-		expected := Diff{
+		expected := diff.Diff{
 			"test/test": {{StartLine: 44, EndLine: 44}},
 		}
 
-		result, err := NewWithCmd(m.call)
+		result, err := diff.NewWithCmd(m.call)
 
 		if err != nil || !reflect.DeepEqual(result, expected) {
 			t.Log("err", err)
@@ -88,7 +91,7 @@ type mock struct {
 	outputErr error
 }
 
-func (m *mock) call(name string, args ...string) execCmd {
+func (m *mock) call(name string, args ...string) *mock {
 	m.calls++
 	m.callName = name
 	m.callArgs = args

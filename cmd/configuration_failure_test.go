@@ -1,7 +1,6 @@
-package cmd
+package cmd_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
@@ -27,20 +26,13 @@ func TestInvalidConfigurationStopsBeforeExecution(t *testing.T) {
 			if tc.exists {
 				writeFixture(t, path, tc.content)
 			}
-			root, err := newRootCmd(context.Background(), "test")
-			if err != nil {
-				t.Fatal(err)
-			}
-			var out bytes.Buffer
-			root.cmd.SetOut(&out)
-			root.cmd.SetArgs([]string{"run", "--config", path, "--json"})
-			err = root.execute()
+			out, err := executeCLI(context.Background(), t, "test", "run", "--config", path, "--json")
 			var usage *execution.UsageError
 			if !errors.As(err, &usage) || usage.ExitCode() != 2 {
 				t.Fatalf("expected invalid-configuration exit2, got %v", err)
 			}
-			if out.Len() != 0 {
-				t.Errorf("invalid configuration must not emit a report: %s", &out)
+			if out != "" {
+				t.Errorf("invalid configuration must not emit a report: %s", out)
 			}
 		})
 	}

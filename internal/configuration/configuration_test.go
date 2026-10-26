@@ -14,290 +14,143 @@
  *    limitations under the License.
  */
 
-package configuration
+package configuration_test
 
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/mitchellh/go-homedir"
-	"github.com/spf13/viper"
 
+	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-type envEntry struct {
-	name  string
-	value string
-}
-
 func TestConfiguration(t *testing.T) {
-	testCases := []struct {
-		wantedConfig map[string]interface{}
-		name         string
-		configPaths  []string
-		envEntries   []envEntry
-		expectErr    bool
+	for _, tc := range []struct {
+		name      string
+		paths     []string
+		env       map[string]string
+		want      map[string]any
+		wantError bool
 	}{
-		{
-			name:        "from single file",
-			configPaths: []string{"testdata/config1/.imp.yaml"},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": true,
-				"run.tags":    "tag1,tag2,tag3",
-			},
-		},
-		{
-			name:        "from returns error if unreadable",
-			configPaths: []string{"testdata/config1/.mutant"},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": true,
-				"run.tags":    "tag1,tag2,tag3",
-			},
-			expectErr: true,
-		},
-		{
-			name:        "from cfg",
-			configPaths: []string{"./testdata/config1"},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": true,
-				"run.tags":    "tag1,tag2,tag3",
-			},
-		},
-		{
-			name:        "from cfg multi",
-			configPaths: []string{"./testdata/config2", "./testdata/config1"},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": true,
-				"run.tags":    "tag1.2,tag2.2,tag3.2",
-			},
-		},
-		{
-			name: "from env",
-			envEntries: []envEntry{
-				{name: "IMP_RUN_DRY_RUN", value: "true"},
-				{name: "IMP_RUN_TAGS", value: "tag1,tag2,tag3"},
-			},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": "true",
-				"run.tags":    "tag1,tag2,tag3",
-			},
-		},
-		{
-			name: "from cfg override with env",
-			envEntries: []envEntry{
-				{name: "IMP_RUN_TAGS", value: "tag1env,tag2env,tag3env"},
-			},
-			configPaths: []string{"./testdata/config1"},
-			wantedConfig: map[string]interface{}{
-				"run.dry-run": true,
-				"run.tags":    "tag1env,tag2env,tag3env",
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
+		{name: "single file", paths: []string{"testdata/config1/.imp.yaml"}, want: map[string]any{"run.dry-run": true, "run.tags": "tag1,tag2,tag3"}},
+		{name: "unreadable file", paths: []string{"testdata/config1/.mutant"}, wantError: true},
+		{name: "directory", paths: []string{"testdata/config1"}, want: map[string]any{"run.dry-run": true, "run.tags": "tag1,tag2,tag3"}},
+		{name: "first directory wins", paths: []string{"testdata/config2", "testdata/config1"}, want: map[string]any{"run.dry-run": true, "run.tags": "tag1.2,tag2.2,tag3.2"}},
+		{name: "environment", env: map[string]string{"IMP_RUN_DRY_RUN": "true", "IMP_RUN_TAGS": "tag1,tag2,tag3"}, want: map[string]any{"run.dry-run": "true", "run.tags": "tag1,tag2,tag3"}},
+		{name: "environment overrides file", paths: []string{"testdata/config1"}, env: map[string]string{"IMP_RUN_TAGS": "tag1env,tag2env,tag3env"}, want: map[string]any{"run.dry-run": true, "run.tags": "tag1env,tag2env,tag3env"}},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.envEntries != nil {
-				for _, e := range tc.envEntries {
-					t.Setenv(e.name, e.value)
-				}
+			configuration.Reset()
+			t.Cleanup(configuration.Reset)
+			for key, value := range tc.env {
+				t.Setenv(key, value)
 			}
-			err := Init(tc.configPaths)
-			if tc.expectErr && err == nil {
-				t.Fatal("expected error")
+			err := configuration.Init(tc.paths)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("unexpected error: %v", err)
 			}
-			if tc.expectErr {
+			if tc.wantError {
 				return
 			}
-
-			for key, wanted := range tc.wantedConfig {
-				got := Get[any](key)
-				if got != wanted {
-					t.Error(cmp.Diff(got, wanted))
+			for key, want := range tc.want {
+				if got := configuration.Get[any](key); !cmp.Equal(got, want) {
+					t.Error(cmp.Diff(want, got))
 				}
 			}
-			viper.Reset()
 		})
 	}
 }
 
-func TestConfigPaths(t *testing.T) {
-	home, _ := homedir.Dir()
+func TestConfigDiscovery(t *testing.T) {
+	for _, location := range []string{"module root", "current directory", "XDG config", "home config", "outside module"} {
+		t.Run(location, func(t *testing.T) {
+			configuration.Reset()
+			t.Cleanup(configuration.Reset)
+			dir := t.TempDir()
+			home := filepath.Join(dir, "home")
+			xdg := filepath.Join(dir, "xdg")
+			module := filepath.Join(dir, "module")
+			cwd := filepath.Join(module, "nested")
+			for _, path := range []string{home, filepath.Join(xdg, "imp", "imp"), cwd} {
+				if err := os.MkdirAll(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			homedir.Reset()
+			t.Cleanup(homedir.Reset)
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			t.Setenv("XDG_CONFIG_HOME", xdg)
+			writeConfigFixture(t, filepath.Join(module, "go.mod"), "module example.com/fixture\n")
+			var configDir string
+			switch location {
+			case "module root":
+				configDir = module
+			case "current directory":
+				configDir = cwd
+			case "XDG config":
+				configDir = filepath.Join(xdg, "imp", "imp")
+			case "home config":
+				configDir = filepath.Join(home, ".imp")
+				if err := os.MkdirAll(configDir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			case "outside module":
+				cwd = t.TempDir()
+				configDir = cwd
+			}
+			writeConfigFixture(t, filepath.Join(configDir, ".imp.yaml"), "run:\n  tags: discovered\n")
+			t.Chdir(cwd)
+			if err := configuration.Init(nil); err != nil {
+				t.Fatal(err)
+			}
+			if got := configuration.Get[string](configuration.RunTagsKey); got != "discovered" {
+				t.Fatalf("tags=%q, config at %s was not discovered", got, configDir)
+			}
+		})
+	}
+}
 
-	t.Run("it lookups in default locations", func(t *testing.T) {
-		oldDir, _ := os.Getwd()
-		_ = os.Chdir("testdata/config1")
-		defer func(dir string) {
-			_ = os.Chdir(dir)
-		}(oldDir)
-
-		var want []string
-
-		// First global
-		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/imp")
-		}
-
-		// Then $XDG_CONFIG_HOME and $HOME
-		want = append(want,
-			filepath.Join(home, ".config", "imp", "imp"),
-			filepath.Join(home, ".imp"),
-		)
-
-		// Then module root
-		moduleRoot, _ := os.Getwd()
-		want = append(want, moduleRoot)
-
-		// Last current folder
-		want = append(want, ".")
-
-		got := defaultConfigPaths()
-
-		if !cmp.Equal(got, want) {
-			t.Error(cmp.Diff(got, want))
-		}
-	})
-
-	t.Run("no module root if not in go module", func(t *testing.T) {
-		oldDir, _ := os.Getwd()
-		_ = os.Chdir(t.TempDir())
-		defer func(dir string) {
-			_ = os.Chdir(dir)
-		}(oldDir)
-
-		var want []string
-
-		// First global
-		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/imp")
-		}
-
-		// Then $XDG_CONFIG_HOME and $HOME
-		want = append(want,
-			filepath.Join(home, ".config", "imp", "imp"),
-			filepath.Join(home, ".imp"),
-		)
-
-		// Last current folder
-		want = append(want, ".")
-
-		got := defaultConfigPaths()
-
-		if !cmp.Equal(got, want) {
-			t.Error(cmp.Diff(got, want))
-		}
-	})
-
-	t.Run("when XDG_CONFIG_HOME is set, it lookups in that locations", func(t *testing.T) {
-		oldDir, _ := os.Getwd()
-		_ = os.Chdir("testdata/config1")
-		defer func(dir string) {
-			_ = os.Chdir(dir)
-		}(oldDir)
-
-		customPath := filepath.Join("my", "custom", "path")
-		t.Setenv("XDG_CONFIG_HOME", customPath)
-
-		var want []string
-
-		// First global
-		if runtime.GOOS != windowsOs {
-			want = append(want, "/etc/imp")
-		}
-
-		// Then $XDG_CONFIG_HOME and $HOME
-		want = append(want,
-			filepath.Join(customPath, "imp", "imp"),
-			filepath.Join(home, ".imp"))
-
-		// Then Go module root
-		moduleRoot, _ := os.Getwd()
-		want = append(want, moduleRoot)
-
-		// Last the current directory
-		want = append(want, ".")
-
-		got := defaultConfigPaths()
-
-		if !cmp.Equal(got, want) {
-			t.Error(cmp.Diff(got, want))
-		}
-	})
+func writeConfigFixture(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestGeneratesMutantTypeEnabledKey(t *testing.T) {
-	mt := mutator.ArithmeticBase
-	want := "mutants.arithmetic-base.enabled"
-
-	got := MutantTypeEnabledKey(mt)
-
-	if got != want {
-		t.Errorf("expected %q, got %q", mt, want)
+	if got := configuration.MutantTypeEnabledKey(mutator.ArithmeticBase); got != "mutants.arithmetic-base.enabled" {
+		t.Errorf("unexpected key: %s", got)
 	}
 }
 
 func TestViperSynchronisedAccess(t *testing.T) {
 	t.Parallel()
-	testCases := []struct {
-		value any
+	for _, tc := range []struct {
 		name  string
-		key   string
+		value any
 	}{
-		{
-			name:  "bool",
-			key:   "tvsa.bool.key",
-			value: true,
-		},
-		{
-			name:  "int",
-			key:   "tvsa.int.key",
-			value: 10,
-		},
-		{
-			name:  "float64",
-			key:   "tvsa.float64.key",
-			value: float64(10),
-		},
-		{
-			name:  "string",
-			key:   "tvsa.string.key",
-			value: "test string",
-		},
-		{
-			name:  "char",
-			key:   "tvsa.char.key",
-			value: 'a',
-		},
-	}
-	for _, tc := range testCases {
-		tc := tc
+		{"bool", true}, {"int", 10}, {"float64", float64(10)}, {"string", "test string"}, {"char", 'a'},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			Set(tc.key, tc.value)
-
-			got := Get[any](tc.key)
-
-			if !cmp.Equal(got, tc.value) {
-				t.Errorf("expected %v, got %v", tc.value, got)
+			key := "tvsa." + tc.name + ".key"
+			configuration.Set(key, tc.value)
+			if got := configuration.Get[any](key); !cmp.Equal(got, tc.value) {
+				t.Error(cmp.Diff(tc.value, got))
 			}
 		})
 	}
 }
 
 func TestReset(t *testing.T) {
-	Set("test.key", true)
-
-	Reset()
-
-	got := Get[bool]("test.key")
-
-	if got != false {
-		t.Errorf("expected config to be reset")
+	configuration.Set("test.key", true)
+	configuration.Reset()
+	if configuration.Get[bool]("test.key") {
+		t.Error("expected config to be reset")
 	}
 }

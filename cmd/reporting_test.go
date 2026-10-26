@@ -1,4 +1,4 @@
-package cmd
+package cmd_test
 
 import (
 	"bytes"
@@ -13,60 +13,55 @@ import (
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/execution"
-	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-func writeFixture(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestReportingConfigurationPrecedence(t *testing.T) {
-	configuration.Reset()
-	t.Cleanup(configuration.Reset)
-	path := filepath.Join(t.TempDir(), ".imp.yaml")
-	writeFixture(t, path, "quiet: true\nno-color: true\nrun:\n  json: true\n  verbose: true\n  statuses: lived\n  threshold:\n    efficacy: 80\n")
-	t.Setenv("IMP_RUN_STATUSES", "killed")
-	t.Setenv("IMP_RUN_JSON", "false")
-	if err := configuration.Init([]string{path}); err != nil {
-		t.Fatal(err)
-	}
-	command, err := newRunCmd(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	options, err := configuredReportOptions()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.JSON || !options.Verbose || options.EfficacyThreshold != 80 || options.Statuses[0] != mutator.Killed {
-		t.Fatalf("environment did not override configuration: %+v", options)
-	}
-	if !configuration.Get[bool](configuration.ImpQuietKey) || !configuration.Get[bool](configuration.ImpNoColorKey) {
-		t.Fatal("global config not loaded")
-	}
-	if err := command.cmd.ParseFlags([]string{"--json", "--statuses", "timed-out"}); err != nil {
-		t.Fatal(err)
-	}
-	options, err = configuredReportOptions()
-	if err != nil || !options.JSON || options.Statuses[0] != mutator.TimedOut {
-		t.Fatalf("flags did not override environment: %+v, %v", options, err)
+	for _, tc := range []struct {
+		name   string
+		env    map[string]string
+		args   []string
+		json   bool
+		status string
+	}{
+		{name: "file", json: true, status: "lived"},
+		{name: "environment statuses", env: map[string]string{"IMP_RUN_STATUSES": "killed"}, json: true, status: "killed"},
+		{name: "environment format", env: map[string]string{"IMP_RUN_JSON": "false"}},
+		{name: "flags", env: map[string]string{"IMP_RUN_JSON": "false", "IMP_RUN_STATUSES": "killed"}, args: []string{"--json", "--statuses", "timed-out"}, json: true, status: "timed-out"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configuration.Reset()
+			t.Cleanup(configuration.Reset)
+			dir := newModuleFixture(t)
+			writeFixture(t, filepath.Join(dir, ".imp.yaml"), "quiet: true\nno-color: true\nrun:\n  json: true\n  verbose: true\n  statuses: lived\n  threshold:\n    efficacy: 80\n")
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			t.Chdir(dir)
+			args := append([]string{"run", "--dry-run"}, tc.args...)
+			out, err := executeCLI(context.Background(), t, "test", args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkCLIPayload(t, []byte(out), tc.json, false)
+			if tc.json {
+				var document struct {
+					Statuses []string `json:"selected_statuses"`
+				}
+				if err := json.Unmarshal([]byte(out), &document); err != nil {
+					t.Fatal(err)
+				}
+				if len(document.Statuses) != 1 || document.Statuses[0] != tc.status {
+					t.Fatalf("statuses=%v, want %s", document.Statuses, tc.status)
+				}
+			}
+		})
 	}
 }
 
 func TestInvalidStatusIsUsageError(t *testing.T) {
 	configuration.Reset()
 	t.Cleanup(configuration.Reset)
-	command, err := newRunCmd(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := command.cmd.ParseFlags([]string{"--statuses", "typo"}); err != nil {
-		t.Fatal(err)
-	}
-	err = command.cmd.PreRunE(command.cmd, nil)
+	_, err := executeCLI(context.Background(), t, "test", "run", "--statuses", "typo")
 	var usage *execution.UsageError
 	if !errors.As(err, &usage) || usage.ExitCode() != 2 {
 		t.Fatalf("expected usage error, got %v", err)
@@ -76,17 +71,10 @@ func TestInvalidStatusIsUsageError(t *testing.T) {
 func TestReportingHelp(t *testing.T) {
 	configuration.Reset()
 	t.Cleanup(configuration.Reset)
-	root, err := newRootCmd(context.Background(), "test")
+	text, err := executeCLI(context.Background(), t, "test", "run", "--statuses", "invalid", "--help")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var out bytes.Buffer
-	root.cmd.SetOut(&out)
-	root.cmd.SetArgs([]string{"run", "--statuses", "invalid", "--help"})
-	if err := root.execute(); err != nil {
-		t.Fatal(err)
-	}
-	text := out.String()
 	for _, expected := range []string{"Examples:", "Reporting:", "Scope:", "Execution:", "Quality gates:", "Mutation operators:", "--json", "--statuses", "--quiet", "--no-color"} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("help missing %q:\n%s", expected, text)

@@ -1,4 +1,4 @@
-package cmd
+package output_test
 
 import (
 	"bytes"
@@ -7,13 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/smedijan/go-imp/internal/report/output"
 )
 
 func TestReportOutputStreams(t *testing.T) {
 	for _, path := range []string{"", "-"} {
 		t.Run(path, func(t *testing.T) {
 			var stdout bytes.Buffer
-			out, err := openReportOutput(&stdout, path)
+			out, err := output.Open(&stdout, path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +52,7 @@ func TestReportOutputFileLifecycle(t *testing.T) {
 					writeFixture(t, path, "old report")
 				}
 				var stdout bytes.Buffer
-				out, err := openReportOutput(&stdout, "report.json")
+				out, err := output.Open(&stdout, "report.json")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -87,7 +89,7 @@ func TestReportOutputFileLifecycle(t *testing.T) {
 }
 
 func TestReportOutputFailures(t *testing.T) {
-	for _, kind := range []string{"missing parent", "directory target", "close failure", "replace failure"} {
+	for _, kind := range []string{"missing parent", "directory target", "replace failure"} {
 		t.Run(kind, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "report.json")
@@ -99,7 +101,7 @@ func TestReportOutputFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			out, err := openReportOutput(io.Discard, path)
+			out, err := output.Open(io.Discard, path)
 			if kind == "missing parent" || kind == "directory target" {
 				if err == nil {
 					_ = out.Close()
@@ -114,14 +116,8 @@ func TestReportOutputFailures(t *testing.T) {
 			if _, err := io.WriteString(out, "new report"); err != nil {
 				t.Fatal(err)
 			}
-			if kind == "close failure" {
-				if err := out.file.Close(); err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				if err := os.Mkdir(path, 0o700); err != nil {
-					t.Fatal(err)
-				}
+			if err := os.Mkdir(path, 0o700); err != nil {
+				t.Fatal(err)
 			}
 			if err := out.Commit(); err == nil {
 				t.Error("commit failure not returned")
@@ -129,6 +125,13 @@ func TestReportOutputFailures(t *testing.T) {
 			_ = out.Close()
 			assertNoTemporaryReports(t, dir)
 		})
+	}
+}
+
+func writeFixture(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

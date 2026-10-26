@@ -39,6 +39,7 @@ import (
 	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report"
+	"github.com/smedijan/go-imp/internal/report/output"
 )
 
 type runCmd struct {
@@ -125,7 +126,7 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
-		output, err := openReportOutput(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
+		output, err := output.Open(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
 		if err != nil {
 			return err
 		}
