@@ -38,17 +38,28 @@ Overrides the configuration file.
 imp <command> --config=config.yml
 ```
 
-### Silent
+### Quiet
 
-:material-flag:`--silent`/`-s` · :material-sign-direction: Default: false
+:material-flag: `--quiet` / `-q` · :material-sign-direction: Default: false
 
-Makes imp work in _silent mode_, which means only errors will be reported on STDOUT. This is useful in CI runs
-when you don't want to clutter the log, but just read the results from a file or check the exit error code in
-combination with a threshold configuration.
-
-!!! warning
-    Note that imp will be completely silent if there aren't errors, it doesn't mean it is unresponsive.
+Suppresses interactive progress on stderr, not the report or errors. To keep CI logs
+quiet while retaining results, select JSON and a file destination:
 
 ```shell
-imp <command> --silent
+imp run --quiet --json --output results.json
 ```
+
+### No color
+
+:material-flag: `--no-color` · :material-sign-direction: Default: false
+
+Disables ANSI colors. Color is also disabled for redirected output, when `NO_COLOR`
+is set, or when `TERM=dumb`. JSON is never colored.
+
+### Version and help
+
+`imp --version` prints the version. Use `imp run --help` for examples and flags grouped
+by purpose. Reporting verbosity uses `-v` / `--verbose`, not version.
+
+The final report goes to stdout unless `--output FILE` selects a file. Diagnostics
+and interactive progress always go to stderr. See [reporting](run/index.md#reporting).

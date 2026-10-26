@@ -20,7 +20,7 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-func TestDetailedSnippets(t *testing.T) {
+func TestSnippetPreviews(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		source   string
@@ -98,8 +98,7 @@ func TestDetailedSnippets(t *testing.T) {
 	}
 }
 
-func TestDetailedDiscoveryIncludesUncoveredContext(t *testing.T) {
-	enableDetailedReport(t)
+func TestDiscoveryIncludesUncoveredContext(t *testing.T) {
 	key := configuration.MutantTypeEnabledKey(mutator.ArithmeticBase)
 	previous := configuration.Get[any](key)
 	t.Cleanup(func() { configuration.Set(key, previous) })
@@ -116,10 +115,9 @@ func TestDetailedDiscoveryIncludesUncoveredContext(t *testing.T) {
 	}
 }
 
-func TestDetailedTestCommand(t *testing.T) {
+func TestRecordedTestCommand(t *testing.T) {
 	for _, integration := range []bool{false, true} {
 		t.Run(map[bool]string{false: "package", true: "integration"}[integration], func(t *testing.T) {
-			enableDetailedReport(t)
 			dir := t.TempDir()
 			tm := &TokenMutator{workDir: dir}
 			m := mutantExecutor{
@@ -129,7 +127,7 @@ func TestDetailedTestCommand(t *testing.T) {
 					if name != "go" {
 						t.Errorf("unexpected executable: %s", name)
 					}
-					if diff := cmp.Diff(detailedTestArgs(integration), args); diff != "" {
+					if diff := cmp.Diff(recordedTestArgs(integration), args); diff != "" {
 						t.Error(diff)
 					}
 
@@ -139,7 +137,7 @@ func TestDetailedTestCommand(t *testing.T) {
 			if status := m.runTests(dir, "example.com/pkg"); status != mutator.Lived {
 				t.Fatalf("status = %s", status)
 			}
-			want := append([]string{"go"}, detailedTestArgs(integration)...)
+			want := append([]string{"go"}, recordedTestArgs(integration)...)
 			if diff := cmp.Diff(want, tm.TestCommand()); diff != "" {
 				t.Error(diff)
 			}
@@ -147,14 +145,7 @@ func TestDetailedTestCommand(t *testing.T) {
 	}
 }
 
-func enableDetailedReport(t *testing.T) {
-	t.Helper()
-	previous := configuration.Get[any](configuration.ExperimentalKey)
-	t.Cleanup(func() { configuration.Set(configuration.ExperimentalKey, previous) })
-	configuration.Set(configuration.ExperimentalKey, []string{configuration.ExperimentalDetailedReport})
-}
-
-func detailedTestArgs(integration bool) []string {
+func recordedTestArgs(integration bool) []string {
 	pkg := "example.com/pkg"
 	if integration {
 		pkg = "./..."

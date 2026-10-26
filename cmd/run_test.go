@@ -26,40 +26,6 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-func TestExperimentalFlag(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		args    []string
-		invalid bool
-	}{
-		{name: "enabled", args: []string{"--experimental", "detailed-report"}},
-		{name: "repeatable", args: []string{"--experimental=detailed-report", "--experimental=detailed-report"}},
-		{name: "unknown", args: []string{"--experimental", "typo"}, invalid: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			configuration.Reset()
-			t.Cleanup(configuration.Reset)
-			t.Setenv("IMP_EXPERIMENTAL", "typo")
-			if err := configuration.Init([]string{t.TempDir()}); err != nil {
-				t.Fatal(err)
-			}
-			c, err := newRunCmd(context.Background())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := c.cmd.ParseFlags(tc.args); err != nil {
-				t.Fatal(err)
-			}
-			if err := c.cmd.PreRunE(c.cmd, nil); (err != nil) != tc.invalid {
-				t.Errorf("validation error = %v, invalid = %v", err, tc.invalid)
-			}
-			if !tc.invalid && !configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
-				t.Fatal("experimental flag did not override environment")
-			}
-		})
-	}
-}
-
 func TestRun(t *testing.T) {
 	c, err := newRunCmd(context.Background())
 	if err != nil {
@@ -115,9 +81,9 @@ func TestRun(t *testing.T) {
 			defValue:  "false",
 		},
 		{
-			name:     "experimental",
-			flagType: "stringArray",
-			defValue: "[]",
+			name:     "json",
+			flagType: "bool",
+			defValue: "false",
 		},
 		{
 			name:     "increment-decrement",
@@ -166,6 +132,12 @@ func TestRun(t *testing.T) {
 			shorthand: "o",
 			flagType:  "string",
 			defValue:  "",
+		},
+		{
+			name: "statuses", flagType: "string", defValue: "",
+		},
+		{
+			name: "verbose", shorthand: "v", flagType: "bool", defValue: "false",
 		},
 		{
 			name:     "remove-self-assignments",

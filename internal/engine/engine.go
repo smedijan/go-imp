@@ -34,6 +34,7 @@ import (
 	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/engine/workerpool"
 	"github.com/smedijan/go-imp/internal/exclusion"
+	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report"
 
@@ -51,7 +52,6 @@ type Engine struct {
 	codeData     CodeData
 	mutantStream chan mutator.Mutator
 	module       gomodule.GoModule
-	logger       report.MutantLogger
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -75,7 +75,6 @@ func New(mod gomodule.GoModule, codeData CodeData, jDealer ExecutorDealer, opts 
 		jDealer:  jDealer,
 		codeData: codeData,
 		fs:       dirFS,
-		logger:   report.NewLogger(),
 	}
 	for _, opt := range opts {
 		mut = opt(mut)
@@ -159,9 +158,7 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm := NewTokenMutant(pkg, set, file, node)
 		tm.SetType(mutantType)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
-		if configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
-			tm.captureSnippets(src)
-		}
+		tm.captureSnippets(src)
 
 		mu.mutantStream <- tm
 	}
@@ -237,9 +234,10 @@ func (mu *Engine) executeTests(ctx context.Context) report.Results {
 	}()
 
 	for m := range outCh {
-		mu.logger.Mutant(m)
 		mutants = append(mutants, m)
+		log.Infof("Processed %d mutants\r", len(mutants))
 	}
+	log.Infoln("")
 
 	return results(mutants)
 }

@@ -18,6 +18,7 @@
 package configuration
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,10 +34,12 @@ import (
 
 // This is the list of the keys available in config files and as flags.
 const (
-	ExperimentalKey          = "experimental"
-	ImpSilentKey             = "silent"
+	ImpQuietKey              = "quiet"
+	ImpNoColorKey            = "no-color"
+	RunJSONKey               = "run.json"
+	RunVerboseKey            = "run.verbose"
 	RunDryRunKey             = "run.dry-run"
-	RunOutputStatusesKey     = "run.output-statuses"
+	RunStatusesKey           = "run.statuses"
 	RunOutputKey             = "run.output"
 	RunTagsKey               = "run.tags"
 	RunCoverPkgKey           = "run.coverpkg"
@@ -48,37 +51,7 @@ const (
 	RunDiffRef               = "run.diff"
 	RunThresholdEfficacyKey  = "run.threshold.efficacy"
 	RunThresholdMCoverageKey = "run.threshold.mutant-coverage"
-	RunOutputDiffStatusesKey = "run.output-diff-statuses"
 )
-
-// ExperimentalDetailedReport enables the experimental human-readable triage report.
-const ExperimentalDetailedReport = "detailed-report"
-
-// ExperimentalEnabled reports whether an experimental feature is enabled.
-func ExperimentalEnabled(feature string) bool {
-	mutex.RLock()
-	defer mutex.RUnlock()
-	for _, enabled := range viper.GetStringSlice(ExperimentalKey) {
-		if enabled == feature {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ValidateExperimental rejects unknown experimental features before a run starts.
-func ValidateExperimental() error {
-	mutex.RLock()
-	defer mutex.RUnlock()
-	for _, feature := range viper.GetStringSlice(ExperimentalKey) {
-		if feature != ExperimentalDetailedReport {
-			return fmt.Errorf("unknown experimental feature %q (available: %s)", feature, ExperimentalDetailedReport)
-		}
-	}
-
-	return nil
-}
 
 const (
 	impCfgName      = ".imp"
@@ -107,10 +80,8 @@ func Init(cPaths []string) error {
 
 	if isSpecificFile(cPaths) {
 		viper.SetConfigFile(cPaths[0])
-		err := viper.ReadInConfig()
-		if err != nil {
-			return err
-		}
+
+		return viper.ReadInConfig()
 	} else if arePathsNotSet(cPaths) {
 		cPaths = defaultConfigPaths()
 	}
@@ -119,7 +90,10 @@ func Init(cPaths []string) error {
 		viper.AddConfigPath(p)
 	}
 
-	_ = viper.ReadInConfig() // ignoring error if file not present
+	var missing viper.ConfigFileNotFoundError
+	if err := viper.ReadInConfig(); err != nil && !errors.As(err, &missing) {
+		return err
+	}
 
 	return nil
 }
@@ -214,7 +188,22 @@ func Get[T any](k string) T {
 	var r T
 	mutex.RLock()
 	defer mutex.RUnlock()
-	r, _ = viper.Get(k).(T)
+	var value any
+	switch any(r).(type) {
+	case bool:
+		value = viper.GetBool(k)
+	case int:
+		value = viper.GetInt(k)
+	case float64:
+		value = viper.GetFloat64(k)
+	case string:
+		value = viper.GetString(k)
+	case []string:
+		value = viper.GetStringSlice(k)
+	default:
+		value = viper.Get(k)
+	}
+	r, _ = value.(T)
 
 	return r
 }

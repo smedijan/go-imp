@@ -1,383 +1,209 @@
-/*
- * Copyright 2022 The Gremlins Authors
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *        http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
- */
-
+// Package report renders mutation results for humans and automation.
 package report
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/aymanbagabas/go-udiff"
-	"github.com/fatih/color"
-	"github.com/hako/durafmt"
-
-	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/execution"
-	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report/internal"
 )
 
-var (
-	fgRed      = color.New(color.FgRed).SprintFunc()
-	fgGreen    = color.New(color.FgGreen).SprintFunc()
-	fgHiGreen  = color.New(color.FgHiGreen).SprintFunc()
-	fgHiBlack  = color.New(color.FgHiBlack).SprintFunc()
-	fgHiYellow = color.New(color.FgYellow).SprintFunc()
-)
-
-// Results contains the list of mutator.Mutator to be reported
-// and the time it took to discover and test them.
+// Results contains all discovered mutants and the elapsed execution time.
 type Results struct {
 	Module  string
 	Mutants []mutator.Mutator
 	Elapsed time.Duration
 }
 
-type reportStatus struct {
-	files  map[string][]internal.Mutation
-	groups map[string]map[string][]internal.DetailedMutation
-
-	elapsed *durafmt.Durafmt
-	module  string
-
-	killed     int
-	lived      int
-	timedOut   int
-	notCovered int
-	skipped    int
-	notViable  int
-	runnable   int
-
-	mutatorStatistics internal.MutatorType
-
-	tEfficacy float64
-	mCovered  float64
+// Options selects presentation and quality gates, never which mutants are executed.
+type Options struct {
+	JSON              bool
+	Verbose           bool
+	Color             bool
+	DryRun            bool
+	Statuses          []mutator.Status
+	EfficacyThreshold float64
+	CoverageThreshold float64
 }
 
-func newReport(results Results) (*reportStatus, bool) {
-	if len(results.Mutants) == 0 {
-		return nil, false
+var statusOrder = []mutator.Status{
+	mutator.Lived, mutator.NotCovered, mutator.TimedOut, mutator.Runnable,
+	mutator.Killed, mutator.Skipped, mutator.NotViable,
+}
+
+var statusNames = map[mutator.Status]string{
+	mutator.Lived: "lived", mutator.NotCovered: "not-covered", mutator.TimedOut: "timed-out",
+	mutator.Runnable: "runnable", mutator.Killed: "killed", mutator.Skipped: "skipped", mutator.NotViable: "not-viable",
+}
+
+// ParseStatuses validates a comma-separated list and returns statuses in triage order.
+// An empty list selects every status.
+func ParseStatuses(value string) ([]mutator.Status, error) {
+	selected := make(map[mutator.Status]bool)
+	if strings.TrimSpace(value) == "" {
+		return append([]mutator.Status(nil), statusOrder...), nil
 	}
-	rep := &reportStatus{
-		module:  results.Module,
-		elapsed: durafmt.Parse(results.Elapsed).LimitFirstN(2),
-	}
-	rep.files = make(map[string][]internal.Mutation)
-	detailed := configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport)
-	if detailed {
-		rep.groups = make(map[string]map[string][]internal.DetailedMutation)
-	}
-	for _, m := range results.Mutants {
-		mutation := internal.Mutation{
-			Line:   m.Position().Line,
-			Column: m.Position().Column,
-			Type:   m.Type().String(),
-			Status: m.Status().String(),
-		}
-		if detailed {
-			files, ok := rep.groups[mutation.Status]
-			if !ok {
-				files = make(map[string][]internal.DetailedMutation)
-				rep.groups[mutation.Status] = files
+	for _, name := range strings.Split(value, ",") {
+		name = strings.TrimSpace(name)
+		found := false
+		for status, valid := range statusNames {
+			if name == valid {
+				selected[status] = true
+				found = true
+
+				break
 			}
-			filename := m.Position().Filename
-			files[filename] = append(files[filename], internal.DetailedMutation{
-				Line: mutation.Line, Column: mutation.Column, Type: mutation.Type,
-				TestCommand: formatCommand(testCommand(m)),
-			})
-		} else {
-			rep.files[m.Position().Filename] = append(rep.files[m.Position().Filename], mutation)
 		}
-
-		reportMutationStatus(m, rep)
-		reportMutatorType(m, rep)
-	}
-	if !rep.isDryRun() {
-		if rep.killed > 0 {
-			rep.tEfficacy = float64(rep.killed) / float64(rep.killed+rep.lived) * 100
+		if !found {
+			return nil, fmt.Errorf("unknown status %q; use lived, not-covered, timed-out, runnable, killed, skipped, or not-viable", name)
 		}
-		if rep.killed+rep.lived > 0 {
-			rep.mCovered = float64(rep.killed+rep.lived) / float64(rep.killed+rep.lived+rep.notCovered) * 100
+	}
+	var statuses []mutator.Status
+	for _, status := range statusOrder {
+		if selected[status] {
+			statuses = append(statuses, status)
 		}
-	} else if rep.runnable > 0 {
-		rep.mCovered = float64(rep.runnable) / float64(rep.runnable+rep.notCovered) * 100
 	}
 
-	return rep, true
+	return statuses, nil
 }
 
-func reportMutationStatus(m mutator.Mutator, rep *reportStatus) {
-	switch m.Status() {
-	case mutator.Killed:
-		rep.killed++
-	case mutator.Lived:
-		rep.lived++
-	case mutator.NotCovered:
-		rep.notCovered++
-	case mutator.Skipped:
-		rep.skipped++
-	case mutator.TimedOut:
-		rep.timedOut++
-	case mutator.NotViable:
-		rep.notViable++
-	case mutator.Runnable:
-		rep.runnable++
+// Write renders one complete report, then assesses the unfiltered quality gates.
+// It neither logs nor opens files; callers own the output destination.
+func Write(out io.Writer, results Results, options Options) error {
+	if len(options.Statuses) == 0 {
+		options.Statuses = append([]mutator.Status(nil), statusOrder...)
 	}
-}
-
-func reportMutatorType(m mutator.Mutator, rep *reportStatus) {
-	switch m.Type() {
-	case mutator.ArithmeticBase:
-		rep.mutatorStatistics.ArithmeticBase++
-	case mutator.ConditionalsNegation:
-		rep.mutatorStatistics.ConditionalsNegation++
-	case mutator.ConditionalsBoundary:
-		rep.mutatorStatistics.ConditionalsBoundary++
-	case mutator.IncrementDecrement:
-		rep.mutatorStatistics.IncrementDecrement++
-	case mutator.InvertAssignments:
-		rep.mutatorStatistics.InvertAssignments++
-	case mutator.InvertBitwiseAssignments:
-		rep.mutatorStatistics.InvertBitwiseAssignments++
-	case mutator.InvertBitwise:
-		rep.mutatorStatistics.InvertBitwise++
-	case mutator.InvertLogical:
-		rep.mutatorStatistics.InvertLogical++
-	case mutator.InvertLoopCtrl:
-		rep.mutatorStatistics.InvertLoopCtrl++
-	case mutator.InvertNegatives:
-		rep.mutatorStatistics.InvertNegatives++
-	case mutator.RemoveSelfAssignments:
-		rep.mutatorStatistics.RemoveSelfAssignments++
-	}
-}
-
-func (*reportStatus) isDryRun() bool {
-	return configuration.Get[bool](configuration.RunDryRunKey)
-}
-
-func (r *reportStatus) reportFindings() {
-	if r.isDryRun() {
-		r.dryRunReport()
+	ordered := sortedMutants(results.Mutants)
+	document := newDocument(results, ordered, options)
+	var buffer bytes.Buffer
+	if options.JSON {
+		encoder := json.NewEncoder(&buffer)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(document); err != nil {
+			return fmt.Errorf("encode report: %w", err)
+		}
 	} else {
-		r.fullRunReport()
+		writeText(&buffer, document, ordered, options)
 	}
-	r.fileReport()
+	if _, err := buffer.WriteTo(out); err != nil {
+		return fmt.Errorf("write report: %w", err)
+	}
+
+	return assess(document, options)
 }
 
-func (r *reportStatus) fileReport() {
-	if output := configuration.Get[string](configuration.RunOutputKey); output != "" {
-		files := make([]internal.OutputFile, 0, len(r.files))
-		for fName, mutations := range r.files {
-			of := internal.OutputFile{Filename: fName}
-			of.Mutations = append(of.Mutations, mutations...)
-			files = append(files, of)
+func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
+	ordered := append([]mutator.Mutator(nil), mutants...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		a, b := ordered[i].Position(), ordered[j].Position()
+		switch {
+		case a.Filename != b.Filename:
+			return a.Filename < b.Filename
+		case a.Line != b.Line:
+			return a.Line < b.Line
+		case a.Column != b.Column:
+			return a.Column < b.Column
+		default:
+			return ordered[i].Type().String() < ordered[j].Type().String()
 		}
+	})
 
-		summary := internal.OutputSummary{
-			GoModule:          r.module,
-			TestEfficacy:      r.tEfficacy,
-			MutationsCoverage: r.mCovered,
-			MutantsTotal:      r.lived + r.killed + r.notViable,
-			MutantsKilled:     r.killed,
-			MutantsLived:      r.lived,
-			MutantsNotViable:  r.notViable,
-			MutantsNotCovered: r.notCovered,
-			ElapsedTime:       r.elapsed.Duration().Seconds(),
-			MutatorStatistics: r.mutatorStatistics,
-		}
+	return ordered
+}
 
-		var result any = internal.OutputResult{OutputSummary: summary, Files: files}
-		if r.groups != nil {
-			result = r.detailedOutput(summary)
+func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
+	document := internal.OutputResult{
+		SchemaVersion: 1, GoModule: results.Module, DryRun: options.DryRun,
+		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
+		SelectedStatuses:  make([]string, 0, len(options.Statuses)),
+		Groups:            make(map[string]map[string][]internal.Mutation),
+		MutatorStatistics: make(map[string]int),
+	}
+	for _, status := range options.Statuses {
+		document.SelectedStatuses = append(document.SelectedStatuses, statusNames[status])
+	}
+	for _, m := range ordered {
+		countStatus(&document, m.Status())
+		document.MutatorStatistics[strings.ToLower(m.Type().String())]++
+		if selected(options.Statuses, m.Status()) {
+			addFinding(&document, m)
 		}
-		jsonResult, _ := json.Marshal(result)
-		//nolint:gosec // output path is from configuration, not arbitrary user input
-		f, err := os.Create(output)
-		if err != nil {
-			log.Errorf("impossible to write file: %s\n", err)
-		}
-		defer func(f *os.File) {
-			_ = f.Close()
-		}(f)
-		if _, err := f.Write(jsonResult); err != nil {
-			log.Errorf("impossible to write file: %s\n", err)
-		}
+	}
+	tested := document.MutantsKilled + document.MutantsLived
+	if tested > 0 {
+		document.TestEfficacy = float64(document.MutantsKilled) / float64(tested) * 100
+	}
+	covered := tested
+	if options.DryRun {
+		covered = document.MutantsRunnable
+	}
+	if covered+document.MutantsNotCovered > 0 {
+		document.MutationsCoverage = float64(covered) / float64(covered+document.MutantsNotCovered) * 100
+	}
 
+	return document
+}
+
+func countStatus(document *internal.OutputResult, status mutator.Status) {
+	switch status {
+	case mutator.Lived:
+		document.MutantsLived++
+	case mutator.NotCovered:
+		document.MutantsNotCovered++
+	case mutator.TimedOut:
+		document.MutantsTimedOut++
+	case mutator.Runnable:
+		document.MutantsRunnable++
+	case mutator.Killed:
+		document.MutantsKilled++
+	case mutator.Skipped:
+		document.MutantsSkipped++
+	case mutator.NotViable:
+		document.MutantsNotViable++
 	}
 }
 
-func (r *reportStatus) dryRunReport() {
-	notCovered := fgHiYellow(r.notCovered)
-	runnable := fgGreen(r.runnable)
-	log.Infoln("")
-	log.Infof("Dry run completed in %s\n", r.elapsed.String())
-	log.Infof("Runnable: %s, Not covered: %s\n", runnable, notCovered)
-	log.Infof("Mutator coverage: %.2f%%\n", r.mCovered)
+func addFinding(document *internal.OutputResult, m mutator.Mutator) {
+	status := m.Status().String()
+	files, ok := document.Groups[status]
+	if !ok {
+		files = make(map[string][]internal.Mutation)
+		document.Groups[status] = files
+	}
+	pos := m.Position()
+	files[pos.Filename] = append(files[pos.Filename], internal.Mutation{
+		Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
+	})
 }
 
-func (r *reportStatus) fullRunReport() {
-	killed := fgHiGreen(r.killed)
-	lived := fgRed(r.lived)
-	timedOut := fgGreen(r.timedOut)
-	notViable := fgHiBlack(r.notViable)
-	skipped := fgHiBlack(r.skipped)
-	notCovered := fgHiYellow(r.notCovered)
-	log.Infoln("")
-	log.Infof("Mutation testing completed in %s\n", r.elapsed.String())
-	log.Infof("Killed: %s, Lived: %s, Not covered: %s\n", killed, lived, notCovered)
-	log.Infof("Timed out: %s, Not viable: %s, Skipped: %s\n", timedOut, notViable, skipped)
-	log.Infof("Test efficacy: %.2f%%\n", r.tEfficacy)
-	log.Infof("Mutator coverage: %.2f%%\n", r.mCovered)
+func selected(statuses []mutator.Status, status mutator.Status) bool {
+	for _, s := range statuses {
+		if s == status {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (r *reportStatus) assess(tEfficacy, rCoverage float64) error {
-	if r.isDryRun() {
+func assess(document internal.OutputResult, options Options) error {
+	if options.DryRun || document.MutantsTotal == 0 {
 		return nil
 	}
-
-	et := configuration.Get[float64](configuration.RunThresholdEfficacyKey)
-	if et == 0 {
-		et = float64(configuration.Get[int](configuration.RunThresholdEfficacyKey))
-	}
-	if et > 0 && tEfficacy <= et {
+	if options.EfficacyThreshold > 0 && document.TestEfficacy <= options.EfficacyThreshold {
 		return execution.NewExitErr(execution.EfficacyThreshold)
 	}
-	ct := configuration.Get[float64](configuration.RunThresholdMCoverageKey)
-	if ct == 0 {
-		ct = float64(configuration.Get[int](configuration.RunThresholdMCoverageKey))
-	}
-	if ct > 0 && rCoverage <= ct {
+	if options.CoverageThreshold > 0 && document.MutationsCoverage <= options.CoverageThreshold {
 		return execution.NewExitErr(execution.MutantCoverageThreshold)
 	}
 
 	return nil
-}
-
-// Do generates the report of the Results received.
-// This function uses the log package in imp to write to the
-// chosen io.Writer, so it is necessary to call log.Init before
-// the report generation.
-func Do(results Results) error {
-	rep, ok := newReport(results)
-	if !ok {
-		log.Infoln("\nNo results to report.")
-
-		return nil
-	}
-	rep.reportFindings()
-	if configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
-		detailedReport(results.Mutants)
-	}
-
-	return rep.assess(rep.tEfficacy, rep.mCovered)
-}
-
-// Mutant logs a mutator.Mutator.
-// It reports the mutant.Status, the mutator.Type and its position.
-// This function uses the log package in imp to write to the
-// chosen io.Writer, so it is necessary to call log.Init before
-// the report generation.
-func Mutant(m mutator.Mutator) {
-	status := m.Status().String()
-	switch m.Status() {
-	case mutator.Killed, mutator.Runnable:
-		status = fgHiGreen(m.Status())
-	case mutator.Lived:
-		status = fgRed(m.Status())
-	case mutator.NotCovered:
-		status = fgHiYellow(m.Status())
-	case mutator.TimedOut:
-		status = fgGreen(m.Status())
-	case mutator.NotViable, mutator.Skipped:
-		status = fgHiBlack(m.Status())
-	}
-	log.Infof("%s%s %s at %s\n", padding(m.Status()), status, m.Type(), m.Position())
-}
-
-// MutantDiff logs the unified diff between the original and mutated code snippets.
-// This function uses the log package in imp to write to the
-// chosen io.Writer, so it is necessary to call log.Init before
-// the report generation.
-func MutantDiff(m mutator.Mutator) {
-	diff, err := generateDiff(m)
-	if err != nil {
-		log.Errorf("failed to generate diff for mutant: %s", err.Error())
-
-		return
-	}
-	for _, line := range diff {
-		log.Infof("%s%s\n", padding(m.Status()), line)
-	}
-}
-
-// generateDiff returns a colored unified diff string for a survived mutant,
-// or an empty string if no diff is available.
-func generateDiff(m mutator.Mutator) ([]string, error) {
-	original := m.OrigSnippet()
-	mutated := m.MutatedSnippet()
-	if len(original) == 0 || len(mutated) == 0 {
-		return nil, nil
-	}
-
-	diffText, err := udiff.ToUnified("Original", "Mutated", string(original), udiff.Bytes(original, mutated), 3)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate diff: %w", err)
-	}
-
-	lines := strings.Split(diffText, "\n")
-	if len(lines) <= 3 {
-		return nil, nil
-	}
-
-	diffBuilder := make([]string, 0, len(lines)-3)
-	for _, line := range lines {
-		switch {
-		case line == "":
-			continue
-		case strings.HasPrefix(line, "---"):
-			continue
-		case strings.HasPrefix(line, "+++"):
-			continue
-		case strings.HasPrefix(line, "@@"):
-			continue
-		case strings.Contains(line, "No newline at end of file"):
-			continue
-		case strings.HasPrefix(line, "-"):
-			diffBuilder = append(diffBuilder, fgRed(line))
-		case strings.HasPrefix(line, "+"):
-			diffBuilder = append(diffBuilder, fgGreen(line))
-		default:
-			diffBuilder = append(diffBuilder, fgHiBlack(line))
-		}
-	}
-
-	return diffBuilder, nil
-}
-
-func padding(s mutator.Status) string {
-	var pad string
-	padLen := 12 - len(s.String())
-	for i := 0; i < padLen; i++ {
-		pad += " "
-	}
-
-	return pad
 }

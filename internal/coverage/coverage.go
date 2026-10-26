@@ -135,10 +135,11 @@ func (c *Coverage) filePath() string {
 
 func (c *Coverage) downloadModules() error {
 	cmd := c.cmdContext("go", "mod", "download")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
 
-	return cmd.Run()
+	return nil
 }
 
 func (c *Coverage) executeCoverage() (time.Duration, error) {
@@ -155,9 +156,7 @@ func (c *Coverage) executeCoverage() (time.Duration, error) {
 
 	start := time.Now()
 	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Infof("\n%s\n", string(out))
-
-		return 0, err
+		return 0, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
 	}
 
 	return time.Since(start), nil

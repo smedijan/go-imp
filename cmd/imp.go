@@ -20,21 +20,20 @@ package cmd
 import (
 	"context"
 	"errors"
-	"os"
+	"fmt"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
 
 	"github.com/smedijan/go-imp/cmd/internal/flags"
 	"github.com/smedijan/go-imp/internal/configuration"
-
-	"github.com/smedijan/go-imp/internal/log"
+	"github.com/smedijan/go-imp/internal/execution"
 )
 
 const paramConfigFile = "config"
 
 // Execute initialises a new Cobra root command (imp) with a custom version
-// string used in the `-v` flag results.
+// string used in the --version output.
 func Execute(ctx context.Context, version string) error {
 	rootCmd, err := newRootCmd(ctx, version)
 	if err != nil {
@@ -49,17 +48,12 @@ type rootCommand struct {
 }
 
 func (gc rootCommand) execute() error {
-	var cfgFile string
-	cobra.OnInitialize(func() {
-		err := configuration.Init([]string{cfgFile})
-		if err != nil {
-			log.Errorf("initialization error: %s\n", err)
-			os.Exit(1)
-		}
-	})
-	gc.cmd.PersistentFlags().StringVar(&cfgFile, paramConfigFile, "", "override config file")
+	command, err := gc.cmd.ExecuteC()
+	if err != nil && (command == nil || command == gc.cmd) {
+		return execution.NewUsageError(err)
+	}
 
-	return gc.cmd.Execute()
+	return err
 }
 
 func newRootCmd(ctx context.Context, version string) (*rootCommand, error) {
@@ -68,12 +62,19 @@ func newRootCmd(ctx context.Context, version string) (*rootCommand, error) {
 	}
 
 	cmd := &cobra.Command{
-		Hidden:        true,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Use:           "imp",
 		Short:         shortExplainer(),
 		Version:       version,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			path, _ := cmd.Flags().GetString(paramConfigFile)
+			if err := configuration.Init([]string{path}); err != nil {
+				return execution.NewUsageError(fmt.Errorf("load configuration: %w", err))
+			}
+
+			return nil
+		},
 	}
 
 	run, err := newRunCmd(ctx)
@@ -83,9 +84,19 @@ func newRootCmd(ctx context.Context, version string) (*rootCommand, error) {
 	}
 	cmd.AddCommand(run.cmd)
 
-	flag := &flags.Flag{Name: "silent", CfgKey: configuration.ImpSilentKey, Shorthand: "s", DefaultV: false, Usage: "suppress output and run in silent mode"}
-	if err := flags.SetPersistent(cmd, flag); err != nil {
-		return nil, err
+	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return execution.NewUsageError(err)
+	})
+	cmd.Flags().Bool("version", false, "print version")
+	cmd.SetVersionTemplate("{{.Version}}\n")
+	cmd.PersistentFlags().String(paramConfigFile, "", "read configuration from `FILE`")
+	for _, flag := range []*flags.Flag{
+		{Name: "quiet", CfgKey: configuration.ImpQuietKey, Shorthand: "q", DefaultV: false, Usage: "suppress progress, not the report or errors"},
+		{Name: "no-color", CfgKey: configuration.ImpNoColorKey, DefaultV: false, Usage: "disable colored output"},
+	} {
+		if err := flags.SetPersistent(cmd, flag); err != nil {
+			return nil, err
+		}
 	}
 
 	return &rootCommand{

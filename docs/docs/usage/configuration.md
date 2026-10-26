@@ -44,15 +44,17 @@ imp run --config=myConfig.yaml
 Here is a complete configuration file with all the properties set to their defaults:
 
 ```yaml
-silent: false
-experimental: []
+quiet: false
+no-color: false
 run:
   integration: false
   dry-run: false
   tags: ""
   output: ""
+  json: false
+  verbose: false
+  statuses: ""
   diff: ""
-  output-statuses: ""
   workers: 0 #(1)
   test-cpu: 0 #(2)
   timeout-coefficient: 0 #(3)
@@ -102,21 +104,30 @@ For further information check the specific command documentation.
 
 [//]: # (@formatter:on)
 
-## Experimental features
+## Reporting
 
-Experimental features are opt-in and may change between releases. Enable the detailed
-triage report with a top-level list in `.imp.yaml`:
+Grouped reporting is always enabled. Format, destination and status filtering are independent:
 
 ```yaml
-experimental:
-  - detailed-report
+quiet: true
+run:
+  json: true
+  output: survivors.json
+  statuses: lived,not-covered
 ```
 
-Equivalent command: `imp run --experimental detailed-report`.
-`IMP_EXPERIMENTAL=detailed-report` also enables it. Unknown feature names are rejected
-before mutation testing starts. Command flags override the configured list.
+This writes filtered JSON to `survivors.json` with no report on stdout. Set `json: false`
+for human text; filenames do not choose the format. Empty output or `-` means stdout.
+`statuses` is a comma-separated string; empty selects all statuses. Counts and quality
+gates still describe the whole run. `quiet` suppresses only progress, never the report
+or errors. `verbose` expands human source context for all selected statuses.
 
-See [detailed reports](commands/run/index.md#experimental-detailed-report) for output details.
+Equivalent environment variables include `IMP_RUN_JSON=true`,
+`IMP_RUN_OUTPUT=survivors.json`, `IMP_RUN_STATUSES=lived,not-covered`, `IMP_QUIET=true`
+and `IMP_NO_COLOR=true`. Explicit command flags override environment and configuration,
+including `--json=false` and `--statuses=`.
+
+See [reporting](commands/run/index.md#reporting) for the output contract.
 
 ## Environment variables
 
@@ -134,5 +145,5 @@ mutants:
 Can be set with:
 
 ```shell
-export IMP_MUTANTS_ARITHMETIC_BASE=true
+export IMP_MUTANTS_ARITHMETIC_BASE_ENABLED=true
 ```

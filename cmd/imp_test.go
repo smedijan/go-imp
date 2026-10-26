@@ -17,8 +17,13 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"testing"
+
+	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/execution"
 )
 
 func TestRootCommand(t *testing.T) {
@@ -50,15 +55,48 @@ func TestRootCommand(t *testing.T) {
 		t.Errorf("expected default value to be empty, got %v", cfgFile.DefValue)
 	}
 
-	silentFlag := cmd.Flag("silent")
-	if silentFlag == nil {
-		t.Fatal("expected to have a config flag")
+	quietFlag := cmd.Flag("quiet")
+	if quietFlag == nil {
+		t.Fatal("expected a quiet flag")
 	}
-	if silentFlag.Value.Type() != boolType {
-		t.Errorf("expected value type to be 'bool', got %v", silentFlag.Value.Type())
+	if quietFlag.Value.Type() != boolType {
+		t.Errorf("expected value type to be 'bool', got %v", quietFlag.Value.Type())
 	}
-	if silentFlag.DefValue != "false" {
-		t.Errorf("expected default value to be false, got %v", silentFlag.DefValue)
+	if quietFlag.DefValue != "false" {
+		t.Errorf("expected default value to be false, got %v", quietFlag.DefValue)
+	}
+}
+
+func TestVersionAndInvalidCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		invalid bool
+	}{
+		{name: "version", args: []string{"--version"}},
+		{name: "unknown command", args: []string{"unknown"}, invalid: true},
+		{name: "extra arguments", args: []string{"run", "one", "two"}, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configuration.Reset()
+			t.Cleanup(configuration.Reset)
+			root, err := newRootCmd(context.Background(), "test-version")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			root.cmd.SetOut(&out)
+			root.cmd.SetArgs(tc.args)
+			err = root.execute()
+			if tc.invalid {
+				var usage *execution.UsageError
+				if !errors.As(err, &usage) || usage.ExitCode() != 2 {
+					t.Fatalf("expected usage error, got %v", err)
+				}
+			} else if err != nil || out.String() != "test-version\n" {
+				t.Fatalf("version output %q, error %v", out.String(), err)
+			}
+		})
 	}
 }
 

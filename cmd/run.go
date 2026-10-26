@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/spf13/cobra"
@@ -34,6 +33,7 @@ import (
 	"github.com/smedijan/go-imp/internal/engine"
 	"github.com/smedijan/go-imp/internal/engine/workdir"
 	"github.com/smedijan/go-imp/internal/exclusion"
+	"github.com/smedijan/go-imp/internal/execution"
 	"github.com/smedijan/go-imp/internal/gomodule"
 	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
@@ -51,8 +51,6 @@ const (
 	paramBuildTags          = "tags"
 	paramCoverPackages      = "coverpkg"
 	paramDryRun             = "dry-run"
-	paramOutputStatuses     = "output-statuses"
-	paramOutputDiffStatuses = "output-diff-statuses"
 	paramOutput             = "output"
 	paramIntegrationMode    = "integration"
 	paramExcludeFiles       = "exclude-files"
@@ -69,11 +67,23 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s [path]", commandName),
 		Aliases: []string{"r"},
-		Args:    cobra.MaximumNArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
+				return execution.NewUsageError(err)
+			}
+
+			return nil
+		},
 		Short:   "Run mutation tests on your Go code",
 		Long:    longExplainer(),
+		Example: "  imp run\n  imp run --statuses lived,not-covered\n  imp run --json --statuses lived --output survivors.json\n  imp run --dry-run --json",
 		PreRunE: func(_ *cobra.Command, _ []string) error {
-			return configuration.ValidateExperimental()
+			_, err := configuredReportOptions()
+			if err != nil {
+				return execution.NewUsageError(err)
+			}
+
+			return nil
 		},
 		RunE: runMutationTests(ctx),
 	}
@@ -82,30 +92,28 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 		return nil, err
 	}
 
+	setRunHelp(cmd)
+
 	return &runCmd{cmd: cmd}, nil
 }
 
 func longExplainer() string {
 	return heredoc.Doc(`
-		Runs mutation testing on a Go module. It works by
-		first gathering the coverage of the test suite and then analysing the source
-		code to look for supported mutants.
+		Test whether your tests detect mutations in a Go module.
+		Only covered mutants are executed; --dry-run gathers coverage and finds mutations without testing them.
 
-		The run command only tests covered mutants, since it doesn't make sense to test mutants
-		that no test case is able to catch.
-
-		In 'dry-run' mode, the run command only performs the analysis of the source code, but it
-		doesn't actually perform the test.
-
-		Thresholds are configurable quality gates that make imp exit with an error
-		if those values are not met. Efficacy is the percent of KILLED mutants over
-		the total KILLED and LIVED mutants. Mutant coverage is the percent of total
-		KILLED + LIVED mutants, over the total mutants.
+		Reports are grouped by status and file. Use --json for agents and scripts,
+		--statuses to filter findings, and --output to choose a destination independently of format.
+		Progress and errors go to stderr. Quality gates always assess the whole run.
 	`)
 }
 
 func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []string) error {
-	return func(_ *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		options, err := configuredReportOptions()
+		if err != nil {
+			return execution.NewUsageError(err)
+		}
 		log.Infoln("Starting...")
 		path, _ := os.Getwd()
 		if len(args) > 0 {
@@ -116,43 +124,33 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
+		output, closeOutput, err := openReportOutput(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
+		if err != nil {
+			return err
+		}
+		defer func() { _ = closeOutput() }()
+		options.Color = log.ColorEnabled(output)
+
 		workDir, err := os.MkdirTemp(os.TempDir(), "imp-")
 		if err != nil {
 			return fmt.Errorf("impossible to create the workdir: %w", err)
 		}
 		defer cleanUp(workDir)
 
-		wg := &sync.WaitGroup{}
-		wg.Add(1)
-		cancelled := false
-		var results report.Results
-		go runWithCancel(ctx, wg, func(c context.Context) {
-			results, err = run(c, mod, workDir)
-		}, func() {
-			cancelled = true
-		})
-		wg.Wait()
+		results, err := run(ctx, mod, workDir)
 		if err != nil {
 			return err
 		}
-		if cancelled {
-			return nil
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		reportErr := report.Write(output, results, options)
+		if err := closeOutput(); err != nil {
+			return fmt.Errorf("close report: %w", err)
 		}
 
-		return report.Do(results)
+		return reportErr
 	}
-}
-
-func runWithCancel(ctx context.Context, wg *sync.WaitGroup, runner func(c context.Context), onCancel func()) {
-	c, cancel := context.WithCancel(ctx)
-	go func() {
-		<-ctx.Done()
-		log.Infof("\nShutting down gracefully...\n")
-		cancel()
-		onCancel()
-	}()
-	runner(c)
-	wg.Done()
 }
 
 func cleanUp(wd string) {
@@ -209,21 +207,21 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
-		{Name: "experimental", CfgKey: configuration.ExperimentalKey, DefaultV: []string{}, Usage: "enable an experimental feature (available: detailed-report); may be repeated"},
-		{Name: paramDryRun, CfgKey: configuration.RunDryRunKey, Shorthand: "d", DefaultV: false, Usage: "find mutations but do not executes tests"},
-		{Name: paramOutputStatuses, CfgKey: configuration.RunOutputStatusesKey, Shorthand: "S", DefaultV: "", Usage: "print only statuses from this flag, allowed values - 'lctkvsr'"},
-		{Name: paramOutputDiffStatuses, CfgKey: configuration.RunOutputDiffStatusesKey, DefaultV: "", Usage: "print diff for mutants with these statuses, allowed values - 'lk'"},
-		{Name: paramBuildTags, CfgKey: configuration.RunTagsKey, Shorthand: "t", DefaultV: "", Usage: "a comma-separated list of build tags"},
-		{Name: paramCoverPackages, CfgKey: configuration.RunCoverPkgKey, DefaultV: "", Usage: "a comma-separated list of package patterns"},
-		{Name: paramDiff, CfgKey: configuration.RunDiffRef, Shorthand: "D", DefaultV: "", Usage: "diff branch or commit"},
-		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "set the output file for machine readable results"},
-		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "makes imp run the complete test suite for each mutation"},
-		{Name: paramExcludeFiles, CfgKey: configuration.RunExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude files from an imp run by filepath regexp"},
-		{Name: paramThresholdEfficacy, CfgKey: configuration.RunThresholdEfficacyKey, DefaultV: float64(0), Usage: "threshold for code-efficacy percent"},
-		{Name: paramThresholdMCoverage, CfgKey: configuration.RunThresholdMCoverageKey, DefaultV: float64(0), Usage: "threshold for mutant-coverage percent"},
-		{Name: paramWorkers, CfgKey: configuration.RunWorkersKey, DefaultV: 0, Usage: "the number of workers to use in mutation testing"},
-		{Name: paramTestCPU, CfgKey: configuration.RunTestCPUKey, DefaultV: 0, Usage: "the number of CPUs to allow each test run to use"},
-		{Name: paramTimeoutCoefficient, CfgKey: configuration.RunTimeoutCoefficientKey, DefaultV: 0, Usage: "the coefficient by which the timeout is increased"},
+		{Name: "json", CfgKey: configuration.RunJSONKey, DefaultV: false, Usage: "write grouped JSON instead of human-readable text"},
+		{Name: "statuses", CfgKey: configuration.RunStatusesKey, DefaultV: "", Usage: "filter findings by comma-separated status `LIST` (default all)"},
+		{Name: "verbose", CfgKey: configuration.RunVerboseKey, Shorthand: "v", DefaultV: false, Usage: "expand source context and test commands for all selected statuses"},
+		{Name: paramDryRun, CfgKey: configuration.RunDryRunKey, Shorthand: "d", DefaultV: false, Usage: "gather coverage and find mutations without testing them"},
+		{Name: paramBuildTags, CfgKey: configuration.RunTagsKey, Shorthand: "t", DefaultV: "", Usage: "comma-separated build tag `LIST`"},
+		{Name: paramCoverPackages, CfgKey: configuration.RunCoverPkgKey, DefaultV: "", Usage: "comma-separated coverage package pattern `LIST`"},
+		{Name: paramDiff, CfgKey: configuration.RunDiffRef, Shorthand: "D", DefaultV: "", Usage: "limit mutations to changes against Git `REF`"},
+		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "write the selected report format to `FILE` (- for stdout)"},
+		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "run the whole module's test suite for each mutation"},
+		{Name: paramExcludeFiles, CfgKey: configuration.RunExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude matching paths using `REGEXP`; may be repeated"},
+		{Name: paramThresholdEfficacy, CfgKey: configuration.RunThresholdEfficacyKey, DefaultV: float64(0), Usage: "require test efficacy above `PERCENT` (zero disables)"},
+		{Name: paramThresholdMCoverage, CfgKey: configuration.RunThresholdMCoverageKey, DefaultV: float64(0), Usage: "require mutant coverage above `PERCENT` (zero disables)"},
+		{Name: paramWorkers, CfgKey: configuration.RunWorkersKey, DefaultV: 0, Usage: "use `N` mutation workers (zero selects automatically)"},
+		{Name: paramTestCPU, CfgKey: configuration.RunTestCPUKey, DefaultV: 0, Usage: "set Go test CPU option to `N` (zero leaves it unset)"},
+		{Name: paramTimeoutCoefficient, CfgKey: configuration.RunTimeoutCoefficientKey, DefaultV: 0, Usage: "multiply coverage time by `N` for timeouts (zero uses five)"},
 	}
 
 	for _, f := range fls {
