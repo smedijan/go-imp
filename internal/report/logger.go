@@ -21,7 +21,8 @@ var ErrInvalidDiffFilter = errors.New("invalid statuses diff, only 'lk' letters 
 // MutantLogger prints mutant statuses based on filter and verbosity flags.
 type MutantLogger struct {
 	Filter
-	DiffFilter Filter
+	DiffFilter  Filter
+	SummaryOnly bool
 }
 
 // NewLogger creates a new MutantLogger with filters from configuration.
@@ -39,13 +40,17 @@ func NewLogger() MutantLogger {
 	}
 
 	return MutantLogger{
-		Filter:     f,
-		DiffFilter: df,
+		Filter:      f,
+		DiffFilter:  df,
+		SummaryOnly: configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) && outputStatuses == "" && diffStatuses == "",
 	}
 }
 
 // Mutant logs a mutant if it passes the filter, then optionally prints the diff.
 func (l MutantLogger) Mutant(m mutator.Mutator) {
+	if l.SummaryOnly {
+		return
+	}
 	if l.Filter != nil {
 		if _, ok := l.Filter[m.Status()]; !ok {
 			return

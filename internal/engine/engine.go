@@ -121,24 +121,31 @@ func (mu *Engine) Run(ctx context.Context) report.Results {
 }
 
 func (mu *Engine) runOnFile(fileName string) {
-	src, _ := mu.fs.Open(fileName)
+	src, err := fs.ReadFile(mu.fs, fileName)
+	if err != nil {
+		return
+	}
 	set := token.NewFileSet()
-	file, _ := parser.ParseFile(set, fileName, src, parser.ParseComments)
-	_ = src.Close()
+	file, err := parser.ParseFile(set, fileName, src, parser.ParseComments)
+	if err != nil {
+		return
+	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
 		n, ok := NewTokenNode(node)
 		if !ok {
 			return true
 		}
-		mu.findMutations(fileName, set, file, n)
+		mu.findMutations(fileName, set, file, n, src)
 
 		return true
 	})
 }
 
-func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken) {
+func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken, src []byte) {
+	fileLock(fileName).Lock()
 	mutantTypes, ok := TokenMutantType[node.Tok()]
+	fileLock(fileName).Unlock()
 	if !ok {
 		return
 	}
@@ -152,6 +159,9 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm := NewTokenMutant(pkg, set, file, node)
 		tm.SetType(mutantType)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
+		if configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
+			tm.captureSnippets(src)
+		}
 
 		mu.mutantStream <- tm
 	}

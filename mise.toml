@@ -25,6 +25,10 @@ run = "hk check --all"
 description = "Build imp to dist/bin/imp"
 run = "mkdir -p dist/bin && go build -o dist/bin/imp ./cmd/imp"
 
+[tasks.imp]
+description = "Run imp from source"
+run = "go run ./cmd/imp"
+
 [tasks.cover]
 description = "Run tests with race detection and write coverage.out"
 run = "go test -race -covermode=atomic -cover -coverprofile=coverage.out ./..."

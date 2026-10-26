@@ -4,6 +4,17 @@
   "title": "The imp configuration schema",
   "type": "object",
   "properties": {
+    "experimental": {
+      "title": "Experimental features",
+      "description": "Opt-in features that may change between releases",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string",
+        "enum": ["detailed-report"]
+      },
+      "examples": [["detailed-report"]]
+    },
     "run": {
       "type": "object",
       "properties": {

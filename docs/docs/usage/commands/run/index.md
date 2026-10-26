@@ -116,6 +116,69 @@ Just performs the analysis but not the mutation testing.
 imp run --dry-run
 ```
 
+### Experimental detailed report
+
+:material-flag: `--experimental detailed-report` · :material-sign-direction: Default: disabled
+
+```shell
+imp run --experimental detailed-report --output results.json
+```
+
+The experimental report prioritizes surviving (`LIVED`) and uncovered mutants, followed
+by timeouts and covered-but-untested (`RUNNABLE`) mutants. Findings are grouped by file
+and sorted by source location, with mutation operators and short original-versus-mutated
+source diffs. Survivors include the test command when available (package or integration
+scope, build tags, CPU and timeout options), not individual test attribution.
+
+Counts for every status and the existing efficacy and coverage rates remain visible.
+A survivor is a prompt for review, not proof of a defect: equivalent mutations and
+intentional behavior require human judgment. Uncovered mutants were not tested;
+timeouts are not classified as survivors.
+
+Per-mutant progress output is collapsed by default. Use an explicit `--output-statuses`
+filter (for example `ksv` for killed, skipped and invalid mutants) or
+`--output-diff-statuses` to retain that output. These filters do not hide findings
+from the final detailed report or JSON output. `--dry-run` also supports detailed reports.
+
+With the experiment enabled, `--output` writes every result under `groups`, keyed
+by status and then filename. Findings contain `line`, `column`, `type` and an optional
+`test_command` string. Status and filename are not repeated on each finding, and
+source snippets are only shown in console diffs, never included in JSON.
+
+For example, the `groups` portion of a report looks like:
+
+```json
+{
+  "groups": {
+    "LIVED": {
+      "example.go": [
+        {
+          "line": 12,
+          "column": 9,
+          "type": "CONDITIONALS_BOUNDARY",
+          "test_command": "go test -timeout 7s -failfast example.com/pkg"
+        }
+      ]
+    },
+    "NOT COVERED": {
+      "example.go": [
+        {"line": 20, "column": 5, "type": "ARITHMETIC_BASE"}
+      ]
+    }
+  }
+}
+```
+
+The report also retains aggregate metrics, with counts for every status and a total
+including all mutants. Empty status groups are omitted. JSON object key order is not
+significant; findings within each file are sorted by location and operator, independent
+of worker completion order. Without the experiment, the existing JSON format is unchanged.
+
+Enable through configuration with top-level `experimental: [detailed-report]`, or
+`IMP_EXPERIMENTAL=detailed-report`. The repeatable `--experimental` flag overrides the
+configured list. Unknown feature names fail before a run starts. Experimental behavior
+may change between releases.
+
 ### Statuses output
 
 :material-flag: `--output-statuses`/`-S` · :material-sign-direction: Default: empty - show all

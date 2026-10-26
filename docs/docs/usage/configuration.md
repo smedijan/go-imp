@@ -45,6 +45,7 @@ Here is a complete configuration file with all the properties set to their defau
 
 ```yaml
 silent: false
+experimental: []
 run:
   integration: false
   dry-run: false
@@ -100,6 +101,22 @@ For further information check the specific command documentation.
     can be found at [the configuration schema](../schema/configuration.json).
 
 [//]: # (@formatter:on)
+
+## Experimental features
+
+Experimental features are opt-in and may change between releases. Enable the detailed
+triage report with a top-level list in `.imp.yaml`:
+
+```yaml
+experimental:
+  - detailed-report
+```
+
+Equivalent command: `imp run --experimental detailed-report`.
+`IMP_EXPERIMENTAL=detailed-report` also enables it. Unknown feature names are rejected
+before mutation testing starts. Command flags override the configured list.
+
+See [detailed reports](commands/run/index.md#experimental-detailed-report) for output details.
 
 ## Environment variables
 

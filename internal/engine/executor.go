@@ -202,7 +202,13 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 	ctx, cancel := context.WithTimeout(context.Background(), m.testExecutionTime)
 	defer cancel()
 
-	cmd := m.execContext(ctx, "go", m.getTestArgs(pkg)...)
+	args := m.getTestArgs(pkg)
+	if configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
+		if recorder, ok := m.mutant.(interface{ SetTestCommand([]string) }); ok {
+			recorder.SetTestCommand(append([]string{"go"}, args...))
+		}
+	}
+	cmd := m.execContext(ctx, "go", args...)
 	cmd.Dir = m.mutant.Workdir()
 	if m.integrationMode {
 		cmd.Dir = rootDir

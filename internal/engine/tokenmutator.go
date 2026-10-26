@@ -51,6 +51,7 @@ type TokenMutator struct {
 
 	origSnippet    []byte
 	mutatedSnippet []byte
+	testCommand    []string
 }
 
 // NewTokenMutant initialises a TokenMutator.
@@ -119,7 +120,9 @@ func (m *TokenMutator) Apply() error {
 		return err
 	}
 
-	m.origSnippet = extractSnippet(m.origFile, m.Position().Line, 3)
+	if len(m.origSnippet) == 0 {
+		m.origSnippet = extractSnippet(m.origFile, m.Position().Line, 3)
+	}
 
 	m.actualToken = m.tokenNode.Tok()
 	m.tokenNode.SetTok(tokenMutations[m.Type()][m.tokenNode.Tok()])
@@ -148,7 +151,9 @@ func (m *TokenMutator) writeMutatedFile(filename string) error {
 		return err
 	}
 
-	m.mutatedSnippet = extractSnippet(payload, m.Position().Line, 3)
+	if len(m.mutatedSnippet) == 0 {
+		m.mutatedSnippet = extractSnippet(payload, m.Position().Line, 3)
+	}
 
 	return nil
 }
@@ -221,6 +226,37 @@ func (m *TokenMutator) OrigSnippet() []byte {
 // MutatedSnippet returns the mutated code snippet around the mutation point.
 func (m *TokenMutator) MutatedSnippet() []byte {
 	return m.mutatedSnippet
+}
+
+// TestCommand returns the command used to test this mutant, if it was executed.
+func (m *TokenMutator) TestCommand() []string {
+	return m.testCommand
+}
+
+// SetTestCommand records the test execution context for reporting.
+func (m *TokenMutator) SetTestCommand(command []string) {
+	m.testCommand = append([]string(nil), command...)
+}
+
+// captureSnippets previews a token replacement without applying it to the AST or disk.
+// This also provides context for mutants that will never be executed.
+func (m *TokenMutator) captureSnippets(source []byte) {
+	fileLock(m.Position().Filename).Lock()
+	defer fileLock(m.Position().Filename).Unlock()
+
+	original := m.tokenNode.Tok()
+	replacement := tokenMutations[m.Type()][original].String()
+	pos := m.Position()
+	end := pos.Offset + len(original.String())
+	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != original.String() {
+		return
+	}
+	mutated := make([]byte, 0, len(source)+len(replacement))
+	mutated = append(mutated, source[:pos.Offset]...)
+	mutated = append(mutated, replacement...)
+	mutated = append(mutated, source[end:]...)
+	m.origSnippet = extractSnippet(source, pos.Line, 3)
+	m.mutatedSnippet = extractSnippet(mutated, pos.Line, 3)
 }
 
 // extractSnippet extracts lines around the target line with the given context size.

@@ -51,7 +51,8 @@ type Results struct {
 }
 
 type reportStatus struct {
-	files map[string][]internal.Mutation
+	files  map[string][]internal.Mutation
+	groups map[string]map[string][]internal.DetailedMutation
 
 	elapsed *durafmt.Durafmt
 	module  string
@@ -79,13 +80,31 @@ func newReport(results Results) (*reportStatus, bool) {
 		elapsed: durafmt.Parse(results.Elapsed).LimitFirstN(2),
 	}
 	rep.files = make(map[string][]internal.Mutation)
+	detailed := configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport)
+	if detailed {
+		rep.groups = make(map[string]map[string][]internal.DetailedMutation)
+	}
 	for _, m := range results.Mutants {
-		rep.files[m.Position().Filename] = append(rep.files[m.Position().Filename], internal.Mutation{
+		mutation := internal.Mutation{
 			Line:   m.Position().Line,
 			Column: m.Position().Column,
 			Type:   m.Type().String(),
 			Status: m.Status().String(),
-		})
+		}
+		if detailed {
+			files, ok := rep.groups[mutation.Status]
+			if !ok {
+				files = make(map[string][]internal.DetailedMutation)
+				rep.groups[mutation.Status] = files
+			}
+			filename := m.Position().Filename
+			files[filename] = append(files[filename], internal.DetailedMutation{
+				Line: mutation.Line, Column: mutation.Column, Type: mutation.Type,
+				TestCommand: formatCommand(testCommand(m)),
+			})
+		} else {
+			rep.files[m.Position().Filename] = append(rep.files[m.Position().Filename], mutation)
+		}
 
 		reportMutationStatus(m, rep)
 		reportMutatorType(m, rep)
@@ -172,7 +191,7 @@ func (r *reportStatus) fileReport() {
 			files = append(files, of)
 		}
 
-		result := internal.OutputResult{
+		summary := internal.OutputSummary{
 			GoModule:          r.module,
 			TestEfficacy:      r.tEfficacy,
 			MutationsCoverage: r.mCovered,
@@ -183,9 +202,12 @@ func (r *reportStatus) fileReport() {
 			MutantsNotCovered: r.notCovered,
 			ElapsedTime:       r.elapsed.Duration().Seconds(),
 			MutatorStatistics: r.mutatorStatistics,
-			Files:             files,
 		}
 
+		var result any = internal.OutputResult{OutputSummary: summary, Files: files}
+		if r.groups != nil {
+			result = r.detailedOutput(summary)
+		}
 		jsonResult, _ := json.Marshal(result)
 		//nolint:gosec // output path is from configuration, not arbitrary user input
 		f, err := os.Create(output)
@@ -261,6 +283,9 @@ func Do(results Results) error {
 		return nil
 	}
 	rep.reportFindings()
+	if configuration.ExperimentalEnabled(configuration.ExperimentalDetailedReport) {
+		detailedReport(results.Mutants)
+	}
 
 	return rep.assess(rep.tEfficacy, rep.mCovered)
 }

@@ -19,17 +19,39 @@ package internal
 
 // OutputResult is the data structure for the imp file output format.
 type OutputResult struct {
-	GoModule          string       `json:"go_module"`
-	Files             []OutputFile `json:"files"`
-	TestEfficacy      float64      `json:"test_efficacy"`
-	MutationsCoverage float64      `json:"mutations_coverage"`
-	MutantsTotal      int          `json:"mutants_total"`
-	MutantsKilled     int          `json:"mutants_killed"`
-	MutantsLived      int          `json:"mutants_lived"`
-	MutantsNotViable  int          `json:"mutants_not_viable"`
-	MutantsNotCovered int          `json:"mutants_not_covered"`
-	ElapsedTime       float64      `json:"elapsed_time"`
-	MutatorStatistics MutatorType  `json:"mutator_statistics"`
+	OutputSummary
+	Files []OutputFile `json:"files"`
+}
+
+// OutputSummary contains metrics shared by the legacy and detailed JSON reports.
+type OutputSummary struct {
+	GoModule          string      `json:"go_module"`
+	TestEfficacy      float64     `json:"test_efficacy"`
+	MutationsCoverage float64     `json:"mutations_coverage"`
+	MutantsTotal      int         `json:"mutants_total"`
+	MutantsKilled     int         `json:"mutants_killed"`
+	MutantsLived      int         `json:"mutants_lived"`
+	MutantsNotViable  int         `json:"mutants_not_viable"`
+	MutantsNotCovered int         `json:"mutants_not_covered"`
+	ElapsedTime       float64     `json:"elapsed_time"`
+	MutatorStatistics MutatorType `json:"mutator_statistics"`
+}
+
+// DetailedOutputResult groups findings by status, then source filename.
+type DetailedOutputResult struct {
+	OutputSummary
+	MutantsTimedOut int                                      `json:"mutants_timed_out"`
+	MutantsSkipped  int                                      `json:"mutants_skipped"`
+	MutantsRunnable int                                      `json:"mutants_runnable"`
+	Groups          map[string]map[string][]DetailedMutation `json:"groups"`
+}
+
+// DetailedMutation omits the status and filename supplied by its enclosing group.
+type DetailedMutation struct {
+	Type        string `json:"type"`
+	Line        int    `json:"line"`
+	Column      int    `json:"column"`
+	TestCommand string `json:"test_command,omitempty"`
 }
 
 // OutputFile represents a single file in the OutputResult data structure.

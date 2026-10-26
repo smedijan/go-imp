@@ -33,6 +33,7 @@ import (
 
 // This is the list of the keys available in config files and as flags.
 const (
+	ExperimentalKey          = "experimental"
 	ImpSilentKey             = "silent"
 	RunDryRunKey             = "run.dry-run"
 	RunOutputStatusesKey     = "run.output-statuses"
@@ -49,6 +50,35 @@ const (
 	RunThresholdMCoverageKey = "run.threshold.mutant-coverage"
 	RunOutputDiffStatusesKey = "run.output-diff-statuses"
 )
+
+// ExperimentalDetailedReport enables the experimental human-readable triage report.
+const ExperimentalDetailedReport = "detailed-report"
+
+// ExperimentalEnabled reports whether an experimental feature is enabled.
+func ExperimentalEnabled(feature string) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
+	for _, enabled := range viper.GetStringSlice(ExperimentalKey) {
+		if enabled == feature {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ValidateExperimental rejects unknown experimental features before a run starts.
+func ValidateExperimental() error {
+	mutex.RLock()
+	defer mutex.RUnlock()
+	for _, feature := range viper.GetStringSlice(ExperimentalKey) {
+		if feature != ExperimentalDetailedReport {
+			return fmt.Errorf("unknown experimental feature %q (available: %s)", feature, ExperimentalDetailedReport)
+		}
+	}
+
+	return nil
+}
 
 const (
 	impCfgName      = ".imp"

@@ -72,7 +72,10 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 		Args:    cobra.MaximumNArgs(1),
 		Short:   "Run mutation tests on your Go code",
 		Long:    longExplainer(),
-		RunE:    runMutationTests(ctx),
+		PreRunE: func(_ *cobra.Command, _ []string) error {
+			return configuration.ValidateExperimental()
+		},
+		RunE: runMutationTests(ctx),
 	}
 
 	if err := setFlagsOnCmd(cmd); err != nil {
@@ -206,6 +209,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "experimental", CfgKey: configuration.ExperimentalKey, DefaultV: []string{}, Usage: "enable an experimental feature (available: detailed-report); may be repeated"},
 		{Name: paramDryRun, CfgKey: configuration.RunDryRunKey, Shorthand: "d", DefaultV: false, Usage: "find mutations but do not executes tests"},
 		{Name: paramOutputStatuses, CfgKey: configuration.RunOutputStatusesKey, Shorthand: "S", DefaultV: "", Usage: "print only statuses from this flag, allowed values - 'lctkvsr'"},
 		{Name: paramOutputDiffStatuses, CfgKey: configuration.RunOutputDiffStatusesKey, DefaultV: "", Usage: "print diff for mutants with these statuses, allowed values - 'lk'"},
