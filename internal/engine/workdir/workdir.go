@@ -160,6 +160,7 @@ func doCopy(srcPath, dstPath string, fileMode fs.FileMode) error {
 	if err != nil {
 		return err
 	}
+	defer s.Close()
 	// #nosec G304 -- dstPath is the corresponding path in the isolated worker directory.
 	d, err := os.OpenFile(dstPath, os.O_CREATE|os.O_RDWR, fileMode)
 	if err != nil {
@@ -167,8 +168,10 @@ func doCopy(srcPath, dstPath string, fileMode fs.FileMode) error {
 	}
 
 	if _, err = io.Copy(d, s); err != nil {
+		_ = d.Close()
+
 		return err
 	}
 
-	return nil
+	return d.Close()
 }
