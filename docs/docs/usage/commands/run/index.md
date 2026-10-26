@@ -22,6 +22,7 @@ and **Mutation operators**. Run `imp run --help` for the full flag list.
 The default report groups findings by status, then file, with source locations and
 mutation operators. All nonempty status groups are included, in triage order:
 survivors, uncovered code, timeouts, runnable mutants, killed, skipped and invalid mutants.
+The run summary follows the findings at the bottom of the report.
 
 Short source diffs are shown for survivors and uncovered code. Survivor test commands
 are included when available. Use `--verbose` / `-v` to expand source diffs and test
@@ -131,8 +132,10 @@ are rejected rather than replaced. Use stdout and shell redirection to stream to
 
 ### Quiet and color
 
-`--quiet` / `-q` suppresses progress, not the report or errors. Progress is only shown
-when stderr is a terminal. Redirected reports never contain color; `--no-color`,
+`--quiet` / `-q` suppresses progress, not the report or errors. Progress goes to stderr;
+terminals get a 100-character file-based bar, while captured output gets concise checkpoints
+at roughly 5% intervals. A source file completes after all its mutants finish. Redirected
+reports never contain color; `--no-color`,
 `NO_COLOR` and `TERM=dumb` also disable it.
 
 ```shell

@@ -181,8 +181,12 @@ func TestCLIOutputContract(t *testing.T) {
 				}
 			}
 			checkCLIPayload(t, payload, tc.json, tc.noReport)
-			if tc.exit == 0 && stderr.Len() != 0 {
-				t.Errorf("non-TTY success should be quiet: %s", &stderr)
+			if tc.exit == 0 {
+				for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
+					if line != "" && !strings.HasPrefix(line, "Progress: ") {
+						t.Errorf("unexpected non-TTY diagnostic: %s", line)
+					}
+				}
 			}
 			if tc.exit != 0 && stderr.Len() == 0 {
 				t.Error("failure must explain itself on stderr")

@@ -97,26 +97,51 @@ func WithDirFs(dirFS fs.FS) Option {
 // It walks the fs.FS provided and checks every .go file which is not a test.
 // For each file it will scan for tokenMutations and gather all the mutants found.
 func (mu *Engine) Run(ctx context.Context) report.Results {
+	start := time.Now()
+	files := mu.sourceFiles()
+	progress := log.NewFileProgress(len(files))
+	defer progress.Finish()
 	mu.mutantStream = make(chan mutator.Mutator)
 	go func() {
 		defer close(mu.mutantStream)
-		_ = fs.WalkDir(mu.fs, ".", func(path string, _ fs.DirEntry, _ error) error {
-			isGoCode := filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go")
-
-			if isGoCode && !mu.codeData.Exclusion.IsFileExcluded(path) {
-				mu.runOnFile(path)
+		for _, path := range files {
+			if !checkDone(ctx) {
+				return
 			}
-
-			return nil
-		})
+			mu.runOnFile(path)
+		}
 	}()
 
-	start := time.Now()
-	res := mu.executeTests(ctx)
+	var discovered []mutator.Mutator
+	for mutant := range mu.mutantStream {
+		discovered = append(discovered, mutant)
+	}
+
+	res := mu.executeTests(ctx, discovered, files, progress)
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name
 
 	return res
+}
+
+func (mu *Engine) sourceFiles() []string {
+	var files []string
+	_ = fs.WalkDir(mu.fs, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		isGoCode := filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go")
+		if isGoCode && !mu.codeData.Exclusion.IsFileExcluded(path) {
+			files = append(files, path)
+		}
+
+		return nil
+	})
+
+	return files
 }
 
 func (mu *Engine) runOnFile(fileName string) {
@@ -206,9 +231,26 @@ func (mu *Engine) mutationStatus(pos token.Position) mutator.Status {
 	return status
 }
 
-func (mu *Engine) executeTests(ctx context.Context) report.Results {
+func (mu *Engine) executeTests(ctx context.Context, discovered []mutator.Mutator, files []string, progress *log.FileProgress) report.Results {
 	pool := workerpool.Initialize("mutator")
 	pool.Start()
+
+	pendingByFile := make(map[string]int)
+	for _, mutant := range discovered {
+		pendingByFile[mutant.Position().Filename]++
+	}
+	doneFiles := make(map[string]bool, len(files))
+	completeFile := func(path string) {
+		if !doneFiles[path] {
+			doneFiles[path] = true
+			progress.Complete()
+		}
+	}
+	for _, path := range files {
+		if pendingByFile[path] == 0 {
+			completeFile(path)
+		}
+	}
 
 	var mutants []mutator.Mutator
 	outCh := make(chan mutator.Mutator)
@@ -216,16 +258,14 @@ func (mu *Engine) executeTests(ctx context.Context) report.Results {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for mut := range mu.mutantStream {
-			ok := checkDone(ctx)
-			if !ok {
-				pool.Stop()
-
+		for _, mutant := range discovered {
+			if !checkDone(ctx) {
 				break
 			}
 			wg.Add(1)
-			pool.AppendExecutor(mu.jDealer.NewExecutor(mut, outCh, wg))
+			pool.AppendExecutor(mu.jDealer.NewExecutor(mutant, outCh, wg))
 		}
+		pool.Stop()
 	}()
 
 	go func() {
@@ -233,11 +273,14 @@ func (mu *Engine) executeTests(ctx context.Context) report.Results {
 		close(outCh)
 	}()
 
-	for m := range outCh {
-		mutants = append(mutants, m)
-		log.Infof("Processed %d mutants\r", len(mutants))
+	for mutant := range outCh {
+		mutants = append(mutants, mutant)
+		path := mutant.Position().Filename
+		pendingByFile[path]--
+		if pendingByFile[path] == 0 {
+			completeFile(path)
+		}
 	}
-	log.Infoln("")
 
 	return results(mutants)
 }

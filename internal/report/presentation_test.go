@@ -46,6 +46,9 @@ func TestFindingPresentationMatrix(t *testing.T) {
 							t.Fatal(err)
 						}
 						text := out.String()
+						if strings.Index(text, "Mutation testing completed") < strings.Index(text, "7:3 CONDITIONALS_BOUNDARY") {
+							t.Errorf("summary should follow findings:\n%s", text)
+						}
 						for _, expected := range []string{"completed in 1 second 250 milliseconds\n", status.String() + " (1) - ", "  case.go\n", "    7:3 CONDITIONALS_BOUNDARY\n"} {
 							if strings.Count(text, expected) != 1 {
 								t.Errorf("expected exactly one %q in:\n%s", expected, text)

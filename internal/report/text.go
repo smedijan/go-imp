@@ -30,16 +30,6 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 	if options.DryRun {
 		title = "Dry run"
 	}
-	elapsed := durafmt.Parse(time.Duration(document.ElapsedTime * float64(time.Second))).LimitFirstN(2)
-	fmt.Fprintf(out, "%s completed in %s\n", title, elapsed)
-	fmt.Fprintf(out, "Total: %d | Lived: %d | Not covered: %d | Timed out: %d\n",
-		document.MutantsTotal, document.MutantsLived, document.MutantsNotCovered, document.MutantsTimedOut)
-	fmt.Fprintf(out, "Killed: %d | Skipped: %d | Not viable: %d | Runnable: %d\n",
-		document.MutantsKilled, document.MutantsSkipped, document.MutantsNotViable, document.MutantsRunnable)
-	fmt.Fprintf(out, "Test efficacy: %.2f%%\nMutator coverage: %.2f%%\n", document.TestEfficacy, document.MutationsCoverage)
-	if document.MutantsLived > 0 && selected(options.Statuses, mutator.Lived) {
-		fmt.Fprintln(out, "Survivors require judgment: equivalent mutations and intentional behavior are possible.")
-	}
 	if len(document.Groups) == 0 {
 		fmt.Fprintln(out, "\nNo findings for the selected statuses.")
 	}
@@ -64,6 +54,17 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 			}
 			writeFinding(out, m, options)
 		}
+	}
+
+	elapsed := durafmt.Parse(time.Duration(document.ElapsedTime * float64(time.Second))).LimitFirstN(2)
+	fmt.Fprintf(out, "\n%s completed in %s\n", title, elapsed)
+	fmt.Fprintf(out, "Total: %d | Lived: %d | Not covered: %d | Timed out: %d\n",
+		document.MutantsTotal, document.MutantsLived, document.MutantsNotCovered, document.MutantsTimedOut)
+	fmt.Fprintf(out, "Killed: %d | Skipped: %d | Not viable: %d | Runnable: %d\n",
+		document.MutantsKilled, document.MutantsSkipped, document.MutantsNotViable, document.MutantsRunnable)
+	fmt.Fprintf(out, "Test efficacy: %.2f%%\nMutator coverage: %.2f%%\n", document.TestEfficacy, document.MutationsCoverage)
+	if document.MutantsLived > 0 && selected(options.Statuses, mutator.Lived) {
+		fmt.Fprintln(out, "Survivors require judgment: equivalent mutations and intentional behavior are possible.")
 	}
 }
 
