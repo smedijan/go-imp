@@ -38,6 +38,20 @@
           "default": "",
           "examples": ["lived,not-covered", "killed"]
         },
+        "exclude-files": {
+          "title": "File exclusions",
+          "description": "Regular expressions matching source paths excluded from mutation discovery; takes precedence over generated-file detection and include-files.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "include-files": {
+          "title": "File inclusions",
+          "description": "Regular expressions matching source paths included despite generated-file detection; exclude-files takes precedence.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
         "exclude-workdir": {
           "title": "Worker-copy exclusions",
           "description": "Module-relative file or directory paths omitted from worker copies; directories are pruned recursively. Does not follow .gitignore.",

@@ -158,6 +158,7 @@ Use `--json --output FILE` where `--output FILE` previously implied JSON.
 | `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
 | `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
 | `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths from mutation discovery; repeat for multiple rules |
+| `--include-files REGEXP` | Include matching paths, overriding generated-file detection; explicit excludes still win |
 | `--exclude-workdir PATH` | Omit a module-relative file or directory from each worker copy; repeat for multiple paths |
 
 ```shell
@@ -166,13 +167,14 @@ imp run --tags tag1,tag2 --coverpkg './internal/...,./pkg/...'
 imp run -E '_(gen|wrap).go$' -E '^generated/'
 ```
 
-Test files are always excluded from mutation discovery. Excluded files are omitted
-from threshold calculations. `--exclude-workdir` affects only worker copies, not mutation
-scope: paths are exact module-relative paths, and excluded directories are recursively
-pruned. It has no glob syntax and does not infer exclusions from `.gitignore`; all source
-files, including ignored build/test assets, are copied by default. Excluding a required
-asset can make builds or tests fail. Diff filtering marks out-of-scope mutants as `SKIPPED`;
-the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
+Test files are always excluded from mutation discovery. Files with Go's standard `// Code generated ... DO NOT EDIT.`
+marker are excluded by default. Use `--include-files REGEXP` to include matching generated files; `--exclude-files`
+takes precedence over both generated-file detection and explicit includes. Explicit includes do not affect test files.
+Excluded files are omitted from threshold calculations. `--exclude-workdir` affects only worker copies, not mutation
+scope: paths are exact module-relative paths, and excluded directories are recursively pruned. It has no glob syntax and
+does not infer exclusions from `.gitignore`; all source files, including ignored build/test assets, are copied by
+default. Excluding a required asset can make builds or tests fail. Diff filtering marks out-of-scope mutants as
+`SKIPPED`; the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
 
 ## Execution
 

@@ -134,7 +134,11 @@ func (mu *Engine) sourceFiles() []string {
 			return nil
 		}
 		isGoCode := filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go")
-		if isGoCode && !mu.codeData.Exclusion.IsFileExcluded(path) {
+		if !isGoCode {
+			return nil
+		}
+		source, err := fs.ReadFile(mu.fs, path)
+		if err == nil && !mu.codeData.Exclusion.IsFileExcluded(path, source) {
 			files = append(files, path)
 		}
 

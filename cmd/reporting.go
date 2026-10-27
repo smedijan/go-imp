@@ -62,7 +62,7 @@ func flagGroup(name string) string {
 	switch name {
 	case "json", "output", "statuses", "verbose", "quiet", "no-color", "help":
 		return "Reporting"
-	case "diff", "tags", "coverpkg", "exclude-files", "exclude-workdir":
+	case "diff", "tags", "coverpkg", "exclude-files", "include-files", "exclude-workdir":
 		return "Scope"
 	case "threshold-efficacy", "threshold-mcover":
 		return "Quality gates"
