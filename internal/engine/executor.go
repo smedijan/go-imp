@@ -18,8 +18,10 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -220,7 +222,7 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 
 	var output synchronizedBuffer
 	cmd.Stdout = &output
-	cmd.Stderr = &output
+	cmd.Stderr = io.Discard
 	err := run(ctx, cmd)
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -238,7 +240,7 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
-	args := []string{"test", "-count=1"}
+	args := []string{"test", "-json", "-count=1"}
 	if m.buildTags != "" {
 		args = append(args, "-tags", m.buildTags)
 	}
@@ -319,7 +321,50 @@ func (b *synchronizedBuffer) String() string {
 }
 
 func getTestFailedStatus(exitCode int, output string) mutator.Status {
-	if exitCode == 1 && strings.Contains(output, "--- FAIL:") {
+	if exitCode != 1 {
+		return mutator.NotViable
+	}
+
+	type packageResult struct {
+		runTest bool
+		failed  bool
+	}
+	results := make(map[string]packageResult)
+	decoder := json.NewDecoder(strings.NewReader(output))
+	for {
+		var event struct {
+			Action  string
+			Package string
+			Test    string
+		}
+		if err := decoder.Decode(&event); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return mutator.NotViable
+		}
+		result := results[event.Package]
+		if event.Test != "" && event.Action == "run" {
+			result.runTest = true
+		}
+		if event.Action == "fail" {
+			result.failed = true
+		}
+		results[event.Package] = result
+	}
+
+	failed := false
+	for _, result := range results {
+		if !result.failed {
+			continue
+		}
+		failed = true
+		if !result.runTest {
+			return mutator.NotViable
+		}
+	}
+	if failed {
 		return mutator.Killed
 	}
 

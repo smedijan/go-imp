@@ -131,13 +131,13 @@ func TestRecordedTestCommand(t *testing.T) {
 		integration bool
 		want        []string
 	}{
-		{name: "no tags", elapsed: 10 * time.Second, want: []string{"test", "-count=1", "-timeout", "12s", "-failfast", "example.com/pkg"}},
-		{name: "tags", tags: "tag1,tag2", elapsed: 10 * time.Second, want: []string{"test", "-count=1", "-tags", "tag1,tag2", "-timeout", "12s", "-failfast", "example.com/pkg"}},
-		{name: "timeout", elapsed: 30 * time.Second, want: []string{"test", "-count=1", "-timeout", "32s", "-failfast", "example.com/pkg"}},
-		{name: "minimum timeout", want: []string{"test", "-count=1", "-timeout", "3s", "-failfast", "example.com/pkg"}},
-		{name: "CPU", elapsed: 10 * time.Second, cpu: 4, want: []string{"test", "-count=1", "-timeout", "12s", "-failfast", "-cpu", "4", "example.com/pkg"}},
-		{name: "integration", elapsed: 10 * time.Second, integration: true, want: []string{"test", "-count=1", "-timeout", "12s", "-failfast", "./..."}},
-		{name: "all flags", tags: "integration", elapsed: 10 * time.Second, cpu: 2, integration: true, want: []string{"test", "-count=1", "-tags", "integration", "-timeout", "12s", "-failfast", "-cpu", "1", "./..."}},
+		{name: "no tags", elapsed: 10 * time.Second, want: []string{"test", "-json", "-count=1", "-timeout", "12s", "-failfast", "example.com/pkg"}},
+		{name: "tags", tags: "tag1,tag2", elapsed: 10 * time.Second, want: []string{"test", "-json", "-count=1", "-tags", "tag1,tag2", "-timeout", "12s", "-failfast", "example.com/pkg"}},
+		{name: "timeout", elapsed: 30 * time.Second, want: []string{"test", "-json", "-count=1", "-timeout", "32s", "-failfast", "example.com/pkg"}},
+		{name: "minimum timeout", want: []string{"test", "-json", "-count=1", "-timeout", "3s", "-failfast", "example.com/pkg"}},
+		{name: "CPU", elapsed: 10 * time.Second, cpu: 4, want: []string{"test", "-json", "-count=1", "-timeout", "12s", "-failfast", "-cpu", "4", "example.com/pkg"}},
+		{name: "integration", elapsed: 10 * time.Second, integration: true, want: []string{"test", "-json", "-count=1", "-timeout", "12s", "-failfast", "./..."}},
+		{name: "all flags", tags: "integration", elapsed: 10 * time.Second, cpu: 2, integration: true, want: []string{"test", "-json", "-count=1", "-tags", "integration", "-timeout", "12s", "-failfast", "-cpu", "1", "./..."}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{

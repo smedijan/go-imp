@@ -236,10 +236,12 @@ type commandHolder struct {
 
 func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 	testCases := []struct {
-		name       string
-		source     string
-		testSource string
-		want       mutator.Status
+		name        string
+		source      string
+		testSource  string
+		extraFiles  map[string]string
+		integration bool
+		want        mutator.Status
 	}{
 		{
 			name:       "compile failure",
@@ -259,22 +261,42 @@ func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 			testSource: "package fixture\nimport \"testing\"\nfunc TestPanic(t *testing.T) { panic(\"test panic\") }\n",
 			want:       mutator.Killed,
 		},
+		{
+			name:        "integration run with compile and test failures",
+			integration: true,
+			extraFiles: map[string]string{
+				"valid/valid.go":      "package valid\n",
+				"valid/valid_test.go": "package valid\nimport \"testing\"\nfunc TestFail(t *testing.T) { t.Fatal(\"assertion failed\") }\n",
+				"broken/broken.go":    "package broken\nfunc broken() { missingSymbol() }\n",
+			},
+			want: mutator.NotViable,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			viperSet(map[string]any{configuration.RunDryRunKey: false})
+			viperSet(map[string]any{
+				configuration.RunDryRunKey:       false,
+				configuration.RunIntegrationMode: tc.integration,
+			})
 			defer viperReset()
 
 			rootDir := t.TempDir()
 			wdDealer := &dealerStub{t: t, fnGet: func(_ string) (string, error) { return rootDir, nil }}
-			files := map[string]string{
-				"go.mod":          "module example.com/fixture\n\ngo 1.21\n",
-				"fixture.go":      tc.source,
-				"fixture_test.go": tc.testSource,
+			files := map[string]string{"go.mod": "module example.com/fixture\n\ngo 1.21\n"}
+			if tc.source != "" {
+				files["fixture.go"] = tc.source
+				files["fixture_test.go"] = tc.testSource
+			}
+			for name, content := range tc.extraFiles {
+				files[name] = content
 			}
 			for name, content := range files {
-				if err := os.WriteFile(filepath.Join(rootDir, name), []byte(content), 0o600); err != nil {
+				path := filepath.Join(rootDir, name)
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -377,7 +399,7 @@ func TestMutatorRun(t *testing.T) {
 			if tc.timeoutCoefficient != 0 {
 				wantTimeout = 2*time.Second + expectedTimeout*time.Duration(tc.timeoutCoefficient)
 			}
-			want := fmt.Sprintf("go test -count=1 -tags %s -timeout %s -failfast %s", tc.tags, wantTimeout, tc.wantPath)
+			want := fmt.Sprintf("go test -json -count=1 -tags %s -timeout %s -failfast %s", tc.tags, wantTimeout, tc.wantPath)
 			got := fmt.Sprintf("go %v", strings.Join(holder.args, " "))
 
 			if !cmp.Equal(got, want) {
@@ -501,7 +523,7 @@ func TestProcessTestsFailure(_ *testing.T) {
 	if os.Getenv("GO_TEST_PROCESS") != "1" {
 		return
 	}
-	_, _ = os.Stdout.WriteString("--- FAIL: TestFakeFailure\n")
+	_, _ = os.Stdout.WriteString("{\"Action\":\"run\",\"Package\":\"example.com\",\"Test\":\"TestFakeFailure\"}\n{\"Action\":\"fail\",\"Package\":\"example.com\",\"Test\":\"TestFakeFailure\"}\n{\"Action\":\"fail\",\"Package\":\"example.com\"}\n")
 	os.Exit(1) // skipcq: RVV-A0003
 }
 
