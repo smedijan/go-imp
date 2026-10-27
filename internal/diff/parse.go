@@ -3,6 +3,7 @@ package diff
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -50,20 +51,24 @@ func newWithCmd[T execCmd](cmdContext func(name string, args ...string) T, mod g
 
 	result := newDiff(files)
 	if mod.Root != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine working directory: %w", err)
+		}
 		rootOutput, err := exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
 		if err != nil {
 			return nil, fmt.Errorf("could not determine Git repository root: %w\n\n%s", err, rootOutput)
 		}
-		result = normalizePaths(result, string(bytes.TrimSpace(rootOutput)), mod)
+		result = normalizePaths(result, string(bytes.TrimSpace(rootOutput)), cwd, mod)
 	}
 
 	return result, nil
 }
 
-func normalizePaths(d Diff, repoRoot string, mod gomodule.GoModule) Diff {
+func normalizePaths(d Diff, repoRoot, cwd string, mod gomodule.GoModule) Diff {
 	moduleRoot := mod.Root
 	if !filepath.IsAbs(moduleRoot) {
-		moduleRoot = filepath.Join(repoRoot, moduleRoot)
+		moduleRoot = filepath.Join(cwd, moduleRoot)
 	}
 	sourceRoot := filepath.Join(moduleRoot, mod.CallingDir)
 	result := make(Diff, len(d))

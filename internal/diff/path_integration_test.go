@@ -15,11 +15,14 @@ import (
 
 func TestDiffPathsAcrossModuleAndCallingDirectories(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		invokeFrom string
+		name              string
+		invokeFrom        string
+		modulePath        string
+		changedFileName   string
+		unchangedFileName string
 	}{
-		{name: "nested module", invokeFrom: ""},
-		{name: "subdirectory invocation", invokeFrom: "pkg"},
+		{name: "nested module", modulePath: "nested", changedFileName: "pkg/changed.go", unchangedFileName: "pkg/unchanged.go"},
+		{name: "relative path from subdirectory", invokeFrom: "pkg", modulePath: "../pkg", changedFileName: "changed.go", unchangedFileName: "unchanged.go"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withoutGitEnvironment(t)
@@ -54,7 +57,6 @@ func TestDiffPathsAcrossModuleAndCallingDirectories(t *testing.T) {
 				t.Fatal(err)
 			}
 			invokeDir := repo
-			callingDir := "pkg"
 			if tc.invokeFrom != "" {
 				invokeDir = pkgDir
 			}
@@ -66,20 +68,19 @@ func TestDiffPathsAcrossModuleAndCallingDirectories(t *testing.T) {
 					t.Errorf("restore working directory: %v", err)
 				}
 			})
-			relativeModuleRoot, err := filepath.Rel(repo, moduleRoot)
+			mod, err := gomodule.Init(tc.modulePath)
 			if err != nil {
 				t.Fatal(err)
 			}
-			mod := gomodule.GoModule{Root: relativeModuleRoot, CallingDir: callingDir}
 			configuration.Set(configuration.RunDiffRef, "HEAD~")
 			got, err := diff.New(mod)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !got.IsChanged(token.Position{Filename: "changed.go", Line: 3}) {
+			if !got.IsChanged(token.Position{Filename: tc.changedFileName, Line: 3}) {
 				t.Fatal("changed source path was not recognized")
 			}
-			if got.IsChanged(token.Position{Filename: "unchanged.go", Line: 3}) {
+			if got.IsChanged(token.Position{Filename: tc.unchangedFileName, Line: 3}) {
 				t.Fatal("unchanged source path was recognized as changed")
 			}
 		})
