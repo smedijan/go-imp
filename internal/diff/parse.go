@@ -3,17 +3,20 @@ package diff
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 
 	"github.com/smedijan/go-imp/internal/configuration"
+	"github.com/smedijan/go-imp/internal/gomodule"
 	"github.com/smedijan/go-imp/internal/log"
 )
 
 // New creates a new Diff by parsing git diff output using the default command executor.
-func New() (Diff, error) {
-	return NewWithCmd(exec.Command)
+func New(mod gomodule.GoModule) (Diff, error) {
+	return newWithCmd(exec.Command, mod)
 }
 
 type execCmd interface {
@@ -23,6 +26,10 @@ type execCmd interface {
 // NewWithCmd creates a new Diff by parsing git diff output using a custom command executor.
 // This is useful for testing.
 func NewWithCmd[T execCmd](cmdContext func(name string, args ...string) T) (Diff, error) {
+	return newWithCmd(cmdContext, gomodule.GoModule{})
+}
+
+func newWithCmd[T execCmd](cmdContext func(name string, args ...string) T, mod gomodule.GoModule) (Diff, error) {
 	diffRef := configuration.Get[string](configuration.RunDiffRef)
 	if diffRef == "" {
 		return nil, nil
@@ -42,5 +49,45 @@ func NewWithCmd[T execCmd](cmdContext func(name string, args ...string) T) (Diff
 		return nil, fmt.Errorf("an error occured while parsing diff: %w", err)
 	}
 
-	return newDiff(files), nil
+	result := newDiff(files)
+	if mod.Root != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine working directory: %w", err)
+		}
+		moduleRoot := mod.Root
+		if !filepath.IsAbs(moduleRoot) {
+			moduleRoot = filepath.Join(cwd, moduleRoot)
+		}
+		sourceRoot := filepath.Join(moduleRoot, mod.CallingDir)
+		cmd := exec.Command("git", "rev-parse", "--show-prefix")
+		cmd.Dir = sourceRoot
+		prefixOutput, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine source path relative to Git repository: %w\n\n%s", err, prefixOutput)
+		}
+		result = normalizePaths(result, string(bytes.TrimSpace(prefixOutput)))
+	}
+
+	return result, nil
+}
+
+func normalizePaths(d Diff, sourcePrefix string) Diff {
+	sourcePrefix = filepath.FromSlash(sourcePrefix)
+	if sourcePrefix == "" {
+		sourcePrefix = "."
+	}
+	result := make(Diff, len(d))
+	for name, changes := range d {
+		relative, err := filepath.Rel(sourcePrefix, filepath.FromSlash(string(name)))
+		if err != nil {
+			result[name] = changes
+
+			continue
+		}
+		name := FileName(filepath.ToSlash(relative))
+		result[name] = append(result[name], changes...)
+	}
+
+	return result
 }

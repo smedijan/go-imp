@@ -3,6 +3,8 @@ package diff
 
 import (
 	"go/token"
+	"path/filepath"
+	"strings"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
@@ -62,6 +64,12 @@ func appendChangedLine(changes []Change, line int) []Change {
 	return append(changes, Change{StartLine: line, EndLine: line})
 }
 
+func normalizeFileName(name string) string {
+	name = filepath.ToSlash(filepath.Clean(name))
+
+	return strings.ReplaceAll(name, `\`, "/")
+}
+
 // IsChanged returns true if the given position is within a changed region.
 // If the diff is empty, it returns true for all positions.
 func (d Diff) IsChanged(pos token.Position) bool {
@@ -69,7 +77,14 @@ func (d Diff) IsChanged(pos token.Position) bool {
 		return true
 	}
 
-	fileDiff := d[FileName(pos.Filename)]
+	fileName := normalizeFileName(pos.Filename)
+	fileDiff := d[FileName(fileName)]
+	if fileDiff == nil {
+		fileDiff = d[FileName(filepath.FromSlash(fileName))]
+	}
+	if fileDiff == nil {
+		fileDiff = d[FileName(strings.ReplaceAll(fileName, "/", `\`))]
+	}
 
 	for _, change := range fileDiff {
 		if pos.Line >= change.StartLine && pos.Line <= change.EndLine {
