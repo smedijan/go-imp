@@ -238,7 +238,7 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
-	args := []string{"test"}
+	args := []string{"test", "-count=1"}
 	if m.buildTags != "" {
 		args = append(args, "-tags", m.buildTags)
 	}
