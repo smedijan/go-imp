@@ -19,6 +19,9 @@ package coverage
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -194,8 +197,80 @@ func (c *Coverage) parse(data io.Reader) (Profile, error) {
 			status[fn] = append(status[fn], block)
 		}
 	}
+	for _, p := range profiles {
+		fn := c.removeModuleFromPath(p)
+		sourcePath := filepath.Join(c.mod.Root, strings.TrimPrefix(p.FileName, c.mod.Name+"/"))
+		status[fn] = addCoveredSwitchCases(sourcePath, status[fn])
+	}
 
 	return status, nil
+}
+
+func addCoveredSwitchCases(sourcePath string, blocks []Block) []Block {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, sourcePath, nil, 0)
+	if err != nil {
+		return blocks
+	}
+
+	ast.Inspect(file, func(node ast.Node) bool {
+		switchStmt, ok := node.(*ast.SwitchStmt)
+		if !ok || switchStmt.Tag != nil {
+			return true
+		}
+		for i, stmt := range switchStmt.Body.List {
+			clause, ok := stmt.(*ast.CaseClause)
+			if !ok || len(clause.List) == 0 || len(clause.Body) == 0 {
+				continue
+			}
+			if i > 0 {
+				previous, ok := switchStmt.Body.List[i-1].(*ast.CaseClause)
+				if ok && caseFallsThrough(previous) {
+					continue
+				}
+			}
+			bodyStart := fset.Position(clause.Body[0].Pos())
+			bodyEnd := fset.Position(clause.Body[len(clause.Body)-1].End())
+			covered := false
+			for _, block := range blocks {
+				blockStart := token.Position{Line: block.StartLine, Column: block.StartCol}
+				blockEnd := token.Position{Line: block.EndLine, Column: block.EndCol}
+				if !positionBefore(blockEnd, bodyStart) && !positionBefore(bodyEnd, blockStart) {
+					covered = true
+
+					break
+				}
+			}
+			if !covered {
+				continue
+			}
+			conditionStart := fset.Position(clause.List[0].Pos())
+			conditionEnd := fset.Position(clause.List[0].End())
+			blocks = append(blocks, Block{
+				StartLine: conditionStart.Line,
+				StartCol:  conditionStart.Column,
+				EndLine:   conditionEnd.Line,
+				EndCol:    conditionEnd.Column,
+			})
+		}
+
+		return true
+	})
+
+	return blocks
+}
+
+func caseFallsThrough(clause *ast.CaseClause) bool {
+	if len(clause.Body) == 0 {
+		return false
+	}
+	branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
+
+	return ok && branch.Tok == token.FALLTHROUGH
+}
+
+func positionBefore(left, right token.Position) bool {
+	return left.Line < right.Line || left.Line == right.Line && left.Column < right.Column
 }
 
 func (c *Coverage) removeModuleFromPath(p *cover.Profile) string {
