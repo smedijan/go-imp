@@ -18,10 +18,12 @@
 package workdir
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/smedijan/go-imp/internal/log"
@@ -46,21 +48,30 @@ type Dealer interface {
 // imp not to work in the actual source directory messing up
 // with the source code files.
 type CachedDealer struct {
-	mutex   *sync.RWMutex
-	cache   map[string]string
-	workDir string
-	srcDir  string
+	mutex    *sync.RWMutex
+	cache    map[string]string
+	workDir  string
+	srcDir   string
+	excludes []string
 }
 
 // NewCachedDealer instantiates a new Dealer that keeps a cache of the
 // instantiated folders. Every time a new working directory is requested
-// with the same identifier, the same folder reference is returned.
-func NewCachedDealer(workDir, srcDir string) *CachedDealer {
+// with the same identifier, the same folder reference is returned. Exclusions
+// are exact module-relative paths; excluded directories are not traversed.
+func NewCachedDealer(workDir, srcDir string, excludes ...string) *CachedDealer {
 	dealer := &CachedDealer{
-		mutex:   &sync.RWMutex{},
-		cache:   make(map[string]string),
-		workDir: workDir,
-		srcDir:  srcDir,
+		mutex:    &sync.RWMutex{},
+		cache:    make(map[string]string),
+		workDir:  workDir,
+		srcDir:   srcDir,
+		excludes: make([]string, 0, len(excludes)),
+	}
+	for _, exclude := range excludes {
+		exclude = filepath.Clean(filepath.FromSlash(exclude))
+		if exclude != "." && !filepath.IsAbs(exclude) && exclude != ".." && !strings.HasPrefix(exclude, ".."+string(filepath.Separator)) {
+			dealer.excludes = append(dealer.excludes, exclude)
+		}
 	}
 
 	return dealer
@@ -80,6 +91,10 @@ func (cd *CachedDealer) Get(idf string) (string, error) {
 	}
 	err = filepath.Walk(cd.srcDir, cd.copyTo(dstDir))
 	if err != nil {
+		if cleanupErr := os.RemoveAll(dstDir); cleanupErr != nil {
+			return "", fmt.Errorf("copy source: %w (remove partial workdir: %w)", err, cleanupErr)
+		}
+
 		return "", err
 	}
 
@@ -132,6 +147,15 @@ func (cd *CachedDealer) copyTo(dstDir string) func(srcPath string, info fs.FileI
 		}
 		if relPath == "." {
 			return nil
+		}
+		for _, exclude := range cd.excludes {
+			if relPath == exclude {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+
+				return nil
+			}
 		}
 		dstPath := filepath.Join(dstDir, relPath)
 

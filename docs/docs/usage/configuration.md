@@ -62,6 +62,7 @@ run:
     efficacy: 0
     mutant-coverage: 0
   exclude-files: [] #(5)
+  exclude-workdir: [] #(6)
 
 mutants:
   arithmetic-base:
@@ -94,6 +95,9 @@ mutants:
 3. By default `0`, which means a default coefficient of `5` will be enforced.
 4. Thresholds are set by default to `0`, which means they are not enforced.
 5. Excluded files are set by default to empty list, which means no files skipped except tests.
+6. Worker-copy exclusions are empty by default. Set module-relative file or directory paths to omit them from worker
+   copies; directories are pruned recursively. This is independent of `.gitignore`, which does not affect copies.
+   Excluded assets may be required by builds or tests.
 
 For further information check the specific command documentation.
 

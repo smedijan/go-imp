@@ -157,7 +157,8 @@ Use `--json --output FILE` where `--output FILE` previously implied JSON.
 | `--diff REF` / `-D REF` | Test mutations in changes against the merge base with a branch or commit |
 | `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
 | `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
-| `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths; repeat for multiple rules |
+| `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths from mutation discovery; repeat for multiple rules |
+| `--exclude-workdir PATH` | Omit a module-relative file or directory from each worker copy; repeat for multiple paths |
 
 ```shell
 imp run --diff origin/main
@@ -166,7 +167,11 @@ imp run -E '_(gen|wrap).go$' -E '^generated/'
 ```
 
 Test files are always excluded from mutation discovery. Excluded files are omitted
-from threshold calculations. Diff filtering marks out-of-scope mutants as `SKIPPED`;
+from threshold calculations. `--exclude-workdir` affects only worker copies, not mutation
+scope: paths are exact module-relative paths, and excluded directories are recursively
+pruned. It has no glob syntax and does not infer exclusions from `.gitignore`; all source
+files, including ignored build/test assets, are copied by default. Excluding a required
+asset can make builds or tests fail. Diff filtering marks out-of-scope mutants as `SKIPPED`;
 the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
 
 ## Execution
