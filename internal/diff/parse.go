@@ -55,26 +55,31 @@ func newWithCmd[T execCmd](cmdContext func(name string, args ...string) T, mod g
 		if err != nil {
 			return nil, fmt.Errorf("could not determine working directory: %w", err)
 		}
-		rootOutput, err := exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("could not determine Git repository root: %w\n\n%s", err, rootOutput)
+		moduleRoot := mod.Root
+		if !filepath.IsAbs(moduleRoot) {
+			moduleRoot = filepath.Join(cwd, moduleRoot)
 		}
-		result = normalizePaths(result, string(bytes.TrimSpace(rootOutput)), cwd, mod)
+		sourceRoot := filepath.Join(moduleRoot, mod.CallingDir)
+		cmd := exec.Command("git", "rev-parse", "--show-prefix")
+		cmd.Dir = sourceRoot
+		prefixOutput, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine source path relative to Git repository: %w\n\n%s", err, prefixOutput)
+		}
+		result = normalizePaths(result, string(bytes.TrimSpace(prefixOutput)))
 	}
 
 	return result, nil
 }
 
-func normalizePaths(d Diff, repoRoot, cwd string, mod gomodule.GoModule) Diff {
-	moduleRoot := mod.Root
-	if !filepath.IsAbs(moduleRoot) {
-		moduleRoot = filepath.Join(cwd, moduleRoot)
+func normalizePaths(d Diff, sourcePrefix string) Diff {
+	sourcePrefix = filepath.FromSlash(sourcePrefix)
+	if sourcePrefix == "" {
+		sourcePrefix = "."
 	}
-	sourceRoot := filepath.Join(moduleRoot, mod.CallingDir)
 	result := make(Diff, len(d))
 	for name, changes := range d {
-		absolute := filepath.Join(repoRoot, filepath.FromSlash(string(name)))
-		relative, err := filepath.Rel(sourceRoot, absolute)
+		relative, err := filepath.Rel(sourcePrefix, filepath.FromSlash(string(name)))
 		if err != nil {
 			result[name] = changes
 
