@@ -326,8 +326,8 @@ func getTestFailedStatus(exitCode int, output string) mutator.Status {
 	}
 
 	type packageResult struct {
-		runTest bool
-		failed  bool
+		packageFailed bool
+		testFailed    bool
 	}
 	results := make(map[string]packageResult)
 	decoder := json.NewDecoder(strings.NewReader(output))
@@ -345,26 +345,24 @@ func getTestFailedStatus(exitCode int, output string) mutator.Status {
 			return mutator.NotViable
 		}
 		result := results[event.Package]
-		if event.Test != "" && event.Action == "run" {
-			result.runTest = true
-		}
 		if event.Action == "fail" {
-			result.failed = true
+			if event.Test == "" {
+				result.packageFailed = true
+			} else {
+				result.testFailed = true
+			}
 		}
 		results[event.Package] = result
 	}
 
-	failed := false
+	testFailed := false
 	for _, result := range results {
-		if !result.failed {
-			continue
-		}
-		failed = true
-		if !result.runTest {
+		if result.packageFailed && !result.testFailed {
 			return mutator.NotViable
 		}
+		testFailed = testFailed || result.testFailed
 	}
-	if failed {
+	if testFailed {
 		return mutator.Killed
 	}
 

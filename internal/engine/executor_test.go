@@ -262,6 +262,12 @@ func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 			want:       mutator.Killed,
 		},
 		{
+			name:       "TestMain failure after passing tests",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport (\"os\"; \"testing\")\nfunc TestPass(t *testing.T) {}\nfunc TestMain(m *testing.M) { _ = m.Run(); os.Exit(1) }\n",
+			want:       mutator.NotViable,
+		},
+		{
 			name:        "integration run with compile and test failures",
 			integration: true,
 			extraFiles: map[string]string{
