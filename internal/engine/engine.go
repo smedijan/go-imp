@@ -167,6 +167,10 @@ func (mu *Engine) runOnFile(fileName string) {
 }
 
 func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken, src []byte) {
+	if node.Tok() == token.OR && isTypeSetUnion(file, node.TokPos) {
+		return
+	}
+
 	fileLock(fileName).Lock()
 	mutantTypes, ok := TokenMutantType[node.Tok()]
 	fileLock(fileName).Unlock()
@@ -186,6 +190,45 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm.captureSnippets(src)
 
 		mu.mutantStream <- tm
+	}
+}
+
+func isTypeSetUnion(file *ast.File, pos token.Pos) bool {
+	isUnion := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		interfaceType, ok := node.(*ast.InterfaceType)
+		if !ok {
+			return true
+		}
+		for _, field := range interfaceType.Methods.List {
+			if len(field.Names) == 0 && isUnionOperator(field.Type, pos) {
+				isUnion = true
+
+				return false
+			}
+		}
+
+		return !isUnion
+	})
+
+	return isUnion
+}
+
+func isUnionOperator(node ast.Expr, pos token.Pos) bool {
+	switch node := node.(type) {
+	case *ast.ParenExpr:
+		return isUnionOperator(node.X, pos)
+	case *ast.BinaryExpr:
+		if node.Op != token.OR {
+			return false
+		}
+		if node.OpPos == pos {
+			return true
+		}
+
+		return isUnionOperator(node.X, pos) || isUnionOperator(node.Y, pos)
+	default:
+		return false
 	}
 }
 

@@ -1,0 +1,11 @@
+package fixture
+
+type Number interface {
+	~int | ~int64 | ~uint
+}
+
+type C interface { M([1|2]int) }
+
+func combine[T Number](a, b T) T {
+	return a | b
+}
