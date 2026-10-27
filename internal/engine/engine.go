@@ -167,6 +167,10 @@ func (mu *Engine) runOnFile(fileName string) {
 }
 
 func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken, src []byte) {
+	if node.Tok() == token.OR && isTypeSetUnion(file, node.TokPos) {
+		return
+	}
+
 	fileLock(fileName).Lock()
 	mutantTypes, ok := TokenMutantType[node.Tok()]
 	fileLock(fileName).Unlock()
@@ -187,6 +191,22 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 
 		mu.mutantStream <- tm
 	}
+}
+
+func isTypeSetUnion(file *ast.File, pos token.Pos) bool {
+	isUnion := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		interfaceType, ok := node.(*ast.InterfaceType)
+		if ok && interfaceType.Pos() <= pos && pos <= interfaceType.End() {
+			isUnion = true
+
+			return false
+		}
+
+		return !isUnion
+	})
+
+	return isUnion
 }
 
 func (mu *Engine) pkgName(fileName, fPkg string) string {

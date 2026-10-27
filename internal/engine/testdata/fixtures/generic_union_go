@@ -1,0 +1,9 @@
+package fixture
+
+type Number interface {
+	~int | ~int64 | ~uint
+}
+
+func combine[T Number](a, b T) T {
+	return a | b
+}

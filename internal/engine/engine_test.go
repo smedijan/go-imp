@@ -532,6 +532,25 @@ func TestMutations(t *testing.T) {
 	}
 }
 
+func TestGenericTypeSetUnionsAreNotBitwiseMutations(t *testing.T) {
+	t.Parallel()
+	viperSet(map[string]any{configuration.RunDryRunKey: true})
+	defer viperReset()
+
+	fixture := "testdata/fixtures/generic_union_go"
+	mapFS, mod, cleanup := loadFixture(fixture, ".")
+	defer cleanup()
+
+	mut := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(mapFS))
+	mutants := mut.Run(context.Background()).Mutants
+	if len(mutants) != 1 {
+		t.Fatalf("expected only the value-level OR mutation, got %d mutants: %v", len(mutants), mutants)
+	}
+	if mutants[0].Type() != mutator.InvertBitwise || mutants[0].Position().Line != 8 {
+		t.Fatalf("expected the value-level OR on line 8, got %s at %s", mutants[0].Type(), mutants[0].Position())
+	}
+}
+
 func TestMutantSkipDisabled(t *testing.T) {
 	t.Parallel()
 	for _, mt := range mutator.Types {
