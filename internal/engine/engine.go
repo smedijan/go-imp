@@ -197,16 +197,39 @@ func isTypeSetUnion(file *ast.File, pos token.Pos) bool {
 	isUnion := false
 	ast.Inspect(file, func(node ast.Node) bool {
 		interfaceType, ok := node.(*ast.InterfaceType)
-		if ok && interfaceType.Pos() <= pos && pos <= interfaceType.End() {
-			isUnion = true
+		if !ok {
+			return true
+		}
+		for _, field := range interfaceType.Methods.List {
+			if len(field.Names) == 0 && isUnionOperator(field.Type, pos) {
+				isUnion = true
 
-			return false
+				return false
+			}
 		}
 
 		return !isUnion
 	})
 
 	return isUnion
+}
+
+func isUnionOperator(node ast.Expr, pos token.Pos) bool {
+	switch node := node.(type) {
+	case *ast.ParenExpr:
+		return isUnionOperator(node.X, pos)
+	case *ast.BinaryExpr:
+		if node.Op != token.OR {
+			return false
+		}
+		if node.OpPos == pos {
+			return true
+		}
+
+		return isUnionOperator(node.X, pos) || isUnionOperator(node.Y, pos)
+	default:
+		return false
+	}
 }
 
 func (mu *Engine) pkgName(fileName, fPkg string) string {

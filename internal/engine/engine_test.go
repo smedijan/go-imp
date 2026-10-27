@@ -543,11 +543,14 @@ func TestGenericTypeSetUnionsAreNotBitwiseMutations(t *testing.T) {
 
 	mut := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(mapFS))
 	mutants := mut.Run(context.Background()).Mutants
-	if len(mutants) != 1 {
-		t.Fatalf("expected only the value-level OR mutation, got %d mutants: %v", len(mutants), mutants)
+	if len(mutants) != 2 {
+		t.Fatalf("expected the method-signature and value-level OR mutations, got %d mutants: %v", len(mutants), mutants)
 	}
-	if mutants[0].Type() != mutator.InvertBitwise || mutants[0].Position().Line != 8 {
-		t.Fatalf("expected the value-level OR on line 8, got %s at %s", mutants[0].Type(), mutants[0].Position())
+	for _, mutant := range mutants {
+		line := mutant.Position().Line
+		if mutant.Type() != mutator.InvertBitwise || (line != 7 && line != 10) {
+			t.Fatalf("expected InvertBitwise at line 7 or 10, got %s at %s", mutant.Type(), mutant.Position())
+		}
 	}
 }
 
