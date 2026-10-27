@@ -224,6 +224,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "write the selected report format to `FILE` (- for stdout)"},
 		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "run the whole module's test suite for each mutation"},
 		{Name: paramExcludeFiles, CfgKey: configuration.RunExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude matching paths using `REGEXP`; may be repeated"},
+		{Name: "include-files", CfgKey: configuration.RunIncludeFiles, DefaultV: []string{}, Usage: "include matching paths using `REGEXP`, overriding generated-file detection; may be repeated"},
 		{Name: paramExcludeWorkdir, CfgKey: configuration.RunExcludeWorkdir, DefaultV: []string{}, Usage: "omit a module-relative file or directory from worker copies; may be repeated"},
 		{Name: paramThresholdEfficacy, CfgKey: configuration.RunThresholdEfficacyKey, DefaultV: float64(0), Usage: "require test efficacy above `PERCENT` (zero disables)"},
 		{Name: paramThresholdMCoverage, CfgKey: configuration.RunThresholdMCoverageKey, DefaultV: float64(0), Usage: "require mutant coverage above `PERCENT` (zero disables)"},
