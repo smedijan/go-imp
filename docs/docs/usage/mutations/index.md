@@ -17,6 +17,7 @@ Each _mutant type_ can be enabled or disabled, and only a subset of mutations is
 | [ARITHMETIC BASE](arithmetic_base.md)                  |   YES   |
 | [CONDITIONALS BOUNDARY](conditionals_boundary.md)      |   YES   |
 | [CONDITIONALS NEGATION](conditionals_negation.md)      |   YES   |
+| [BOOLEAN LITERAL](boolean_literal.md)                  |   NO    |
 | [INCREMENT DECREMENT](increment_decrement.md)          |   YES   |
 | [INVERT NEGATIVES ](invert_negatives.md)               |   YES   |
 | [INVERT LOGICAL ](invert_logical.md)                   |  FALSE  |

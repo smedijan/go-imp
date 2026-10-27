@@ -47,11 +47,12 @@ import (
 // It traverses the AST of the project, finds which TokenMutator can be applied and
 // performs the actual mutation testing.
 type Engine struct {
-	fs           fs.FS
-	jDealer      ExecutorDealer
-	codeData     CodeData
-	mutantStream chan mutator.Mutator
-	module       gomodule.GoModule
+	fs             fs.FS
+	jDealer        ExecutorDealer
+	codeData       CodeData
+	mutantStream   chan mutator.Mutator
+	module         gomodule.GoModule
+	booleanShadows map[string]map[string]bool
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -99,6 +100,7 @@ func WithDirFs(dirFS fs.FS) Option {
 func (mu *Engine) Run(ctx context.Context) report.Results {
 	start := time.Now()
 	files := mu.sourceFiles()
+	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
 	progress := log.NewFileProgress(len(files))
 	defer progress.Finish()
 	mu.mutantStream = make(chan mutator.Mutator)
@@ -168,6 +170,148 @@ func (mu *Engine) runOnFile(fileName string) {
 
 		return true
 	})
+	mu.findBooleanMutations(fileName, set, file, src, mu.booleanShadows[packageKey(fileName, file.Name.Name)])
+}
+
+func findPackageBooleanShadows(source fs.FS) map[string]map[string]bool {
+	shadows := make(map[string]map[string]bool)
+	_ = fs.WalkDir(source, ".", func(filename string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(filename) != ".go" {
+			return nil
+		}
+		src, err := fs.ReadFile(source, filename)
+		if err != nil {
+			return err
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), filename, src, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		key := packageKey(filename, file.Name.Name)
+		for name := range packageBooleanDeclarations(file) {
+			if shadows[key] == nil {
+				shadows[key] = make(map[string]bool)
+			}
+			shadows[key][name] = true
+		}
+
+		return nil
+	})
+
+	return shadows
+}
+
+func packageKey(filename, name string) string {
+	return filepath.Dir(filename) + ":" + name
+}
+
+func packageBooleanDeclarations(file *ast.File) map[string]bool {
+	declarations := make(map[string]bool)
+	add := func(ident *ast.Ident) {
+		if ident.Name == booleanTrueLiteral || ident.Name == booleanFalseLiteral {
+			declarations[ident.Name] = true
+		}
+	}
+	for _, declaration := range file.Decls {
+		switch declaration := declaration.(type) {
+		case *ast.FuncDecl:
+			add(declaration.Name)
+		case *ast.GenDecl:
+			for _, spec := range declaration.Specs {
+				switch spec := spec.(type) {
+				case *ast.TypeSpec:
+					add(spec.Name)
+				case *ast.ValueSpec:
+					for _, name := range spec.Names {
+						add(name)
+					}
+				}
+			}
+		}
+	}
+
+	return declarations
+}
+
+func (mu *Engine) findBooleanMutations(fileName string, set *token.FileSet, file *ast.File, src []byte, packageShadows map[string]bool) {
+	var parents []ast.Node
+	ast.Inspect(file, func(node ast.Node) bool {
+		if node == nil {
+			parents = parents[:len(parents)-1]
+
+			return false
+		}
+		if ident, ok := node.(*ast.Ident); ok && (ident.Name == booleanTrueLiteral || ident.Name == booleanFalseLiteral) && ident.Obj == nil && !packageShadows[ident.Name] && len(parents) > 0 && isBooleanValue(parents[len(parents)-1], ident) {
+			n := NewBooleanNode(ident)
+			mu.findMutations(fileName, set, file, n, src)
+		}
+		parents = append(parents, node)
+
+		return true
+	})
+}
+
+func isBooleanValue(parent ast.Node, ident *ast.Ident) bool {
+	return isBooleanExpression(parent, ident) || isBooleanStatementValue(parent, ident) || isBooleanDeclarationValue(parent, ident)
+}
+
+func isBooleanExpression(parent ast.Node, ident *ast.Ident) bool {
+	switch n := parent.(type) {
+	case *ast.BinaryExpr:
+		return n.X == ident || n.Y == ident
+	case *ast.CallExpr:
+		return containsExpr(n.Args, ident)
+	case *ast.CaseClause:
+		return containsExpr(n.List, ident)
+	case *ast.CompositeLit:
+		return containsExpr(n.Elts, ident)
+	case *ast.ForStmt:
+		return n.Cond == ident
+	case *ast.IfStmt:
+		return n.Cond == ident
+	case *ast.KeyValueExpr:
+		return n.Value == ident
+	case *ast.ParenExpr:
+		return n.X == ident
+	case *ast.SendStmt:
+		return n.Value == ident
+	case *ast.SwitchStmt:
+		return n.Tag == ident
+	case *ast.UnaryExpr:
+		return n.Op == token.NOT && n.X == ident
+	}
+
+	return false
+}
+
+func isBooleanStatementValue(parent ast.Node, ident *ast.Ident) bool {
+	switch n := parent.(type) {
+	case *ast.AssignStmt:
+		return containsExpr(n.Rhs, ident)
+	case *ast.ReturnStmt:
+		return containsExpr(n.Results, ident)
+	}
+
+	return false
+}
+
+func isBooleanDeclarationValue(parent ast.Node, ident *ast.Ident) bool {
+	n, ok := parent.(*ast.ValueSpec)
+
+	return ok && containsExpr(n.Values, ident)
+}
+
+func containsExpr(expressions []ast.Expr, ident *ast.Ident) bool {
+	for _, expr := range expressions {
+		if expr == ident {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken, src []byte) {
@@ -175,11 +319,16 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		return
 	}
 
-	fileLock(fileName).Lock()
-	mutantTypes, ok := TokenMutantType[node.Tok()]
-	fileLock(fileName).Unlock()
-	if !ok {
-		return
+	var mutantTypes []mutator.Type
+	if node.IsIdent() {
+		mutantTypes = []mutator.Type{mutator.BooleanLiteral}
+	} else {
+		fileLock(fileName).Lock()
+		mutantTypes = TokenMutantType[node.Tok()]
+		fileLock(fileName).Unlock()
+		if len(mutantTypes) == 0 {
+			return
+		}
 	}
 
 	pkg := mu.pkgName(fileName, file.Name.Name)

@@ -24,6 +24,7 @@ var mutationEnabled = map[mutator.Type]bool{
 	mutator.ArithmeticBase:           true,
 	mutator.ConditionalsBoundary:     true,
 	mutator.ConditionalsNegation:     true,
+	mutator.BooleanLiteral:           false,
 	mutator.IncrementDecrement:       true,
 	mutator.InvertAssignments:        false,
 	mutator.InvertBitwise:            false,

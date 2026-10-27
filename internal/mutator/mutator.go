@@ -76,6 +76,7 @@ const (
 	ArithmeticBase Type = iota
 	ConditionalsBoundary
 	ConditionalsNegation
+	BooleanLiteral
 	IncrementDecrement
 	InvertAssignments
 	InvertBitwise
@@ -91,6 +92,7 @@ var Types = []Type{
 	ArithmeticBase,
 	ConditionalsBoundary,
 	ConditionalsNegation,
+	BooleanLiteral,
 	InvertAssignments,
 	InvertBitwise,
 	InvertBitwiseAssignments,
@@ -107,6 +109,8 @@ func (mt Type) String() string {
 		return "CONDITIONALS_BOUNDARY"
 	case ConditionalsNegation:
 		return "CONDITIONALS_NEGATION"
+	case BooleanLiteral:
+		return "BOOLEAN_LITERAL"
 	case IncrementDecrement:
 		return "INCREMENT_DECREMENT"
 	case InvertLogical:

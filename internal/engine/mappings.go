@@ -76,6 +76,9 @@ var tokenMutations = map[mutator.Type]map[token.Token]token.Token{
 		token.LEQ: token.LSS,
 		token.LSS: token.LEQ,
 	},
+	mutator.BooleanLiteral: {
+		token.IDENT: token.IDENT,
+	},
 	mutator.ConditionalsNegation: {
 		token.EQL: token.NEQ,
 		token.GEQ: token.LSS,

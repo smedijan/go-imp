@@ -21,6 +21,7 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"sort"
 	"testing"
 	"testing/fstest"
 
@@ -529,6 +530,123 @@ func TestMutations(t *testing.T) {
 			t.Errorf("expected tokenMutations list to contain the found mutation")
 			t.Log(got)
 		})
+	}
+}
+
+func TestBooleanLiteralMutationsRespectExpressionsAndShadowing(t *testing.T) {
+	t.Parallel()
+	viperSet(map[string]any{
+		configuration.RunDryRunKey:                                 true,
+		configuration.MutantTypeEnabledKey(mutator.BooleanLiteral): true,
+	})
+	defer viperReset()
+
+	source := `package example
+var packageValue = true
+func call(bool) {}
+func f() bool {
+	local := false
+	_ = func() bool { return !true }
+	call(true)
+	true := false
+	_ = true
+	return local
+}
+`
+	fsys := fstest.MapFS{"source.go": {Data: []byte(source)}}
+	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
+	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
+	mutants := engineUnderTest.Run(context.Background()).Mutants
+
+	var lines []int
+	for _, mutant := range mutants {
+		if mutant.Type() == mutator.BooleanLiteral {
+			lines = append(lines, mutant.Position().Line)
+		}
+	}
+	sort.Ints(lines)
+	want := []int{2, 5, 6, 7, 8}
+	if len(lines) != len(want) {
+		t.Fatalf("expected mutation lines %v, got %v", want, lines)
+	}
+	for i := range want {
+		if lines[i] != want[i] {
+			t.Fatalf("expected mutation lines %v, got %v", want, lines)
+		}
+	}
+}
+
+func TestBooleanLiteralMutationExpressionContexts(t *testing.T) {
+	t.Parallel()
+	viperSet(map[string]any{
+		configuration.RunDryRunKey:                                 true,
+		configuration.MutantTypeEnabledKey(mutator.BooleanLiteral): true,
+	})
+	defer viperReset()
+
+	source := `package example
+func contexts(ch chan bool) {
+	if true {}
+	for false { break }
+	_ = (true)
+	_ = map[bool]bool{true: false}
+	ch <- true
+	switch true { case false: }
+}
+`
+	fsys := fstest.MapFS{"contexts.go": {Data: []byte(source)}}
+	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
+	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
+	mutants := engineUnderTest.Run(context.Background()).Mutants
+	var booleanMutations int
+	for _, mutant := range mutants {
+		if mutant.Type() == mutator.BooleanLiteral {
+			booleanMutations++
+		}
+	}
+	if booleanMutations != 7 {
+		t.Fatalf("expected 7 boolean mutations in expression contexts, got %d", booleanMutations)
+	}
+}
+
+func TestBooleanLiteralPackageScopeShadowing(t *testing.T) {
+	t.Parallel()
+	viperSet(map[string]any{
+		configuration.RunDryRunKey:                                 true,
+		configuration.MutantTypeEnabledKey(mutator.BooleanLiteral): true,
+	})
+	defer viperReset()
+
+	fsys := fstest.MapFS{
+		"declaration.go": {Data: []byte("package example\nvar true = false\n")},
+		"use.go":         {Data: []byte("package example\nfunc f() bool { return true }\n")},
+	}
+	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
+	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
+	mutants := engineUnderTest.Run(context.Background()).Mutants
+
+	if len(mutants) != 1 || mutants[0].Type() != mutator.BooleanLiteral || mutants[0].Position().Filename != "declaration.go" {
+		t.Fatalf("expected only the unshadowed false initializer to mutate, got %v", mutants)
+	}
+}
+
+func TestBooleanLiteralTestFilePackageScopeShadowing(t *testing.T) {
+	t.Parallel()
+	viperSet(map[string]any{
+		configuration.RunDryRunKey:                                 true,
+		configuration.MutantTypeEnabledKey(mutator.BooleanLiteral): true,
+	})
+	defer viperReset()
+
+	fsys := fstest.MapFS{
+		"shadow_test.go": {Data: []byte("package example\nvar false = true\n")},
+		"use.go":         {Data: []byte("package example\nfunc f() bool { return false }\n")},
+	}
+	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
+	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
+	mutants := engineUnderTest.Run(context.Background()).Mutants
+	if len(mutants) != 0 {
+		t.Fatalf("expected test-file package declaration to shadow false, got %v", mutants)
 	}
 }
 
