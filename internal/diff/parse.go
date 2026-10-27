@@ -80,7 +80,8 @@ func normalizePaths(d Diff, repoRoot, cwd string, mod gomodule.GoModule) Diff {
 
 			continue
 		}
-		result[FileName(relative)] = append(result[FileName(relative)], changes...)
+		name := FileName(filepath.ToSlash(relative))
+		result[name] = append(result[name], changes...)
 	}
 
 	return result
