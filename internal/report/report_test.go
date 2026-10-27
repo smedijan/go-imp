@@ -218,6 +218,18 @@ func TestHumanReport(t *testing.T) {
 	}
 }
 
+func TestEmptyMutationScopeHasPerfectRates(t *testing.T) {
+	for _, mutants := range [][]mutator.Mutator{
+		nil,
+		{stubMutant{status: mutator.Skipped}},
+	} {
+		doc, _ := renderJSON(t, report.Results{Mutants: mutants}, report.Options{})
+		if doc.TestEfficacy != 100 || doc.MutationsCoverage != 100 {
+			t.Errorf("empty scope rates: efficacy=%v coverage=%v, want 100%%", doc.TestEfficacy, doc.MutationsCoverage)
+		}
+	}
+}
+
 func TestReportDryRun(t *testing.T) {
 	results := report.Results{Mutants: []mutator.Mutator{stubMutant{status: mutator.Runnable}, stubMutant{status: mutator.NotCovered}}}
 	document, _ := renderJSON(t, results, report.Options{DryRun: true, EfficacyThreshold: 99, CoverageThreshold: 99})

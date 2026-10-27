@@ -14,11 +14,11 @@ import (
 
 func TestThresholdBoundaries(t *testing.T) {
 	for _, tc := range []struct {
-		name                               string
-		killed, lived, uncovered, runnable int
-		efficacy, coverage                 float64
-		dryRun                             bool
-		code                               int
+		name                                        string
+		killed, lived, uncovered, runnable, skipped int
+		efficacy, coverage                          float64
+		dryRun                                      bool
+		code                                        int
 	}{
 		{name: "disabled", lived: 1, uncovered: 1},
 		{name: "efficacy above", killed: 3, lived: 1, efficacy: 74.99},
@@ -29,12 +29,13 @@ func TestThresholdBoundaries(t *testing.T) {
 		{name: "coverage below", killed: 2, lived: 1, uncovered: 1, coverage: 75.01, code: 11},
 		{name: "efficacy checked first", lived: 1, uncovered: 1, efficacy: 80, coverage: 90, code: 10},
 		{name: "empty", efficacy: 99, coverage: 99},
+		{name: "nothing in diff scope", skipped: 2, efficacy: 99, coverage: 99},
 		{name: "dry run", runnable: 3, uncovered: 1, efficacy: 99, coverage: 99, dryRun: true},
 	} {
 		for _, jsonOutput := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/json=%t", tc.name, jsonOutput), func(t *testing.T) {
 				var mutants []mutator.Mutator
-				for status, count := range map[mutator.Status]int{mutator.Killed: tc.killed, mutator.Lived: tc.lived, mutator.NotCovered: tc.uncovered, mutator.Runnable: tc.runnable} {
+				for status, count := range map[mutator.Status]int{mutator.Killed: tc.killed, mutator.Lived: tc.lived, mutator.NotCovered: tc.uncovered, mutator.Runnable: tc.runnable, mutator.Skipped: tc.skipped} {
 					for range count {
 						mutants = append(mutants, stubMutant{status: status})
 					}

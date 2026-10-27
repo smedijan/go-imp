@@ -1,4 +1,6 @@
 run:
+  diff: origin/main
+  statuses: lived,not-covered
   threshold:
     efficacy: 80
     mutant-coverage: 90
