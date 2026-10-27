@@ -282,7 +282,7 @@ func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 			defer viperReset()
 
 			rootDir := t.TempDir()
-			wdDealer := &dealerStub{t: t, fnGet: func(_ string) (string, error) { return rootDir, nil }}
+			wdDealer := fixtureWorkdirDealer{path: rootDir, tempDir: t.TempDir()}
 			files := map[string]string{"go.mod": "module example.com/fixture\n\ngo 1.21\n"}
 			if tc.source != "" {
 				files["fixture.go"] = tc.source
@@ -317,6 +317,15 @@ func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 		})
 	}
 }
+
+type fixtureWorkdirDealer struct {
+	path    string
+	tempDir string
+}
+
+func (d fixtureWorkdirDealer) Get(string) (string, error) { return d.path, nil }
+func (fixtureWorkdirDealer) Clean()                       {}
+func (d fixtureWorkdirDealer) WorkDir() string            { return d.tempDir }
 
 func TestMutatorRun(t *testing.T) {
 	testCases := []struct {
