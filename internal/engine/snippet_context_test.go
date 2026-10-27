@@ -17,7 +17,6 @@
 package engine_test
 
 import (
-	"context"
 	"testing"
 	"testing/fstest"
 
@@ -40,7 +39,7 @@ func TestDiscoveredSnippetContext(t *testing.T) {
 			defer viperReset()
 			mod := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 			mu := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fstest.MapFS{"source.go": {Data: []byte(tc.source)}}))
-			result := mu.Run(context.Background())
+			result := runEngine(t, &mu)
 			if len(result.Mutants) != 1 {
 				t.Fatalf("expected one mutation, got %d", len(result.Mutants))
 			}

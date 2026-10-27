@@ -1,7 +1,6 @@
 package engine_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +39,7 @@ func TestSnippetPreviews(t *testing.T) {
 			mod := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 			fs := fstest.MapFS{"source.go": {Data: source}}
 			mu := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fs))
-			result := mu.Run(context.Background())
+			result := runEngine(t, &mu)
 			var found mutator.Mutator
 			for _, m := range result.Mutants {
 				if m.Type() == tc.kind {
@@ -99,7 +98,7 @@ func TestDiscoveryIncludesUncoveredContext(t *testing.T) {
 	source := []byte("package example\nfunc f(a,b int)int{return a+b}\n")
 	mod := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 	mu := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fstest.MapFS{"file.go": {Data: source}}))
-	result := mu.Run(context.Background())
+	result := runEngine(t, &mu)
 	if len(result.Mutants) != 1 {
 		t.Fatalf("expected one mutant, got %d", len(result.Mutants))
 	}

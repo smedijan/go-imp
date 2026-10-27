@@ -198,6 +198,17 @@ Each mutation's timeout is `max(coverage duration, 1 second) × coefficient`. Fo
 a 500 ms coverage run with coefficient five gets a five-second timeout. Timing-sensitive
 tests and system load can cause small variations between runs.
 
+### Execution failures and cancellation
+
+Worker-copy, mutation-application, and restoration failures abort the run. imp stops
+scheduling mutants, cancels active test commands, and waits for restoration attempts
+before returning an error. A failed worker copy is not reused within the run. No
+partial report replaces a previous report.
+
+Cancellation follows the same cleanup path; it is not a `TIMED OUT` mutant result.
+Compilation and test-command startup failures remain `NOT VIABLE`, while an individual
+mutation exceeding its timeout remains `TIMED OUT`.
+
 ## Quality gates and exit codes
 
 | Flag | Calculation |

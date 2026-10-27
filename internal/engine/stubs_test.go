@@ -17,7 +17,7 @@
 package engine_test
 
 import (
-	"errors"
+	"context"
 	"go/token"
 	"io"
 	"os"
@@ -27,9 +27,10 @@ import (
 	"testing/fstest"
 
 	"github.com/smedijan/go-imp/internal/configuration"
-	"github.com/smedijan/go-imp/internal/engine/workerpool"
+	"github.com/smedijan/go-imp/internal/engine"
 	"github.com/smedijan/go-imp/internal/gomodule"
 	"github.com/smedijan/go-imp/internal/mutator"
+	"github.com/smedijan/go-imp/internal/report"
 )
 
 var viperMutex sync.RWMutex
@@ -100,35 +101,51 @@ func (dealerStub) Clean() {}
 
 func (dealerStub) WorkDir() string { return "/tmp" }
 
-type executorDealerStub struct {
+type executionStub struct {
 	gotMutants []mutator.Mutator
 }
 
-func newJobDealerStub(t *testing.T) *executorDealerStub {
+func newJobDealerStub(t *testing.T) *executionStub {
 	t.Helper()
 
-	return &executorDealerStub{}
+	return &executionStub{}
 }
 
-func (j *executorDealerStub) NewExecutor(mut mutator.Mutator, outCh chan<- mutator.Mutator, wg *sync.WaitGroup) workerpool.Executor {
-	j.gotMutants = append(j.gotMutants, mut)
-
-	return &executorStub{
-		mut:   mut,
-		outCh: outCh,
-		wg:    wg,
+func (j *executionStub) Execute(ctx context.Context, mutants []mutator.Mutator, completed func(mutator.Mutator)) ([]mutator.Mutator, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
+	j.gotMutants = append(j.gotMutants, mutants...)
+	for _, mutant := range mutants {
+		if completed != nil {
+			completed(mutant)
+		}
+	}
+
+	return mutants, nil
 }
 
-type executorStub struct {
-	mut   mutator.Mutator
-	outCh chan<- mutator.Mutator
-	wg    *sync.WaitGroup
+func runEngine(t *testing.T, e *engine.Engine) report.Results {
+	t.Helper()
+	results, err := e.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return results
 }
 
-func (j *executorStub) Start(_ *workerpool.Worker) {
-	j.outCh <- j.mut
-	j.wg.Done()
+func executeMutants(t *testing.T, executor engine.Executor, mutants ...mutator.Mutator) []mutator.Mutator {
+	t.Helper()
+	results, err := executor.Execute(context.Background(), mutants, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != len(mutants) {
+		t.Fatalf("got %d results, want %d", len(results), len(mutants))
+	}
+
+	return results
 }
 
 type mutantStub struct {
@@ -139,8 +156,6 @@ type mutantStub struct {
 	mutType        mutator.Type
 	applyCalled    bool
 	rollbackCalled bool
-
-	hasApplyError bool
 }
 
 func (m *mutantStub) Type() mutator.Type {
@@ -181,9 +196,6 @@ func (m *mutantStub) Workdir() string {
 
 func (m *mutantStub) Apply() error {
 	m.applyCalled = true
-	if m.hasApplyError {
-		return errors.New("test error")
-	}
 
 	return nil
 }

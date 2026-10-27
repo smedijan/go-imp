@@ -157,17 +157,10 @@ func (m *TokenMutator) Apply() error {
 	} else {
 		m.tokenNode.SetTok(tokenMutations[m.Type()][m.tokenNode.Tok()])
 	}
+	// The shared AST must be restored even if writing the worker copy fails.
+	defer m.restoreNode()
 
-	if err = m.writeMutatedFile(filename); err != nil {
-		m.restoreNode()
-
-		return err
-	}
-
-	// Rollback here to facilitate the atomicity of the operation.
-	m.restoreNode()
-
-	return nil
+	return m.writeMutatedFile(filename)
 }
 
 func (m *TokenMutator) restoreNode() {
@@ -232,9 +225,12 @@ func cachedLock(filename string) (*sync.Mutex, bool) {
 	return lock, ok
 }
 
-// Rollback puts back the original file after the test and cleans up the
-// TokenMutator to free memory.
+// Rollback restores the original file, including after a partially failed Apply.
+// It is a no-op if Apply could not read the original source.
 func (m *TokenMutator) Rollback() error {
+	if m.origFile == nil {
+		return nil
+	}
 	defer m.resetOrigFile()
 	filename := filepath.Join(m.workDir, m.Position().Filename)
 
