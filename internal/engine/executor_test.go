@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -151,6 +152,12 @@ func TestMutatorTestExecution(t *testing.T) {
 			mutantStatus:  mutator.Runnable,
 			wantMutStatus: mutator.NotViable,
 		},
+		{
+			name:          "if subprocess cannot start then mutation is NOT VIABLE",
+			testResult:    fakeExecCommandStartupFailure,
+			mutantStatus:  mutator.Runnable,
+			wantMutStatus: mutator.NotViable,
+		},
 	}
 	for _, tc := range testCases {
 		tc := tc
@@ -226,6 +233,105 @@ type commandHolder struct {
 	timeout time.Duration
 	m       sync.Mutex
 }
+
+func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
+	testCases := []struct {
+		name        string
+		source      string
+		testSource  string
+		extraFiles  map[string]string
+		integration bool
+		want        mutator.Status
+	}{
+		{
+			name:       "compile failure",
+			source:     "package fixture\nfunc broken() { missingSymbol() }\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestPass(t *testing.T) {}\n",
+			want:       mutator.NotViable,
+		},
+		{
+			name:       "assertion failure",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestFail(t *testing.T) { t.Fatal(\"assertion failed\") }\n",
+			want:       mutator.Killed,
+		},
+		{
+			name:       "test panic",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestPanic(t *testing.T) { panic(\"test panic\") }\n",
+			want:       mutator.Killed,
+		},
+		{
+			name:       "TestMain failure after passing tests",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport (\"os\"; \"testing\")\nfunc TestPass(t *testing.T) {}\nfunc TestMain(m *testing.M) { _ = m.Run(); os.Exit(1) }\n",
+			want:       mutator.NotViable,
+		},
+		{
+			name:        "integration run with compile and test failures",
+			integration: true,
+			extraFiles: map[string]string{
+				"valid/valid.go":      "package valid\n",
+				"valid/valid_test.go": "package valid\nimport \"testing\"\nfunc TestFail(t *testing.T) { t.Fatal(\"assertion failed\") }\n",
+				"broken/broken.go":    "package broken\nfunc broken() { missingSymbol() }\n",
+			},
+			want: mutator.NotViable,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			viperSet(map[string]any{
+				configuration.RunDryRunKey:       false,
+				configuration.RunIntegrationMode: tc.integration,
+			})
+			defer viperReset()
+
+			rootDir := t.TempDir()
+			wdDealer := fixtureWorkdirDealer{path: rootDir, tempDir: t.TempDir()}
+			files := map[string]string{"go.mod": "module example.com/fixture\n\ngo 1.21\n"}
+			if tc.source != "" {
+				files["fixture.go"] = tc.source
+				files["fixture_test.go"] = tc.testSource
+			}
+			for name, content := range tc.extraFiles {
+				files[name] = content
+			}
+			for name, content := range files {
+				path := filepath.Join(rootDir, name)
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			mod := gomodule.GoModule{Name: "example.com/fixture", Root: rootDir, CallingDir: "."}
+			dealer := engine.NewExecutorDealer(mod, wdDealer, expectedTimeout)
+			mut := &mutantStub{status: mutator.Runnable, pkg: "."}
+			outCh := make(chan mutator.Mutator)
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() { <-outCh }()
+			dealer.NewExecutor(mut, outCh, &wg).Start(&workerpool.Worker{Name: "fixture", ID: 1})
+			wg.Wait()
+
+			if got := mut.Status(); got != tc.want {
+				t.Errorf("status = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+type fixtureWorkdirDealer struct {
+	path    string
+	tempDir string
+}
+
+func (d fixtureWorkdirDealer) Get(string) (string, error) { return d.path, nil }
+func (fixtureWorkdirDealer) Clean()                       {}
+func (d fixtureWorkdirDealer) WorkDir() string            { return d.tempDir }
 
 func TestMutatorRun(t *testing.T) {
 	testCases := []struct {
@@ -308,7 +414,7 @@ func TestMutatorRun(t *testing.T) {
 			if tc.timeoutCoefficient != 0 {
 				wantTimeout = 2*time.Second + expectedTimeout*time.Duration(tc.timeoutCoefficient)
 			}
-			want := fmt.Sprintf("go test -count=1 -tags %s -timeout %s -failfast %s", tc.tags, wantTimeout, tc.wantPath)
+			want := fmt.Sprintf("go test -json -count=1 -tags %s -timeout %s -failfast %s", tc.tags, wantTimeout, tc.wantPath)
 			got := fmt.Sprintf("go %v", strings.Join(holder.args, " "))
 
 			if !cmp.Equal(got, want) {
@@ -432,6 +538,7 @@ func TestProcessTestsFailure(_ *testing.T) {
 	if os.Getenv("GO_TEST_PROCESS") != "1" {
 		return
 	}
+	_, _ = os.Stdout.WriteString("{\"Action\":\"run\",\"Package\":\"example.com\",\"Test\":\"TestFakeFailure\"}\n{\"Action\":\"fail\",\"Package\":\"example.com\",\"Test\":\"TestFakeFailure\"}\n{\"Action\":\"fail\",\"Package\":\"example.com\"}\n")
 	os.Exit(1) // skipcq: RVV-A0003
 }
 
@@ -583,6 +690,10 @@ func fakeExecCommandBuildFailure(ctx context.Context, command string, args ...st
 	cs = append(cs, args...)
 
 	return getCmd(ctx, cs)
+}
+
+func fakeExecCommandStartupFailure(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, "/does/not/exist")
 }
 
 func getCmd(ctx context.Context, cs []string) *exec.Cmd {

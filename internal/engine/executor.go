@@ -18,11 +18,14 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -217,21 +220,27 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
 
+	var output synchronizedBuffer
+	cmd.Stdout = &output
+	cmd.Stderr = io.Discard
 	err := run(ctx, cmd)
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return mutator.TimedOut
 	}
+	if err == nil {
+		return mutator.Lived
+	}
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
-		return getTestFailedStatus(exitErr.ExitCode())
+		return getTestFailedStatus(exitErr.ExitCode(), output.String())
 	}
 
-	return mutator.Lived
+	return mutator.NotViable
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
-	args := []string{"test", "-count=1"}
+	args := []string{"test", "-json", "-count=1"}
 	if m.buildTags != "" {
 		args = append(args, "-tags", m.buildTags)
 	}
@@ -291,13 +300,71 @@ func run(ctx context.Context, cmd *exec.Cmd) error {
 	}
 }
 
-func getTestFailedStatus(exitCode int) mutator.Status {
-	switch exitCode {
-	case 1:
-		return mutator.Killed
-	case 2:
+type synchronizedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (b *synchronizedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+
+	return len(p), nil
+}
+
+func (b *synchronizedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return string(b.buf)
+}
+
+func getTestFailedStatus(exitCode int, output string) mutator.Status {
+	if exitCode != 1 {
 		return mutator.NotViable
-	default:
-		return mutator.Lived
 	}
+
+	type packageResult struct {
+		packageFailed bool
+		testFailed    bool
+	}
+	results := make(map[string]packageResult)
+	decoder := json.NewDecoder(strings.NewReader(output))
+	for {
+		var event struct {
+			Action  string
+			Package string
+			Test    string
+		}
+		if err := decoder.Decode(&event); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return mutator.NotViable
+		}
+		result := results[event.Package]
+		if event.Action == "fail" {
+			if event.Test == "" {
+				result.packageFailed = true
+			} else {
+				result.testFailed = true
+			}
+		}
+		results[event.Package] = result
+	}
+
+	testFailed := false
+	for _, result := range results {
+		if result.packageFailed && !result.testFailed {
+			return mutator.NotViable
+		}
+		testFailed = testFailed || result.testFailed
+	}
+	if testFailed {
+		return mutator.Killed
+	}
+
+	return mutator.NotViable
 }
