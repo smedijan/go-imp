@@ -143,7 +143,7 @@ func (c *Coverage) downloadModules() error {
 }
 
 func (c *Coverage) executeCoverage() (time.Duration, error) {
-	args := []string{"test"}
+	args := []string{"test", "-count=1"}
 	if c.buildTags != "" {
 		args = append(args, "-tags", c.buildTags)
 	}
