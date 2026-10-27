@@ -18,6 +18,7 @@ package engine
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
@@ -122,6 +123,25 @@ func (m *TokenMutator) Apply() error {
 
 	if len(m.origSnippet) == 0 {
 		m.origSnippet = extractSnippet(m.origFile, m.Position().Line, 3)
+	}
+
+	// Insert at the AST-discovered operator rather than reprinting the file:
+	// this preserves precedence, comments, whitespace and all AST positions.
+	if m.Type() == mutator.InvertLogical && m.tokenNode.Tok() == token.NOT {
+		offset := m.Position().Offset
+		if offset < 0 || offset >= len(m.origFile) || m.origFile[offset] != '!' {
+			return fmt.Errorf("logical negation not found at offset %d", offset)
+		}
+		payload := make([]byte, 0, len(m.origFile)+1)
+		payload = append(payload, m.origFile[:offset]...)
+		payload = append(payload, '!')
+		payload = append(payload, m.origFile[offset:]...)
+		if err = os.WriteFile(filename, payload, 0o600); err != nil {
+			return err
+		}
+		m.mutatedSnippet = extractSnippet(payload, m.Position().Line, 3)
+
+		return nil
 	}
 
 	m.actualToken = m.tokenNode.Tok()
@@ -246,6 +266,9 @@ func (m *TokenMutator) captureSnippets(source []byte) {
 
 	original := m.tokenNode.Tok()
 	replacement := tokenMutations[m.Type()][original].String()
+	if m.Type() == mutator.InvertLogical && original == token.NOT {
+		replacement = "!!"
+	}
 	pos := m.Position()
 	end := pos.Offset + len(original.String())
 	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != original.String() {
