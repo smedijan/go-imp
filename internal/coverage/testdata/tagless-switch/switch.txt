@@ -2,7 +2,7 @@ package sample
 
 func chooseBySwitch(x int) int {
 	switch {
-	case x > 0:
+	case x > 0, x == 99:
 		return 1
 	case x < 0:
 		return -1
@@ -20,4 +20,15 @@ func chooseByIf(x int) int {
 		return -1
 	}
 	return 0
+}
+
+func chooseByFallthrough(x int) int {
+	switch {
+	case x > 0:
+		fallthrough
+	case x == 99:
+		return 3
+	default:
+		return 0
+	}
 }

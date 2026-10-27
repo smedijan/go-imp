@@ -2,3 +2,5 @@ mode: set
 example.com/switch.go:6.3,6.11 1 1
 example.com/switch.go:10.3,10.11 1 1
 example.com/switch.go:17.2,21.3 1 1
+example.com/switch.go:28.3,28.14 1 1
+example.com/switch.go:30.3,30.11 1 1

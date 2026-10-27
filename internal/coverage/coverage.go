@@ -218,10 +218,16 @@ func addCoveredSwitchCases(sourcePath string, blocks []Block) []Block {
 		if !ok || switchStmt.Tag != nil {
 			return true
 		}
-		for _, stmt := range switchStmt.Body.List {
+		for i, stmt := range switchStmt.Body.List {
 			clause, ok := stmt.(*ast.CaseClause)
 			if !ok || len(clause.List) == 0 || len(clause.Body) == 0 {
 				continue
+			}
+			if i > 0 {
+				previous, ok := switchStmt.Body.List[i-1].(*ast.CaseClause)
+				if ok && caseFallsThrough(previous) {
+					continue
+				}
 			}
 			bodyStart := fset.Position(clause.Body[0].Pos())
 			bodyEnd := fset.Position(clause.Body[len(clause.Body)-1].End())
@@ -239,7 +245,7 @@ func addCoveredSwitchCases(sourcePath string, blocks []Block) []Block {
 				continue
 			}
 			conditionStart := fset.Position(clause.List[0].Pos())
-			conditionEnd := fset.Position(clause.List[len(clause.List)-1].End())
+			conditionEnd := fset.Position(clause.List[0].End())
 			blocks = append(blocks, Block{
 				StartLine: conditionStart.Line,
 				StartCol:  conditionStart.Column,
@@ -252,6 +258,15 @@ func addCoveredSwitchCases(sourcePath string, blocks []Block) []Block {
 	})
 
 	return blocks
+}
+
+func caseFallsThrough(clause *ast.CaseClause) bool {
+	if len(clause.Body) == 0 {
+		return false
+	}
+	branch, ok := clause.Body[len(clause.Body)-1].(*ast.BranchStmt)
+
+	return ok && branch.Tok == token.FALLTHROUGH
 }
 
 func positionBefore(left, right token.Position) bool {

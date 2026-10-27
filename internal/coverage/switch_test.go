@@ -23,7 +23,7 @@ func TestTaglessSwitchCaseCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var switchConditions, ifConditions []token.Position
+	var switchConditions, ifConditions, fallthroughConditions []token.Position
 	ast.Inspect(file, func(node ast.Node) bool {
 		binary, ok := node.(*ast.BinaryExpr)
 		if !ok {
@@ -31,10 +31,13 @@ func TestTaglessSwitchCaseCoverage(t *testing.T) {
 		}
 		position := fset.Position(binary.OpPos)
 		position.Filename = "switch.go"
-		if position.Line < 15 {
+		switch {
+		case position.Line < 15:
 			switchConditions = append(switchConditions, position)
-		} else {
+		case position.Line < 24:
 			ifConditions = append(ifConditions, position)
+		default:
+			fallthroughConditions = append(fallthroughConditions, position)
 		}
 
 		return true
@@ -71,11 +74,11 @@ func TestTaglessSwitchCaseCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(switchConditions) != 3 || len(ifConditions) != 2 {
-		t.Fatalf("unexpected fixture conditions: switch=%d if=%d", len(switchConditions), len(ifConditions))
+	if len(switchConditions) != 4 || len(ifConditions) != 2 || len(fallthroughConditions) != 2 {
+		t.Fatalf("unexpected fixture conditions: switch=%d if=%d fallthrough=%d", len(switchConditions), len(ifConditions), len(fallthroughConditions))
 	}
 	for i, position := range switchConditions {
-		want := i != 1 // The second case body has no covered block.
+		want := i == 0 || i == 3 // Later alternative and uncovered second case did not run.
 		if got := result.Profile.IsCovered(position); got != want {
 			t.Errorf("switch condition at %s covered=%t, want %t", position, got, want)
 		}
@@ -84,5 +87,11 @@ func TestTaglessSwitchCaseCoverage(t *testing.T) {
 		if !result.Profile.IsCovered(position) {
 			t.Errorf("if condition at %s should be covered", position)
 		}
+	}
+	if !result.Profile.IsCovered(fallthroughConditions[0]) {
+		t.Errorf("fallthrough source condition at %s should be covered", fallthroughConditions[0])
+	}
+	if result.Profile.IsCovered(fallthroughConditions[1]) {
+		t.Errorf("fallthrough destination condition at %s should be uncovered", fallthroughConditions[1])
 	}
 }
