@@ -41,6 +41,7 @@ var TokenMutantType = map[token.Token][]mutator.Type{
 	token.LAND:           {mutator.InvertLogical},
 	token.LEQ:            {mutator.ConditionalsBoundary, mutator.ConditionalsNegation},
 	token.LOR:            {mutator.InvertLogical},
+	token.NOT:            {mutator.InvertLogical},
 	token.LSS:            {mutator.ConditionalsBoundary, mutator.ConditionalsNegation},
 	token.MUL:            {mutator.ArithmeticBase},
 	token.MUL_ASSIGN:     {mutator.InvertAssignments, mutator.RemoveSelfAssignments},
