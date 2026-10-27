@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -89,6 +90,40 @@ func checkForDifferentFile(t *testing.T, srcDir string, dstDir string) func(path
 		}
 
 		return nil
+	}
+}
+
+func TestConfiguredExclusionPrunesIgnoredDirectoryAndRetainsAssets(t *testing.T) {
+	srcDir := t.TempDir()
+	writeFile := func(name, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(srcDir, name)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(".gitignore", "ignored-cache/\n")
+	writeFile("go.mod", "module example.com/fixture\n")
+	writeFile("testdata/input.json", `{"required":true}`)
+	writeFile("ignored-cache/nested/large.bin", strings.Repeat("x", 1024*1024))
+
+	wdDir := t.TempDir()
+	dealer := workdir.NewCachedDealer(wdDir, srcDir, "ignored-cache")
+	t.Cleanup(dealer.Clean)
+
+	dstDir, err := dealer.Get("worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{".gitignore", "go.mod", "testdata/input.json"} {
+		if _, err := os.Stat(filepath.Join(dstDir, name)); err != nil {
+			t.Errorf("required source asset %q was not copied: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dstDir, "ignored-cache")); !os.IsNotExist(err) {
+		t.Errorf("explicitly excluded ignored directory was copied or traversed: %v", err)
 	}
 }
 
@@ -197,6 +232,16 @@ func TestErrors(t *testing.T) {
 		_, err := dealer.Get("test")
 		if err == nil {
 			t.Errorf("expected an error")
+		}
+		if err != nil && strings.Contains(err.Error(), "remove partial workdir") {
+			t.Errorf("unexpected cleanup failure while removing partial workdir: %v", err)
+		}
+		entries, readErr := os.ReadDir(dstDir)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if len(entries) != 0 {
+			t.Errorf("partial workdir was not cleaned up: %v", entries)
 		}
 	})
 

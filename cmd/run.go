@@ -56,6 +56,7 @@ const (
 	paramOutput             = "output"
 	paramIntegrationMode    = "integration"
 	paramExcludeFiles       = "exclude-files"
+	paramExcludeWorkdir     = "exclude-workdir"
 	paramTestCPU            = "test-cpu"
 	paramWorkers            = "workers"
 	paramTimeoutCoefficient = "timeout-coefficient"
@@ -183,7 +184,7 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		return report.Results{}, fmt.Errorf("failed to gather coverage: %w", err)
 	}
 
-	wdDealer := workdir.NewCachedDealer(workDir, mod.Root)
+	wdDealer := workdir.NewCachedDealer(workDir, mod.Root, configuration.Get[[]string](configuration.RunExcludeWorkdir)...)
 	defer wdDealer.Clean()
 
 	jDealer := engine.NewExecutorDealer(mod, wdDealer, cProfile.Elapsed)
@@ -223,6 +224,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "write the selected report format to `FILE` (- for stdout)"},
 		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "run the whole module's test suite for each mutation"},
 		{Name: paramExcludeFiles, CfgKey: configuration.RunExcludeFiles, Shorthand: "E", DefaultV: []string{}, Usage: "exclude matching paths using `REGEXP`; may be repeated"},
+		{Name: paramExcludeWorkdir, CfgKey: configuration.RunExcludeWorkdir, DefaultV: []string{}, Usage: "omit a module-relative file or directory from worker copies; may be repeated"},
 		{Name: paramThresholdEfficacy, CfgKey: configuration.RunThresholdEfficacyKey, DefaultV: float64(0), Usage: "require test efficacy above `PERCENT` (zero disables)"},
 		{Name: paramThresholdMCoverage, CfgKey: configuration.RunThresholdMCoverageKey, DefaultV: float64(0), Usage: "require mutant coverage above `PERCENT` (zero disables)"},
 		{Name: paramWorkers, CfgKey: configuration.RunWorkersKey, DefaultV: 0, Usage: "use `N` mutation workers (zero selects automatically)"},

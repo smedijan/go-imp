@@ -38,6 +38,14 @@
           "default": "",
           "examples": ["lived,not-covered", "killed"]
         },
+        "exclude-workdir": {
+          "title": "Worker-copy exclusions",
+          "description": "Module-relative file or directory paths omitted from worker copies; directories are pruned recursively. Does not follow .gitignore.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "examples": [["ignored-cache", "generated-data"]]
+        },
         "dry-run": {
           "title": "Dry-run mode",
           "description": "Searches for mutants but doesn't execute the tests",

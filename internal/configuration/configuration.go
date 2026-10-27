@@ -48,6 +48,7 @@ const (
 	RunTimeoutCoefficientKey = "run.timeout-coefficient"
 	RunIntegrationMode       = "run.integration"
 	RunExcludeFiles          = "run.exclude-files"
+	RunExcludeWorkdir        = "run.exclude-workdir"
 	RunDiffRef               = "run.diff"
 	RunThresholdEfficacyKey  = "run.threshold.efficacy"
 	RunThresholdMCoverageKey = "run.threshold.mutant-coverage"
