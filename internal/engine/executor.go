@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -217,17 +218,23 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
 
+	var output synchronizedBuffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 	err := run(ctx, cmd)
 
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return mutator.TimedOut
 	}
+	if err == nil {
+		return mutator.Lived
+	}
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
-		return getTestFailedStatus(exitErr.ExitCode())
+		return getTestFailedStatus(exitErr.ExitCode(), output.String())
 	}
 
-	return mutator.Lived
+	return mutator.NotViable
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
@@ -291,13 +298,30 @@ func run(ctx context.Context, cmd *exec.Cmd) error {
 	}
 }
 
-func getTestFailedStatus(exitCode int) mutator.Status {
-	switch exitCode {
-	case 1:
+type synchronizedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (b *synchronizedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+
+	return len(p), nil
+}
+
+func (b *synchronizedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return string(b.buf)
+}
+
+func getTestFailedStatus(exitCode int, output string) mutator.Status {
+	if exitCode == 1 && strings.Contains(output, "--- FAIL:") {
 		return mutator.Killed
-	case 2:
-		return mutator.NotViable
-	default:
-		return mutator.Lived
 	}
+
+	return mutator.NotViable
 }

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -151,6 +152,12 @@ func TestMutatorTestExecution(t *testing.T) {
 			mutantStatus:  mutator.Runnable,
 			wantMutStatus: mutator.NotViable,
 		},
+		{
+			name:          "if subprocess cannot start then mutation is NOT VIABLE",
+			testResult:    fakeExecCommandStartupFailure,
+			mutantStatus:  mutator.Runnable,
+			wantMutStatus: mutator.NotViable,
+		},
 	}
 	for _, tc := range testCases {
 		tc := tc
@@ -225,6 +232,68 @@ type commandHolder struct {
 	args    []string
 	timeout time.Duration
 	m       sync.Mutex
+}
+
+func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
+	testCases := []struct {
+		name       string
+		source     string
+		testSource string
+		want       mutator.Status
+	}{
+		{
+			name:       "compile failure",
+			source:     "package fixture\nfunc broken() { missingSymbol() }\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestPass(t *testing.T) {}\n",
+			want:       mutator.NotViable,
+		},
+		{
+			name:       "assertion failure",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestFail(t *testing.T) { t.Fatal(\"assertion failed\") }\n",
+			want:       mutator.Killed,
+		},
+		{
+			name:       "test panic",
+			source:     "package fixture\n",
+			testSource: "package fixture\nimport \"testing\"\nfunc TestPanic(t *testing.T) { panic(\"test panic\") }\n",
+			want:       mutator.Killed,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			viperSet(map[string]any{configuration.RunDryRunKey: false})
+			defer viperReset()
+
+			rootDir := t.TempDir()
+			wdDealer := &dealerStub{t: t, fnGet: func(_ string) (string, error) { return rootDir, nil }}
+			files := map[string]string{
+				"go.mod":          "module example.com/fixture\n\ngo 1.21\n",
+				"fixture.go":      tc.source,
+				"fixture_test.go": tc.testSource,
+			}
+			for name, content := range files {
+				if err := os.WriteFile(filepath.Join(rootDir, name), []byte(content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			mod := gomodule.GoModule{Name: "example.com/fixture", Root: rootDir, CallingDir: "."}
+			dealer := engine.NewExecutorDealer(mod, wdDealer, expectedTimeout)
+			mut := &mutantStub{status: mutator.Runnable, pkg: "."}
+			outCh := make(chan mutator.Mutator)
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() { <-outCh }()
+			dealer.NewExecutor(mut, outCh, &wg).Start(&workerpool.Worker{Name: "fixture", ID: 1})
+			wg.Wait()
+
+			if got := mut.Status(); got != tc.want {
+				t.Errorf("status = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestMutatorRun(t *testing.T) {
@@ -432,6 +501,7 @@ func TestProcessTestsFailure(_ *testing.T) {
 	if os.Getenv("GO_TEST_PROCESS") != "1" {
 		return
 	}
+	_, _ = os.Stdout.WriteString("--- FAIL: TestFakeFailure\n")
 	os.Exit(1) // skipcq: RVV-A0003
 }
 
@@ -583,6 +653,10 @@ func fakeExecCommandBuildFailure(ctx context.Context, command string, args ...st
 	cs = append(cs, args...)
 
 	return getCmd(ctx, cs)
+}
+
+func fakeExecCommandStartupFailure(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, "/does/not/exist")
 }
 
 func getCmd(ctx context.Context, cs []string) *exec.Cmd {
