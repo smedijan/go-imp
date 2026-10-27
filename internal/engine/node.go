@@ -21,10 +21,15 @@ import (
 	"go/token"
 )
 
-// NodeToken is the reference to the actualToken that will be mutated during
-// the mutation testing.
+const (
+	booleanTrueLiteral  = "true"
+	booleanFalseLiteral = "false"
+)
+
+// NodeToken references the token or identifier to mutate.
 type NodeToken struct {
 	tok    *token.Token
+	ident  *ast.Ident
 	TokPos token.Pos
 }
 
@@ -61,12 +66,33 @@ func NewTokenNode(n ast.Node) (*NodeToken, bool) {
 	}, true
 }
 
-// Tok returns the reference to the token.Token.
+// IsIdent reports whether the node refers to an identifier expression.
+func (n *NodeToken) IsIdent() bool {
+	return n.ident != nil
+}
+
+// Ident returns the identifier associated with the node, if any.
+func (n *NodeToken) Ident() *ast.Ident {
+	return n.ident
+}
+
+// Tok returns the token represented by the node.
 func (n *NodeToken) Tok() token.Token {
+	if n.ident != nil {
+		return token.IDENT
+	}
+
 	return *n.tok
 }
 
 // SetTok sets the token.Token of the tokenNode.
 func (n *NodeToken) SetTok(t token.Token) {
-	*n.tok = t
+	if n.tok != nil {
+		*n.tok = t
+	}
+}
+
+// NewBooleanNode creates a token node for a boolean literal identifier.
+func NewBooleanNode(ident *ast.Ident) *NodeToken {
+	return &NodeToken{ident: ident, TokPos: ident.Pos()}
 }

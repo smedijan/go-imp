@@ -17,6 +17,7 @@
 package engine_test
 
 import (
+	"bytes"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -109,6 +110,56 @@ func TestTokenMutator_Apply_SetsSnippets(t *testing.T) {
 
 			tc.assertFunc(t, mut, applyErr)
 		})
+	}
+}
+
+func TestBooleanLiteralMutationApplyAndRollback(t *testing.T) {
+	source := []byte("package p\nfunc f() bool { return true /* preserve */ }\n")
+	workdir := t.TempDir()
+	filename := filepath.Join(workdir, "source.go")
+	if err := os.WriteFile(filename, source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	set := token.NewFileSet()
+	file, err := parser.ParseFile(set, "source.go", source, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ident *ast.Ident
+	ast.Inspect(file, func(node ast.Node) bool {
+		if candidate, ok := node.(*ast.Ident); ok && candidate.Name == "true" && candidate.Obj == nil {
+			ident = candidate
+		}
+
+		return true
+	})
+	if ident == nil {
+		t.Fatal("predeclared true identifier not found")
+	}
+	mutant := engine.NewTokenMutant("example.com/test", set, file, engine.NewBooleanNode(ident))
+	mutant.SetType(mutator.BooleanLiteral)
+	mutant.SetWorkdir(workdir)
+	if err := mutant.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	// #nosec G304 -- filename is inside the test's temporary directory.
+	mutated, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(mutated, []byte("return false /* preserve */")) {
+		t.Fatalf("mutation did not preserve comment and invert literal: %s", mutated)
+	}
+	if err := mutant.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	// #nosec G304 -- filename is inside the test's temporary directory.
+	rolledBack, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(source, rolledBack) {
+		t.Fatalf("rollback changed source (-want +got):\n%s", cmp.Diff(string(source), string(rolledBack)))
 	}
 }
 

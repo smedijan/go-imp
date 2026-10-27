@@ -43,6 +43,10 @@ func TestMutantDefaultStatus(t *testing.T) {
 			expected:   true,
 		},
 		{
+			mutantType: mutator.BooleanLiteral,
+			expected:   false,
+		},
+		{
 			mutantType: mutator.IncrementDecrement,
 			expected:   true,
 		},

@@ -227,6 +227,7 @@ Each flag enables its operator; append `=false` to disable it.
 | `--arithmetic-base` | `true` | [Arithmetic base](../../mutations/arithmetic_base.md) |
 | `--conditionals-boundary` | `true` | [Conditional boundaries](../../mutations/conditionals_boundary.md) |
 | `--conditionals-negation` | `true` | [Conditional negation](../../mutations/conditionals_negation.md) |
+| `--boolean-literal` | `false` | [Boolean literals](../../mutations/boolean_literal.md) |
 | `--increment-decrement` | `true` | [Increment/decrement](../../mutations/increment_decrement.md) |
 | `--invert-negatives` | `true` | [Negative signs](../../mutations/invert_negatives.md) |
 | `--invert-assignments` | `false` | [Assignments](../../mutations/invert_assignments.md) |

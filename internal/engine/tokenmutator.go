@@ -40,15 +40,16 @@ import (
 // Keeping a lock per file instead of a lock per TokenMutator allows to apply
 // mutations on different files in parallel.
 type TokenMutator struct {
-	pkg         string
-	fs          *token.FileSet
-	file        *ast.File
-	tokenNode   *NodeToken
-	workDir     string
-	origFile    []byte
-	status      mutator.Status
-	mutantType  mutator.Type
-	actualToken token.Token
+	pkg           string
+	fs            *token.FileSet
+	file          *ast.File
+	tokenNode     *NodeToken
+	workDir       string
+	origFile      []byte
+	status        mutator.Status
+	mutantType    mutator.Type
+	actualToken   token.Token
+	originalIdent string
 
 	origSnippet    []byte
 	mutatedSnippet []byte
@@ -145,16 +146,37 @@ func (m *TokenMutator) Apply() error {
 	}
 
 	m.actualToken = m.tokenNode.Tok()
-	m.tokenNode.SetTok(tokenMutations[m.Type()][m.tokenNode.Tok()])
+	if m.Type() == mutator.BooleanLiteral {
+		ident := m.tokenNode.Ident()
+		m.originalIdent = ident.Name
+		if ident.Name == booleanTrueLiteral {
+			ident.Name = booleanFalseLiteral
+		} else {
+			ident.Name = booleanTrueLiteral
+		}
+	} else {
+		m.tokenNode.SetTok(tokenMutations[m.Type()][m.tokenNode.Tok()])
+	}
 
 	if err = m.writeMutatedFile(filename); err != nil {
+		m.restoreNode()
+
 		return err
 	}
 
 	// Rollback here to facilitate the atomicity of the operation.
-	m.tokenNode.SetTok(m.actualToken)
+	m.restoreNode()
 
 	return nil
+}
+
+func (m *TokenMutator) restoreNode() {
+	if m.Type() == mutator.BooleanLiteral {
+		m.tokenNode.Ident().Name = m.originalIdent
+
+		return
+	}
+	m.tokenNode.SetTok(m.actualToken)
 }
 
 func (m *TokenMutator) writeMutatedFile(filename string) error {
@@ -265,13 +287,20 @@ func (m *TokenMutator) captureSnippets(source []byte) {
 	defer fileLock(m.Position().Filename).Unlock()
 
 	original := m.tokenNode.Tok()
+	originalText := original.String()
 	replacement := tokenMutations[m.Type()][original].String()
-	if m.Type() == mutator.InvertLogical && original == token.NOT {
+	if m.Type() == mutator.BooleanLiteral {
+		originalText = m.tokenNode.Ident().Name
+		replacement = booleanTrueLiteral
+		if originalText == booleanTrueLiteral {
+			replacement = booleanFalseLiteral
+		}
+	} else if m.Type() == mutator.InvertLogical && original == token.NOT {
 		replacement = "!!"
 	}
 	pos := m.Position()
-	end := pos.Offset + len(original.String())
-	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != original.String() {
+	end := pos.Offset + len(originalText)
+	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != originalText {
 		return
 	}
 	mutated := make([]byte, 0, len(source)+len(replacement))

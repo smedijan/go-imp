@@ -53,6 +53,7 @@ nav:
           - usage/mutations/arithmetic_base.md
           - usage/mutations/conditionals_boundary.md
           - usage/mutations/conditionals_negation.md
+          - usage/mutations/boolean_literal.md
           - usage/mutations/increment_decrement.md
           - usage/mutations/invert_assignments.md
           - usage/mutations/invert_bitwise.md
