@@ -170,8 +170,8 @@ type Mutator interface {
 	// Apply applies the mutation on the actual source code.
 	Apply() error
 
-	// Rollback removes the mutation from the source code and sets it back to
-	// its original status.
+	// Rollback restores the original source, including after a failed Apply.
+	// It must be safe when Apply failed before modifying the source.
 	Rollback() error
 
 	// OrigSnippet returns the original code snippet around the mutation point.

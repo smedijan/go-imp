@@ -59,19 +59,21 @@ func TestExecutionFailurePreservesExistingReport(t *testing.T) {
 		failBaseline bool
 		cancel       bool
 		badTemp      bool
+		failMutation bool
 		want         string
 	}{
 		{name: "invalid diff", badDiff: true, want: "git"},
 		{name: "failing baseline", failBaseline: true, want: "intentional baseline failure"},
 		{name: "cancelled", cancel: true, want: "context canceled"},
 		{name: "temporary directory failure", badTemp: true, want: "workdir"},
+		{name: "missing worker source", failMutation: true, want: "apply mutation"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			configuration.Reset()
 			t.Cleanup(configuration.Reset)
 			dir := t.TempDir()
 			writeFixture(t, filepath.Join(dir, "go.mod"), "module example.com/fixture\n\ngo 1.25.0\n")
-			writeFixture(t, filepath.Join(dir, "code.go"), "package fixture\nfunc Value()int{return 1}\n")
+			writeFixture(t, filepath.Join(dir, "code.go"), "package fixture\nfunc Value()int{return 1+0}\n")
 			testBody := "_ = Value()"
 			if tc.failBaseline {
 				testBody = `t.Fatal("intentional baseline failure")`
@@ -81,6 +83,9 @@ func TestExecutionFailurePreservesExistingReport(t *testing.T) {
 			writeFixture(t, path, "previous successful report\n")
 			configuration.Set(configuration.RunOutputKey, path)
 			configuration.Set(configuration.RunJSONKey, true)
+			if tc.failMutation {
+				configuration.Set(configuration.RunExcludeWorkdir, []string{"code.go"})
+			}
 			if tc.badDiff {
 				configuration.Set(configuration.RunDiffRef, "invalid-ref-for-report-test")
 			}

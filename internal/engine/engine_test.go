@@ -18,6 +18,7 @@ package engine_test
 
 import (
 	"context"
+	"errors"
 	"go/token"
 	"io"
 	"os"
@@ -505,7 +506,7 @@ func TestMutations(t *testing.T) {
 			defer c()
 
 			mut := engine.New(mod, engine.CodeData{Cov: tc.covResult.Profile}, newJobDealerStub(t), engine.WithDirFs(mapFS))
-			res := mut.Run(context.Background())
+			res := runEngine(t, &mut)
 			got := res.Mutants
 
 			if res.Module != expectedModule {
@@ -556,7 +557,7 @@ func f() bool {
 	fsys := fstest.MapFS{"source.go": {Data: []byte(source)}}
 	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
-	mutants := engineUnderTest.Run(context.Background()).Mutants
+	mutants := runEngine(t, &engineUnderTest).Mutants
 
 	var lines []int
 	for _, mutant := range mutants {
@@ -597,7 +598,7 @@ func contexts(ch chan bool) {
 	fsys := fstest.MapFS{"contexts.go": {Data: []byte(source)}}
 	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
-	mutants := engineUnderTest.Run(context.Background()).Mutants
+	mutants := runEngine(t, &engineUnderTest).Mutants
 	var booleanMutations int
 	for _, mutant := range mutants {
 		if mutant.Type() == mutator.BooleanLiteral {
@@ -623,7 +624,7 @@ func TestBooleanLiteralPackageScopeShadowing(t *testing.T) {
 	}
 	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
-	mutants := engineUnderTest.Run(context.Background()).Mutants
+	mutants := runEngine(t, &engineUnderTest).Mutants
 
 	if len(mutants) != 1 || mutants[0].Type() != mutator.BooleanLiteral || mutants[0].Position().Filename != "declaration.go" {
 		t.Fatalf("expected only the unshadowed false initializer to mutate, got %v", mutants)
@@ -644,7 +645,7 @@ func TestBooleanLiteralTestFilePackageScopeShadowing(t *testing.T) {
 	}
 	module := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 	engineUnderTest := engine.New(module, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(fsys))
-	mutants := engineUnderTest.Run(context.Background()).Mutants
+	mutants := runEngine(t, &engineUnderTest).Mutants
 	if len(mutants) != 0 {
 		t.Fatalf("expected test-file package declaration to shadow false, got %v", mutants)
 	}
@@ -660,7 +661,7 @@ func TestGenericTypeSetUnionsAreNotBitwiseMutations(t *testing.T) {
 	defer cleanup()
 
 	mut := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(mapFS))
-	mutants := mut.Run(context.Background()).Mutants
+	mutants := runEngine(t, &mut).Mutants
 	if len(mutants) != 2 {
 		t.Fatalf("expected the method-signature and value-level OR mutations, got %d mutants: %v", len(mutants), mutants)
 	}
@@ -688,7 +689,7 @@ func TestMutantSkipDisabled(t *testing.T) {
 			defer viperReset()
 
 			mut := engine.New(mod, testCodeData, newJobDealerStub(t), engine.WithDirFs(mapFS))
-			res := mut.Run(context.Background())
+			res := runEngine(t, &mut)
 			got := res.Mutants
 
 			for _, m := range got {
@@ -713,7 +714,7 @@ func TestDisablingOneMutantTypeDoesNotDisableOthersForSameToken(t *testing.T) {
 	defer viperReset()
 
 	mut := engine.New(mod, testCodeData, newJobDealerStub(t), engine.WithDirFs(mapFS))
-	res := mut.Run(context.Background())
+	res := runEngine(t, &mut)
 
 	var hasNegation, hasBoundary bool
 	for _, m := range res.Mutants {
@@ -749,7 +750,7 @@ func TestSkipTestAndNonGoFiles(t *testing.T) {
 	viperSet(map[string]any{configuration.RunDryRunKey: true})
 	defer viperReset()
 	mut := engine.New(mod, engine.CodeData{}, newJobDealerStub(t), engine.WithDirFs(sys))
-	res := mut.Run(context.Background())
+	res := runEngine(t, &mut)
 
 	if got := res.Mutants; len(got) != 0 {
 		t.Errorf("should not receive results")
@@ -776,7 +777,7 @@ func TestSkipNotDiffMutants(t *testing.T) {
 		"file.go": nil,
 	}}
 	mut := engine.New(mod, codeData, newJobDealerStub(t), engine.WithDirFs(sys))
-	res := mut.Run(context.Background())
+	res := runEngine(t, &mut)
 
 	if got := res.Mutants; len(got) == 0 {
 		t.Errorf("should receive mutants")
@@ -797,7 +798,10 @@ func TestStopsOnCancel(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	res := mut.Run(ctx)
+	res, err := mut.Run(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation, got %v", err)
+	}
 
 	if len(res.Mutants) > 0 {
 		t.Errorf("expected to receive no mutants, got %d", len(res.Mutants))
@@ -838,7 +842,7 @@ func TestPackageDiscovery(t *testing.T) {
 			jds := newJobDealerStub(t)
 			mut := engine.New(mod, testCodeData, jds, engine.WithDirFs(mapFS))
 
-			_ = mut.Run(context.Background())
+			_ = runEngine(t, &mut)
 
 			got := jds.gotMutants[0].Pkg()
 

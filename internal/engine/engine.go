@@ -27,12 +27,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/smedijan/go-imp/internal/coverage"
 	"github.com/smedijan/go-imp/internal/diff"
-	"github.com/smedijan/go-imp/internal/engine/workerpool"
 	"github.com/smedijan/go-imp/internal/exclusion"
 	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
@@ -48,7 +46,7 @@ import (
 // performs the actual mutation testing.
 type Engine struct {
 	fs             fs.FS
-	jDealer        ExecutorDealer
+	executor       Executor
 	codeData       CodeData
 	mutantStream   chan mutator.Mutator
 	module         gomodule.GoModule
@@ -69,11 +67,11 @@ type Option func(m Engine) Engine
 //
 // It gets a fs.FS on which to perform the analysis, a CodeData to
 // check if the mutants are executable and a sets of Option.
-func New(mod gomodule.GoModule, codeData CodeData, jDealer ExecutorDealer, opts ...Option) Engine {
+func New(mod gomodule.GoModule, codeData CodeData, executor Executor, opts ...Option) Engine {
 	dirFS := os.DirFS(filepath.Join(mod.Root, mod.CallingDir))
 	mut := Engine{
 		module:   mod,
-		jDealer:  jDealer,
+		executor: executor,
 		codeData: codeData,
 		fs:       dirFS,
 	}
@@ -97,7 +95,7 @@ func WithDirFs(dirFS fs.FS) Option {
 //
 // It walks the fs.FS provided and checks every .go file which is not a test.
 // For each file it will scan for tokenMutations and gather all the mutants found.
-func (mu *Engine) Run(ctx context.Context) report.Results {
+func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
 	files := mu.sourceFiles()
 	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
@@ -119,11 +117,11 @@ func (mu *Engine) Run(ctx context.Context) report.Results {
 		discovered = append(discovered, mutant)
 	}
 
-	res := mu.executeTests(ctx, discovered, files, progress)
+	res, err := mu.executeTests(ctx, discovered, files, progress)
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name
 
-	return res
+	return res, err
 }
 
 func (mu *Engine) sourceFiles() []string {
@@ -427,10 +425,7 @@ func (mu *Engine) mutationStatus(pos token.Position) mutator.Status {
 	return status
 }
 
-func (mu *Engine) executeTests(ctx context.Context, discovered []mutator.Mutator, files []string, progress *log.FileProgress) report.Results {
-	pool := workerpool.Initialize("mutator")
-	pool.Start()
-
+func (mu *Engine) executeTests(ctx context.Context, discovered []mutator.Mutator, files []string, progress *log.FileProgress) (report.Results, error) {
 	pendingByFile := make(map[string]int)
 	for _, mutant := range discovered {
 		pendingByFile[mutant.Position().Filename]++
@@ -448,37 +443,15 @@ func (mu *Engine) executeTests(ctx context.Context, discovered []mutator.Mutator
 		}
 	}
 
-	var mutants []mutator.Mutator
-	outCh := make(chan mutator.Mutator)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for _, mutant := range discovered {
-			if !checkDone(ctx) {
-				break
-			}
-			wg.Add(1)
-			pool.AppendExecutor(mu.jDealer.NewExecutor(mutant, outCh, wg))
-		}
-		pool.Stop()
-	}()
-
-	go func() {
-		wg.Wait()
-		close(outCh)
-	}()
-
-	for mutant := range outCh {
-		mutants = append(mutants, mutant)
+	mutants, err := mu.executor.Execute(ctx, discovered, func(mutant mutator.Mutator) {
 		path := mutant.Position().Filename
 		pendingByFile[path]--
 		if pendingByFile[path] == 0 {
 			completeFile(path)
 		}
-	}
+	})
 
-	return results(mutants)
+	return report.Results{Mutants: mutants}, err
 }
 
 func checkDone(ctx context.Context) bool {
@@ -488,8 +461,4 @@ func checkDone(ctx context.Context) bool {
 	default:
 		return true
 	}
-}
-
-func results(m []mutator.Mutator) report.Results {
-	return report.Results{Mutants: m}
 }

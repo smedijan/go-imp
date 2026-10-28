@@ -187,7 +187,7 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 	wdDealer := workdir.NewCachedDealer(workDir, mod.Root, configuration.Get[[]string](configuration.RunExcludeWorkdir)...)
 	defer wdDealer.Clean()
 
-	jDealer := engine.NewExecutorDealer(mod, wdDealer, cProfile.Elapsed)
+	executor := engine.NewExecutor(mod, wdDealer, cProfile.Elapsed)
 
 	codeData := engine.CodeData{
 		Cov:       cProfile.Profile,
@@ -195,10 +195,9 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		Exclusion: exclude,
 	}
 
-	mut := engine.New(mod, codeData, jDealer)
-	results := mut.Run(ctx)
+	mut := engine.New(mod, codeData, executor)
 
-	return results, nil
+	return mut.Run(ctx)
 }
 
 func setFlagsOnCmd(cmd *cobra.Command) error {

@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/coverage"
 	"github.com/smedijan/go-imp/internal/engine"
-	"github.com/smedijan/go-imp/internal/engine/workerpool"
 	"github.com/smedijan/go-imp/internal/gomodule"
 	"github.com/smedijan/go-imp/internal/mutator"
 )
@@ -98,18 +96,13 @@ func TestValue(t *testing.T) {
 	defer viperReset()
 	wd := newWdDealerStub(t)
 	var invoked []string
-	dealer := engine.NewExecutorDealer(mod, wd, result.Elapsed, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+	dealer := engine.NewExecutor(mod, wd, result.Elapsed, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		invoked = append([]string{name}, args...)
 
 		return exec.CommandContext(ctx, "go", "version")
 	}))
 	m := &recordingMutant{mutantStub: &mutantStub{status: mutator.Runnable, pkg: "example.com/fixture"}}
-	out := make(chan mutator.Mutator, 1)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	dealer.NewExecutor(m, out, &wg).Start(&workerpool.Worker{Name: "test", ID: 1})
-	wg.Wait()
-	if got := <-out; got.Status() != mutator.Lived {
+	if got := executeMutants(t, dealer, m)[0]; got.Status() != mutator.Lived {
 		t.Fatalf("status=%s", got.Status())
 	}
 	baseElapsed := result.Elapsed
@@ -150,18 +143,13 @@ func TestRecordedTestCommand(t *testing.T) {
 			wd := newWdDealerStub(t)
 			mod := gomodule.GoModule{Name: "example.com", Root: ".", CallingDir: "."}
 			var invoked []string
-			dealer := engine.NewExecutorDealer(mod, wd, tc.elapsed, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			dealer := engine.NewExecutor(mod, wd, tc.elapsed, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
 				invoked = append([]string{name}, args...)
 
 				return exec.CommandContext(ctx, "go", "version")
 			}))
 			m := &recordingMutant{mutantStub: &mutantStub{status: mutator.Runnable, pkg: "example.com/pkg"}}
-			out := make(chan mutator.Mutator, 1)
-			var wg sync.WaitGroup
-			wg.Add(1)
-			dealer.NewExecutor(m, out, &wg).Start(&workerpool.Worker{Name: "test", ID: 1})
-			wg.Wait()
-			if got := <-out; got.Status() != mutator.Lived {
+			if got := executeMutants(t, dealer, m)[0]; got.Status() != mutator.Lived {
 				t.Fatalf("status=%s", got.Status())
 			}
 			want := append([]string{"go"}, tc.want...)

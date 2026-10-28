@@ -25,15 +25,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/engine/workdir"
-	"github.com/smedijan/go-imp/internal/engine/workerpool"
 	"github.com/smedijan/go-imp/internal/gomodule"
-	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
@@ -41,20 +40,19 @@ import (
 // of each test run.
 const DefaultTimeoutCoefficient = 5
 
-// ExecutorDealer is the initializer for new workerpool.Executor.
-type ExecutorDealer interface {
-	NewExecutor(mut mutator.Mutator, outCh chan<- mutator.Mutator, wg *sync.WaitGroup) workerpool.Executor
+// Internal stop signals must not turn lifecycle errors into CLI interrupts.
+var errExecutionStopped = errors.New("mutant execution stopped")
+
+// Executor owns scheduling, mutation restoration, and result delivery for a run.
+type Executor interface {
+	// Execute calls completed serially for each successfully completed mutant.
+	// A nil callback is allowed. On failure or cancellation, it stops scheduling
+	// and waits for active attempts to restore their files before returning.
+	Execute(ctx context.Context, mutants []mutator.Mutator, completed func(mutator.Mutator)) ([]mutator.Mutator, error)
 }
 
-// MutantExecutorDealer is a ExecutorDealer for the initialisation of a mutantExecutor.
-//
-// By default, it sets uses exec.Command to perform the tests on the source
-// code. This can be overridden, for example in tests.
-//
-// The apply and rollback functions are wrappers around the TokenMutator apply and
-// rollback. These can be overridden with nop functions in tests. Not an
-// ideal setup. In the future we can think of a better way to handle this.
-type MutantExecutorDealer struct {
+// MutantExecutor runs mutants in isolated, reusable worker directories.
+type MutantExecutor struct {
 	wdDealer          workdir.Dealer
 	execContext       execContext
 	mod               gomodule.GoModule
@@ -63,22 +61,23 @@ type MutantExecutorDealer struct {
 	dryRun            bool
 	integrationMode   bool
 	testCPU           int
+	workers           int
 }
 
-// ExecutorDealerOption is the defining option for the initialisation of a ExecutorDealer.
-type ExecutorDealerOption func(j MutantExecutorDealer) MutantExecutorDealer
+// ExecutorOption configures a MutantExecutor.
+type ExecutorOption func(MutantExecutor) MutantExecutor
 
-// WithExecContext overrides the default exec.Command with a custom executor.
-func WithExecContext(c execContext) ExecutorDealerOption {
-	return func(m MutantExecutorDealer) MutantExecutorDealer {
+// WithExecContext overrides the default exec.CommandContext with a command adapter.
+func WithExecContext(c execContext) ExecutorOption {
+	return func(m MutantExecutor) MutantExecutor {
 		m.execContext = c
 
 		return m
 	}
 }
 
-// NewExecutorDealer initialises a MutantExecutorDealer.
-func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.Duration, opts ...ExecutorDealerOption) *MutantExecutorDealer {
+// NewExecutor initializes mutant execution using the configured worker count.
+func NewExecutor(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.Duration, opts ...ExecutorOption) *MutantExecutor {
 	buildTags := configuration.Get[string](configuration.RunTagsKey)
 	dryRun := configuration.Get[bool](configuration.RunDryRunKey)
 	integrationMode := configuration.Get[bool](configuration.RunIntegrationMode)
@@ -101,7 +100,15 @@ func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.D
 		baseTime = time.Second
 	}
 
-	jd := MutantExecutorDealer{
+	workers := configuration.Get[int](configuration.RunWorkersKey)
+	if workers == 0 {
+		workers = runtime.NumCPU()
+	}
+	if integrationMode && workers > 1 {
+		workers /= 2
+	}
+
+	jd := MutantExecutor{
 		mod:               mod,
 		wdDealer:          wdd,
 		buildTags:         buildTags,
@@ -110,6 +117,7 @@ func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.D
 		testCPU:           testCPU,
 		testExecutionTime: baseTime * time.Duration(coefficient),
 		execContext:       exec.CommandContext,
+		workers:           workers,
 	}
 
 	for _, opt := range opts {
@@ -119,103 +127,141 @@ func NewExecutorDealer(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.D
 	return &jd
 }
 
-// NewExecutor returns a new workerpool.Executor for the given mutator.Mutator.
-// It gets an output channel of mutator.Mutator and a sync.WaitGroup. The channel
-// will stream the results of the executor, and the wait group will be done when the
-// executor is complete.
-func (m MutantExecutorDealer) NewExecutor(mut mutator.Mutator, outCh chan<- mutator.Mutator, wg *sync.WaitGroup) workerpool.Executor {
-	mj := mutantExecutor{
-		mutant:            mut,
-		outCh:             outCh,
-		wg:                wg,
-		wdDealer:          m.wdDealer,
-		module:            m.mod,
-		dryRun:            m.dryRun,
-		integrationMode:   m.integrationMode,
-		buildTags:         m.buildTags,
-		execContext:       m.execContext,
-		testCPU:           m.testCPU,
-		testExecutionTime: m.testExecutionTime,
+// Execute schedules mutants and serializes completion notifications. Returned
+// results contain only completed attempts; callers must not report a failed run
+// as successful. Within a run, a worker directory is never reused after a
+// lifecycle failure.
+func (m *MutantExecutor) Execute(ctx context.Context, mutants []mutator.Mutator, completed func(mutator.Mutator)) ([]mutator.Mutator, error) {
+	if m.workers < 1 {
+		return nil, fmt.Errorf("mutation worker count must be positive")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type outcome struct {
+		mutant mutator.Mutator
+		err    error
+	}
+	out := make(chan outcome)
+	var scheduling sync.Mutex
+	var next int
+	var workers sync.WaitGroup
+	for id := 0; id < min(m.workers, len(mutants)); id++ {
+		workers.Go(func() {
+			for {
+				scheduling.Lock()
+				if runCtx.Err() != nil || next == len(mutants) {
+					scheduling.Unlock()
+
+					return
+				}
+				mutant := mutants[next]
+				next++
+				scheduling.Unlock()
+
+				attempt := mutantExecutor{executor: m, mutant: mutant}
+				result, err := attempt.execute(runCtx, fmt.Sprintf("mutator-%d", id), cancel)
+				if err != nil {
+					cancel()
+				}
+				out <- outcome{mutant: result, err: err}
+			}
+		})
+	}
+	go func() {
+		workers.Wait()
+		close(out)
+	}()
+
+	var results []mutator.Mutator
+	var runErr error
+	for result := range out {
+		if errors.Is(result.err, errExecutionStopped) {
+			continue
+		}
+		if result.err != nil {
+			runErr = errors.Join(runErr, result.err)
+
+			continue
+		}
+		results = append(results, result.mutant)
+		if completed != nil {
+			completed(result.mutant)
+		}
 	}
 
-	return &mj
+	return results, errors.Join(runErr, ctx.Err())
 }
 
 type execContext = func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 type mutantExecutor struct {
-	mutant            mutator.Mutator
-	wdDealer          workdir.Dealer
-	outCh             chan<- mutator.Mutator
-	wg                *sync.WaitGroup
-	execContext       execContext
-	module            gomodule.GoModule
-	buildTags         string
-	testExecutionTime time.Duration
-	dryRun            bool
-	integrationMode   bool
-	testCPU           int
+	executor *MutantExecutor
+	mutant   mutator.Mutator
 }
 
-// Start is the implementation of the workerpool.Executor definition and is the
-// method responsible for performing the actual mutation testing.
-// The executor runs on its mutator.Mutator.
-// If it is RUNNABLE, and it is not in dry-run mode, it will apply the mutation,
-// run the tests and mark the TokenMutator as either KILLED or LIVED depending
-// on the result. If the tests pass, it means the TokenMutator survived, so it
-// will be LIVED, if the tests fail, the TokenMutator will be KILLED.
-// The timeout of the test is managed outside the run of the test, using
-// a context with timeout. This is done because the Go test command doesn't
-// make it easy to distinguish failures from timeouts.
-func (m *mutantExecutor) Start(w *workerpool.Worker) {
-	defer m.wg.Done()
-	workerName := fmt.Sprintf("%s-%d", w.Name, w.ID)
-	rootDir, err := m.wdDealer.Get(workerName)
-	if err != nil {
-		log.Errorf("failed to get working directory for worker %s: %v", workerName, err)
-		panic(fmt.Sprintf("failed to get working directory for worker %s: %v", workerName, err))
+// execute returns no mutant for an interrupted attempt. Cancellation is reported
+// by Execute using the caller's context, never the internal stop signal.
+func (m *mutantExecutor) execute(ctx context.Context, workerName string, cancel context.CancelFunc) (mutator.Mutator, error) {
+	if ctx.Err() != nil {
+		return nil, errExecutionStopped
 	}
-
-	workingDir := filepath.Join(rootDir, m.module.CallingDir)
-	m.mutant.SetWorkdir(workingDir)
-
-	if m.mutant.Status() == mutator.NotCovered || m.mutant.Status() == mutator.Skipped || m.dryRun {
-		m.outCh <- m.mutant
-
-		return
+	if m.mutant.Status() == mutator.NotCovered || m.mutant.Status() == mutator.Skipped || m.executor.dryRun {
+		return m.mutant, nil
+	}
+	rootDir, err := m.executor.wdDealer.Get(workerName)
+	if err != nil {
+		return nil, fmt.Errorf("get working directory for worker %s: %w", workerName, err)
+	}
+	m.mutant.SetWorkdir(filepath.Join(rootDir, m.executor.mod.CallingDir))
+	if ctx.Err() != nil {
+		return nil, errExecutionStopped
 	}
 
 	if err := m.mutant.Apply(); err != nil {
-		log.Errorf("failed to apply mutation at %s - %s\n\t%v", m.mutant.Position(), m.mutant.Status(), err)
+		// Stop other workers before restoration, which may itself be slow.
+		cancel()
 
-		return
+		return nil, errors.Join(fmt.Errorf("apply mutation at %s: %w", m.mutant.Position(), err), m.rollback(cancel))
 	}
 
-	m.mutant.SetStatus(m.runTests(rootDir, m.mutant.Pkg()))
-
-	if err := m.mutant.Rollback(); err != nil {
-		// What should we do now?
-		log.Errorf("failed to restore mutation at %s - %s\n\t%v", m.mutant.Position(), m.mutant.Status(), err)
+	status := m.runTests(ctx, rootDir, m.mutant.Pkg())
+	if err := m.rollback(cancel); err != nil {
+		return nil, err
 	}
+	if ctx.Err() != nil {
+		return nil, errExecutionStopped
+	}
+	m.mutant.SetStatus(status)
 
-	m.outCh <- m.mutant
+	return m.mutant, nil
 }
 
-func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
-	ctx, cancel := context.WithTimeout(context.Background(), m.testExecutionTime)
+func (m *mutantExecutor) rollback(cancel context.CancelFunc) error {
+	if err := m.mutant.Rollback(); err != nil {
+		cancel()
+
+		return fmt.Errorf("restore mutation at %s: %w", m.mutant.Position(), err)
+	}
+
+	return nil
+}
+
+func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) mutator.Status {
+	ctx, cancel := context.WithTimeout(parent, m.executor.testExecutionTime)
 	defer cancel()
 
 	args := m.getTestArgs(pkg)
 	if recorder, ok := m.mutant.(interface{ SetTestCommand([]string) }); ok {
 		recorder.SetTestCommand(append([]string{"go"}, args...))
 	}
-	cmd := m.execContext(ctx, "go", args...)
+	cmd := m.executor.execContext(ctx, "go", args...)
 	cmd.Dir = m.mutant.Workdir()
-	if m.integrationMode {
+	if m.executor.integrationMode {
 		cmd.Dir = rootDir
 	}
 	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.wdDealer.WorkDir()))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.executor.wdDealer.WorkDir()))
 
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
@@ -225,6 +271,9 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 	cmd.Stderr = io.Discard
 	err := run(ctx, cmd)
 
+	if parent.Err() != nil {
+		return mutator.Runnable
+	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return mutator.TimedOut
 	}
@@ -241,21 +290,21 @@ func (m *mutantExecutor) runTests(rootDir, pkg string) mutator.Status {
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
 	args := []string{"test", "-json", "-count=1"}
-	if m.buildTags != "" {
-		args = append(args, "-tags", m.buildTags)
+	if m.executor.buildTags != "" {
+		args = append(args, "-tags", m.executor.buildTags)
 	}
 	// Here we add some seconds to the timeout to be sure it's imp that catches the test
 	// timeout and not the test itself. The timeout on the test prevents the test.* processes
 	// from hanging forever.
-	args = append(args, "-timeout", (2*time.Second + m.testExecutionTime).String())
+	args = append(args, "-timeout", (2*time.Second + m.executor.testExecutionTime).String())
 	args = append(args, "-failfast")
 
-	if m.testCPU != 0 {
-		args = append(args, "-cpu", fmt.Sprintf("%d", m.testCPU))
+	if m.executor.testCPU != 0 {
+		args = append(args, "-cpu", fmt.Sprintf("%d", m.executor.testCPU))
 	}
 
 	path := pkg
-	if m.integrationMode {
+	if m.executor.integrationMode {
 		path = "./..."
 	}
 	args = append(args, path)
