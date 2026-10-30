@@ -49,7 +49,10 @@ jobs:
         with:
           go-version: "1.27"
       - name: Run imp
-        run: go run ./cmd/imp run --quiet
+        uses: smedijan/imp-action@1bd538f7b6fac3437841acc43042a365db3dbe0d # v1.0.0
+        with:
+          diff: auto
+          args: --quiet
 
   lint:
     name: Lint and vet
