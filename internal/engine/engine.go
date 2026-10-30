@@ -330,16 +330,32 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 	}
 
 	pkg := mu.pkgName(fileName, file.Name.Name)
+	// All families here target the same source token. Select enabled families
+	// first, then retain one mutant per replacement, in stable mapping order.
+	byReplacement := make(map[string]*TokenMutator)
+	var unique []*TokenMutator
 	for _, mt := range mutantTypes {
 		if !configuration.Get[bool](configuration.MutantTypeEnabledKey(mt)) {
 			continue
 		}
-		mutantType := mt
 		tm := NewTokenMutant(pkg, set, file, node)
-		tm.SetType(mutantType)
+		tm.SetType(mt)
+		_, replacement, ok := tm.replacementText()
+		if !ok {
+			continue
+		}
+		if existing, found := byReplacement[replacement]; found {
+			existing.families = append(existing.families, mt)
+
+			continue
+		}
+		tm.families = []mutator.Type{mt}
+		byReplacement[replacement] = tm
+		unique = append(unique, tm)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
 		tm.captureSnippets(src)
-
+	}
+	for _, tm := range unique {
 		mu.mutantStream <- tm
 	}
 }
