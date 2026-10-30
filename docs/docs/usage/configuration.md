@@ -72,6 +72,12 @@ mutants:
     enabled: true
   conditionals-negation:
     enabled: true
+  boolean-literal:
+    enabled: false
+  boolean-return:
+    enabled: false
+  error-return:
+    enabled: false
   increment-decrement:
     enabled: true
   invert-assignments:

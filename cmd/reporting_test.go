@@ -75,7 +75,7 @@ func TestReportingHelp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"Examples:", "Reporting:", "Scope:", "Execution:", "Quality gates:", "Mutation operators:", "--json", "--statuses", "--quiet", "--no-color"} {
+	for _, expected := range []string{"Examples:", "Reporting:", "Scope:", "Execution:", "Quality gates:", "Mutation operators:", "--json", "--statuses", "--quiet", "--no-color", "--boolean-return", "--error-return"} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("help missing %q:\n%s", expected, text)
 		}
