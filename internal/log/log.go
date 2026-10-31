@@ -54,6 +54,17 @@ func Infof(format string, args ...any) {
 	_, _ = fmt.Fprintf(destination, format, args...)
 }
 
+// Summaryf writes concise diagnostics to stderr, including redirected output,
+// unless quiet mode is enabled.
+func Summaryf(format string, args ...any) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	if destination == nil || configuration.Get[bool](configuration.ImpQuietKey) {
+		return
+	}
+	_, _ = fmt.Fprintf(destination, format, args...)
+}
+
 // Infoln displays one interactive informational line.
 func Infoln(message any) { Infof("%v\n", message) }
 

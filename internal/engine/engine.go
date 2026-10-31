@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -51,8 +52,11 @@ type Engine struct {
 	mutantStream   chan mutator.Mutator
 	module         gomodule.GoModule
 	booleanShadows map[string]map[string]bool
-	returnLoader   ReturnAnalysisLoader
 	customFS       bool
+	packageSources map[string]packageSource
+	filtered       map[token.Pos]map[mutator.Type]string
+	filteredCounts map[string]int
+	returnLoader   ReturnAnalysisLoader
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -84,7 +88,8 @@ func New(mod gomodule.GoModule, codeData CodeData, executor Executor, opts ...Op
 	return mut
 }
 
-// WithDirFs overrides the fs.FS of the module (mainly used for testing purposes).
+// WithDirFs overrides the filesystem for syntax-only test fixtures. It bypasses
+// package loading and type-based applicability; production discovery uses the Go build.
 func WithDirFs(dirFS fs.FS) Option {
 	return func(m Engine) Engine {
 		m.fs = dirFS
@@ -96,11 +101,20 @@ func WithDirFs(dirFS fs.FS) Option {
 
 // Run executes the mutation testing.
 //
-// It walks the fs.FS provided and checks every .go file which is not a test.
-// For each file it will scan for tokenMutations and gather all the mutants found.
+// It loads active packages in the calling subtree, then scans eligible non-test
+// sources for applicable mutations. Package/type errors stop discovery.
 func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
-	files := mu.sourceFiles()
+	var files []string
+	if mu.customFS {
+		files = mu.sourceFiles()
+	} else {
+		var err error
+		files, err = mu.activeSources(ctx)
+		if err != nil {
+			return report.Results{}, err
+		}
+	}
 	var returns []mutator.Mutator
 	if returnAnalysisEnabled() {
 		var err error
@@ -109,7 +123,10 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 			return report.Results{}, err
 		}
 	}
-	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
+	mu.filteredCounts = make(map[string]int)
+	if mu.customFS {
+		mu.booleanShadows = findPackageBooleanShadows(mu.fs)
+	}
 	progress := log.NewFileProgress(len(files))
 	defer progress.Finish()
 	mu.mutantStream = make(chan mutator.Mutator)
@@ -128,6 +145,15 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		discovered = append(discovered, mutant)
 	}
 
+	reasons := make([]string, 0, len(mu.filteredCounts))
+	for reason := range mu.filteredCounts {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		count := mu.filteredCounts[reason]
+		log.Summaryf("Discovery filtered %d candidates: %s\n", count, reason)
+	}
 	res, err := mu.executeTests(ctx, discovered, files, progress)
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name
@@ -142,6 +168,12 @@ func (mu *Engine) sourceFiles() []string {
 			return err
 		}
 		if entry.IsDir() {
+			if path != "." {
+				if _, err := fs.Stat(mu.fs, path+"/go.mod"); err == nil {
+					return fs.SkipDir
+				}
+			}
+
 			return nil
 		}
 		isGoCode := filepath.Ext(path) == ".go" && !strings.HasSuffix(path, "_test.go")
@@ -160,14 +192,24 @@ func (mu *Engine) sourceFiles() []string {
 }
 
 func (mu *Engine) runOnFile(fileName string) {
-	src, err := fs.ReadFile(mu.fs, fileName)
-	if err != nil {
-		return
-	}
-	set := token.NewFileSet()
-	file, err := parser.ParseFile(set, fileName, src, parser.ParseComments)
-	if err != nil {
-		return
+	var src []byte
+	var set *token.FileSet
+	var file *ast.File
+	mu.filtered = nil
+	if source, ok := mu.packageSources[fileName]; ok {
+		set, file, src = source.set, source.file, source.src
+		mu.filtered = inapplicable(file, source.info)
+	} else {
+		var err error
+		src, err = fs.ReadFile(mu.fs, fileName)
+		if err != nil {
+			return
+		}
+		set = token.NewFileSet()
+		file, err = parser.ParseFile(set, fileName, src, parser.ParseComments)
+		if err != nil {
+			return
+		}
 	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -325,6 +367,10 @@ func containsExpr(expressions []ast.Expr, ident *ast.Ident) bool {
 
 func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.File, node *NodeToken, src []byte) {
 	if node.Tok() == token.OR && isTypeSetUnion(file, node.TokPos) {
+		if configuration.Get[bool](configuration.MutantTypeEnabledKey(mutator.InvertBitwise)) {
+			mu.filteredCounts["type-set union is not a bitwise value expression"]++
+		}
+
 		return
 	}
 
@@ -341,12 +387,20 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 	}
 
 	pkg := mu.pkgName(fileName, file.Name.Name)
+	if source, ok := mu.packageSources[fileName]; ok {
+		pkg = source.pkg
+	}
 	// All families here target the same source token. Select enabled families
 	// first, then retain one mutant per replacement, in stable mapping order.
 	byReplacement := make(map[string]*TokenMutator)
 	var unique []*TokenMutator
 	for _, mt := range mutantTypes {
 		if !configuration.Get[bool](configuration.MutantTypeEnabledKey(mt)) {
+			continue
+		}
+		if reason := mu.filtered[node.TokPos][mt]; reason != "" {
+			mu.filteredCounts[reason]++
+
 			continue
 		}
 		tm := NewTokenMutant(pkg, set, file, node)
@@ -374,16 +428,14 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 func isTypeSetUnion(file *ast.File, pos token.Pos) bool {
 	isUnion := false
 	ast.Inspect(file, func(node ast.Node) bool {
-		interfaceType, ok := node.(*ast.InterfaceType)
+		field, ok := node.(*ast.Field)
 		if !ok {
 			return true
 		}
-		for _, field := range interfaceType.Methods.List {
-			if len(field.Names) == 0 && isUnionOperator(field.Type, pos) {
-				isUnion = true
+		if isUnionOperator(field.Type, pos) {
+			isUnion = true
 
-				return false
-			}
+			return false
 		}
 
 		return !isUnion

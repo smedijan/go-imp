@@ -114,6 +114,9 @@ func TestEngineUniqueEditsExecuteAndRestore(t *testing.T) {
 	original := t.TempDir()
 	worker := t.TempDir()
 	for _, dir := range []string{original, worker} {
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com\n\ngo 1.21\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(dir, "source.go"), source, 0o600); err != nil {
 			t.Fatal(err)
 		}

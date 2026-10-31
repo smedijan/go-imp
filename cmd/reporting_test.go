@@ -171,7 +171,7 @@ func TestCLIOutputContract(t *testing.T) {
 			checkCLIPayload(t, payload, tc.json, tc.noReport)
 			if tc.exit == 0 {
 				for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
-					if line != "" && !strings.HasPrefix(line, "Progress: ") {
+					if line != "" && !strings.HasPrefix(line, "Progress: ") && !strings.HasPrefix(line, "Discovery: ") && !strings.HasPrefix(line, "Discovery filtered ") {
 						t.Errorf("unexpected non-TTY diagnostic: %s", line)
 					}
 				}
