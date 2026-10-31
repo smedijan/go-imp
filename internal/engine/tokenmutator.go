@@ -41,6 +41,8 @@ import (
 // Keeping a lock per file instead of a lock per TokenMutator allows to apply
 // mutations on different files in parallel.
 type TokenMutator struct {
+	mutator.EvidenceRecorder
+	mutator.ObservationRecorder
 	pkg           string
 	fs            *token.FileSet
 	file          *ast.File

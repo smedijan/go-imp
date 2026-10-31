@@ -35,13 +35,14 @@ require judgment: equivalent mutations and intentional behavior are possible.
 ### JSON
 
 `--json` selects grouped JSON instead of human-readable text. It writes exactly one
-JSON document, without progress messages, ANSI escapes or source snippets.
+JSON document, without progress messages or ANSI escapes. Findings include source
+snippets when available.
 
 ```shell
 imp run --json --statuses lived,not-covered | jq '.groups'
 ```
 
-The schema has `schema_version: 1`. Findings are grouped by status and then filename,
+The schema has `schema_version: 2`. Findings are grouped by status and then filename,
 so status and filename are not repeated on every mutation. `test_command` is a string
 and is omitted when unavailable. Command arguments use POSIX shell quoting, preserving
 literal whitespace, quotes and shell metacharacters; they are not native PowerShell or
@@ -49,7 +50,7 @@ literal whitespace, quotes and shell metacharacters; they are not native PowerSh
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "go_module": "example.com/pkg",
   "dry_run": false,
   "selected_statuses": ["lived"],
@@ -87,6 +88,130 @@ literal whitespace, quotes and shell metacharacters; they are not native PowerSh
 JSON object key order is not significant. Findings within each file are sorted by
 location and operator, independent of worker completion order. Elapsed time is in
 seconds. Empty or unmatched results produce a valid report with `"groups": {}`.
+
+### Source ownership and selection (schema 2)
+
+Each finding has `observation_context`, or explicit `null` when its mutator does not
+supply source/selection observations. Missing context is **not** reconstructed from
+terminal status, a test command, or an opaque mutant ID.
+
+`package`, `package_path`, and `enclosing_symbol` are objects with `value`, `known`
+and `truncated`. Labels retain at most 1024 UTF-8 bytes without splitting a rune;
+truncated labels are display prefixes, never identities. `package` is the source
+package declaration name; `package_path` is the resolved import path. Syntax-only
+filesystem adapters cannot establish that import path and mark it unknown.
+Unknown labels use `known: false`, an empty value, and `truncated: false`.
+
+The enclosing symbol reuses the parsed top-level declaration used by identity:
+`func::Name` for functions, `func:/ReceiverType:Method` for methods, and declaration
+kind plus colon-separated names for grouped declarations (for example `var:A:B`).
+Mutations inside anonymous functions name the containing top-level declaration;
+no synthetic closure identity or inner-function attribution is invented.
+
+`selection` records actual engine inputs/decisions before terminal test outcomes:
+
+| Field | Values and meaning |
+| --- | --- |
+| `discovery` | `active-build`, or `syntax-only` for explicit filesystem adapters |
+| `file` | `included`: the source passed file exclusion/generated-file rules |
+| `coverage` | `covered` or `not-covered`, from the coverage position check |
+| `diff` | `changed`, `outside-diff`, or `unrestricted` for an empty effective diff |
+| `replay` | `not-requested`, or `matched` after atomic exact-set resolution |
+| `dry_run` | Observed dry-run configuration; the standard executor's captured mode is authoritative |
+| `eligibility_reason` | `outside-diff`, `not-covered`, `dry-run`, or `covered-and-in-scope` |
+| `impact_provenance` | `unknown`: no dependency/individual-test impact provenance is inferred |
+
+Eligibility follows scheduling precedence: outside-diff candidates are skipped,
+otherwise uncovered candidates are not executed, otherwise dry-run candidates are
+not applied, otherwise the candidate is eligible. Eligibility is not proof of an
+attempt or success; use `execution` and terminal status for observed outcomes.
+Excluded/inactive files and unselected mutants have no findings: this metadata does
+not invent exclusion-pattern explanations or observations for absent candidates.
+Unresolved replay sets have only the existing top-level replay diagnostics.
+Detailed dependency/impact selection provenance remains explicitly unknown.
+
+### Execution evidence (schema 2)
+
+Schema 2 adds optional `execution` on each finding; existing groups, counts and
+`test_command` remain unchanged. Consumers should ignore unknown fields. An absent
+`execution` means unavailable (including dry-run, skipped and uncovered mutants),
+not a successful test. No environment array is serialized.
+
+An observed attempt includes:
+
+- `args`: the requested executable and argument array (prefer this over the POSIX
+  display command); `working_directory`: the effective isolated process cwd;
+  `package_scope`: the effective package argument, or `./...` in integration mode.
+  Worker directories are temporary and may no longer exist after the run.
+- `duration_seconds`: wall-clock process/collection duration;
+  `timeout_seconds`: imp's effective deadline. The Go test timeout in `args` is
+  intentionally two seconds longer. These are not per-test durations.
+- `category`: `success`, `test`, `build-setup`, `launch`, `timeout` or
+  `infrastructure`. `test` requires the existing KILLED rule: exit 1, valid Go
+  JSON, at least one test failure, and no failed package without a test failure.
+  `build-setup` is an inference for other valid-JSON exit-1 outcomes, not a compiler
+  diagnosis. Other exit codes, invalid JSON, process/wait failures and parent
+  cancellation are infrastructure outcomes. Launch means no process started.
+  The original status classification is unchanged; stderr never establishes KILLED.
+- `exit_code` when observed for normal completion; absent for launch failure or
+  deadlines/cancellation when no reliable exit code is available. `json_valid`
+  describes the complete stdout stream, independently of process success.
+- `failing_tests`: observed Go `fail` events with `package` and slash-qualified
+  `test` names, including subtests. At most 100 events are retained, each name at
+  most 1024 bytes; excess/oversize events are omitted and
+  `failing_tests_truncated` is true. Events may be incomplete after malformed JSON
+  or termination. An empty list is **not** individual-test attribution.
+- `stdout`, `stderr`, and optional `process_error`: diagnostic objects with `text`,
+  `truncated`, `redaction_policy` and `redacted`. Each retains at most the first
+  16384 input bytes. Classification independently consumes the **entire** stream,
+  including huge output events and failures after the retained prefix. Ignored
+  payloads (including nested `Test`/`Package` fields) are streamed. Exact root
+  package identities remain essential classification metadata; oversized root test
+  names retain only nonempty classification information, never synthetic attribution.
+
+Diagnostic redaction removes nonempty values from imp's environment and their
+JSON-escaped forms (with and without HTML escaping), longest first, without
+substituting a marker that could increase output size. It may
+remove ordinary text too. The policy is explicitly
+`environment-values-removed; other-secrets-not-detected`; redaction is **not** a
+security boundary. Unknown secrets, fragments, arguments, cwd, package and test
+names are not sanitized. Avoid printing secrets in tests or placing them in test
+names/command arguments. Truncation is applied before redaction; a fragment cut
+at a boundary might remain. The tool does not claim complete secret detection.
+
+### Pre-final failures
+
+For a parsed `run` command selecting JSON, a failure before report commitment emits
+one JSON **line on stderr**, identified by `kind: "run_error"`, alongside ordinary
+human diagnostics. Stdout receives no error envelope. Read stderr line-by-line and
+select this kind; stderr as a whole is not a JSON document. For example:
+
+```json
+{
+  "schema_version": 2,
+  "kind": "run_error",
+  "stage": "execution",
+  "report_state": "not-committed",
+  "partial_results_available": false,
+  "cancelled": false,
+  "diagnostics_policy": "error-text-omitted; inspect-human-stderr"
+}
+```
+
+Stages are `validation`, `module`, `output`, `workdir`, `execution`, `report` and
+`commit`. `cancelled` means explicit context cancellation (not a timeout).
+No partial findings are currently published: `partial_results_available` is false,
+including if some mutants completed before a lifecycle failure. The envelope omits
+arbitrary error text; inspect human stderr for details. Early failures before a
+run command/JSON selection can be established may have only human diagnostics.
+A broken stderr sink cannot guarantee envelope delivery; the original error is
+still returned. Exit codes remain unchanged.
+
+The envelope never replaces a report file. Existing committed files survive
+pre-final failures. A report/write failure on stdout can leave a partial report
+stream, which must not be treated as a completed report. Quality-gate failures
+have a completed report and **do not** emit `run_error`. Unresolved exact replay
+also returns a completed diagnostic report without a pre-final envelope.
 
 ### Status filtering
 
@@ -155,7 +280,7 @@ Use `--json --output FILE` where `--output FILE` previously implied JSON.
 | Flag | Purpose |
 | --- | --- |
 | `--diff REF` / `-D REF` | Test mutations in changes against the merge base with a branch or commit |
-| `--diff-scope POLICY` | `changed-line` (default), `changed-function`, or `affected-package`; used with `--diff` |
+| `--diff-scope POLICY` | Strict `changed-line` (default), or opt-in `changed-function` / `affected-package` impact |
 | `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
 | `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
 | `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths from mutation discovery; repeat for multiple rules |
@@ -179,11 +304,17 @@ default. Excluding a required asset can make builds or tests fail. Diff filterin
 
 ### Impact-aware diff selection
 
-`--diff-scope changed-line` preserves added/current-line selection for ordinary production edits.
-`changed-function` selects whole enclosing function declarations (including methods and their function literals).
-Changes outside functions fall back to the package. `affected-package` selects whole changed packages.
+`--diff-scope changed-line` is the strict, backward-compatible default: **only surviving added/modified production
+Go lines** are selected. New tracked and non-ignored untracked production files select only that new file, never
+unchanged files in its package. Renames with edits select only surviving added/modified lines at the new path.
+Test edits, deletion-only hunks, pure renames, configuration/assets and reverse dependencies never broaden this mode,
+even in a mixed production/test/configuration diff. Without surviving changed production lines, selection is explicitly
+empty and the report suggests an impact policy. There are no hidden package-level mutations under `changed-line`.
 
-All policies conservatively expand when line selection cannot express the impact:
+Opt into impact analysis with `--diff-scope changed-function` or `--diff-scope affected-package`.
+`changed-function` selects whole enclosing function declarations (including methods and their function literals);
+changes outside functions fall back to the package. `affected-package` selects whole changed packages.
+Only these opt-in policies conservatively expand when line selection cannot express the impact:
 
 - Changed tests select production files in the same package (including external-package tests).
 - Deletion-only hunks and deleted files select the surviving package, not a guessed neighboring line.
@@ -191,14 +322,14 @@ All policies conservatively expand when line selection cannot express the impact
 - Transitive reverse package imports select dependent packages, including imports from tests and shared test helpers.
 - Module/workspace, imp, and recognized build configuration changes select the module (for example `go.mod`,
   `go.sum`, `go.work`, `.imp.yaml`, `Makefile`, `mise.toml`, or `.github/workflows/` inputs).
-- Under `changed-line` (the default) and `changed-function`, embedded production/test inputs and native build inputs
+- Under `changed-function`, embedded production/test inputs and native build inputs
   reported by `go list` select their owning packages and reverse dependencies. Embed patterns also identify deleted
   or renamed-away inputs before documentation exclusions, including directory and `all:` patterns. Pattern fallback
   conservatively includes hidden descendants and reports an explicit ownership-fallback reason. Files under `testdata/`
   select the nearest owning package and reverse dependencies, or the module when no owner is known.
 - Documentation (`docs/`, `doc/`, `.md`, `.rst`, `.adoc`) and recognized repository metadata (`LICENSE`, `COPYING`,
-  `AUTHORS`, `CONTRIBUTORS`, `CODEOWNERS`, `.gitignore`, `.gitattributes`, `.editorconfig`) are ignored in those two
-  policies, unless identified as embedded/build inputs or test fixtures. Thus a docs/schema-only diff selects no
+  `AUTHORS`, `CONTRIBUTORS`, `CODEOWNERS`, `.gitignore`, `.gitattributes`, `.editorconfig`) are ignored in this
+  policy, unless identified as embedded/build inputs or test fixtures. Thus a docs/schema-only diff selects no
   mutations, rather than silently requesting a full-module mutation run.
 - Unknown non-Go inputs are not discarded: they conservatively select the nearest owning package and reverse
   dependencies, or the module if no package owns their path. Reports explicitly label this unknown-input fallback.
@@ -219,9 +350,9 @@ and coverage eligibility still apply. Reverse dependencies outside that director
 `--integration` retain their existing test-execution meanings. Package loading errors fail explicitly.
 Changed-line/function modes do not follow callers within the changed package: choose `affected-package` for shared
 helpers or package-wide confidence. Dynamic/plugin dependencies and code outside the current module are not traced.
-Requested scope remains the configured policy; effective scope reports any package/module expansion or an empty
-selection. Unknown runtime file reads cannot be inferred from imports: the ownership fallback above is conservative,
-not precise runtime dependency tracking. Arbitrary custom configurations use that same unknown-input policy.
+Requested scope remains the configured policy; effective scope reports any opt-in package/module expansion or an empty
+selection. Unknown runtime file reads cannot be inferred from imports: the opt-in ownership fallback is conservative,
+not precise runtime dependency tracking. Arbitrary custom configurations use that same opt-in unknown-input policy.
 Use exclusions/calling-directory scope as usual. These policies complement periodic full-module runs.
 
 ## Execution

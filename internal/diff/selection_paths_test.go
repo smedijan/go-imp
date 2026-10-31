@@ -102,8 +102,9 @@ func TestSelectionModuleRootSymlinkAlias(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, pos := range []token.Position{{Filename: "a/code.go", Line: 2}, {Filename: "b/code.go", Line: 3}} {
-				if !selected.IsChanged(pos) {
-					t.Errorf("symlink alias lost selected source %+v: %v %+v", pos, selected, info)
+				want := scope != diff.ChangedLine || pos.Filename == "a/code.go"
+				if selected.IsChanged(pos) != want {
+					t.Errorf("symlink alias changed source scope %+v: %v %+v", pos, selected, info)
 				}
 			}
 			if selected.IsChanged(token.Position{Filename: "other/code.go", Line: 2}) {
@@ -121,7 +122,12 @@ func TestSelectionModuleRootSymlinkAlias(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !selected.IsChanged(token.Position{Filename: "code.go", Line: 99}) || selected.IsChanged(token.Position{Filename: "../b/code.go", Line: 3}) || info.Effective != diff.AffectedPackage {
+			wantPackage := scope != diff.ChangedLine
+			effective := diff.ChangedLine
+			if wantPackage {
+				effective = diff.AffectedPackage
+			}
+			if selected.IsChanged(token.Position{Filename: "code.go", Line: 99}) != wantPackage || !selected.IsChanged(token.Position{Filename: "code.go", Line: 2}) || selected.IsChanged(token.Position{Filename: "../b/code.go", Line: 3}) || info.Effective != effective {
 				t.Errorf("deleted path/calling-directory alias scope: %v %+v", selected, info)
 			}
 		})
@@ -145,7 +151,7 @@ func TestSelectionPackageMetadataScope(t *testing.T) {
 		"testdata/helper/code.go": "package helper\nfunc Value(a,b int) int {return a+b}\n",
 		"unrelated/code.go":       "package unrelated\nfunc Value(a,b int) int {return a+b}\n",
 	})
-	configuration.Set(configuration.RunDiffScope, diff.ChangedLine)
+	configuration.Set(configuration.RunDiffScope, diff.ChangedFunction)
 	write("testdata/helper/code.go", "package helper\nfunc Value(a,b int) int {return a-b}\n")
 	selected, _, err := diff.NewSelection(mod)
 	if err != nil {

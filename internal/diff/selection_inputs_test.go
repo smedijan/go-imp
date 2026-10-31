@@ -16,21 +16,21 @@ func TestSelectionNonGoInputs(t *testing.T) {
 		name, path, scope, effective, reason       string
 		wantConsumer, wantDependent, wantUnrelated bool
 	}{
-		{name: "readme", path: "README.md", scope: diff.ChangedLine, effective: "empty", reason: "ignored documentation/metadata"},
-		{name: "docs schema", path: "docs/schema/configuration.json", scope: diff.ChangedLine, effective: "empty", reason: "ignored documentation/metadata"},
+		{name: "readme", path: "README.md", scope: diff.ChangedFunction, effective: "empty", reason: "ignored documentation/metadata"},
+		{name: "docs schema", path: "docs/schema/configuration.json", scope: diff.ChangedFunction, effective: "empty", reason: "ignored documentation/metadata"},
 		{name: "function docs", path: "docs/guide.md", scope: diff.ChangedFunction, effective: "empty", reason: "ignored documentation/metadata"},
-		{name: "git metadata", path: ".gitignore", scope: diff.ChangedLine, effective: "empty", reason: "ignored documentation/metadata"},
+		{name: "git metadata", path: ".gitignore", scope: diff.ChangedFunction, effective: "empty", reason: "ignored documentation/metadata"},
 		{name: "broad package policy", path: "README.md", scope: diff.AffectedPackage, effective: "module", reason: "requested affected-package non-Go fallback", wantConsumer: true, wantDependent: true, wantUnrelated: true},
-		{name: "config", path: ".imp.yaml", scope: diff.ChangedLine, effective: "module", reason: "build/configuration change", wantConsumer: true, wantDependent: true, wantUnrelated: true},
+		{name: "config", path: ".imp.yaml", scope: diff.ChangedFunction, effective: "module", reason: "build/configuration change", wantConsumer: true, wantDependent: true, wantUnrelated: true},
 		{name: "build", path: "Makefile", scope: diff.ChangedFunction, effective: "module", reason: "build/configuration change", wantConsumer: true, wantDependent: true, wantUnrelated: true},
-		{name: "fixture markdown", path: "consumer/testdata/README.md", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "test fixture input", wantConsumer: true, wantDependent: true},
-		{name: "native build", path: "consumer/ops.s", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "native build input", wantConsumer: true, wantDependent: true},
-		{name: "fixture", path: "consumer/testdata/input.json", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "test fixture input", wantConsumer: true, wantDependent: true},
-		{name: "embedded docs", path: "consumer/docs/schema.json", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "embedded input", wantConsumer: true, wantDependent: true},
+		{name: "fixture markdown", path: "consumer/testdata/README.md", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "test fixture input", wantConsumer: true, wantDependent: true},
+		{name: "native build", path: "consumer/ops.s", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "native build input", wantConsumer: true, wantDependent: true},
+		{name: "fixture", path: "consumer/testdata/input.json", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "test fixture input", wantConsumer: true, wantDependent: true},
+		{name: "embedded docs", path: "consumer/docs/schema.json", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "embedded input", wantConsumer: true, wantDependent: true},
 		{name: "external test embed", path: "consumer/docs/test.txt", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "embedded input", wantConsumer: true, wantDependent: true},
-		{name: "internal test embed", path: "consumer/docs/internal.txt", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "embedded input", wantConsumer: true, wantDependent: true},
-		{name: "unknown package input", path: "consumer/runtime.data", scope: diff.ChangedLine, effective: diff.AffectedPackage, reason: "unknown input: conservative package fallback", wantConsumer: true, wantDependent: true},
-		{name: "unknown root input", path: "runtime.data", scope: diff.ChangedLine, effective: "module", reason: "unknown input: conservative module fallback", wantConsumer: true, wantDependent: true, wantUnrelated: true},
+		{name: "internal test embed", path: "consumer/docs/internal.txt", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "embedded input", wantConsumer: true, wantDependent: true},
+		{name: "unknown package input", path: "consumer/runtime.data", scope: diff.ChangedFunction, effective: diff.AffectedPackage, reason: "unknown input: conservative package fallback", wantConsumer: true, wantDependent: true},
+		{name: "unknown root input", path: "runtime.data", scope: diff.ChangedFunction, effective: "module", reason: "unknown input: conservative module fallback", wantConsumer: true, wantDependent: true, wantUnrelated: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mod, write := selectionReviewFixture(t, map[string]string{
@@ -114,6 +114,13 @@ func TestSelectionDeletedEmbeddedDocumentation(t *testing.T) {
 				selected, info, err := diff.NewSelection(mod)
 				if err != nil {
 					t.Fatal(err)
+				}
+				if scope == diff.ChangedLine {
+					if len(selected) != 0 || info.Effective != "empty" || !strings.Contains(strings.Join(info.Reasons, ";"), "--diff-scope changed-function") {
+						t.Errorf("strict line selection promoted removed embed: %v %+v", selected, info)
+					}
+
+					return
 				}
 				for _, name := range []string{"consumer/code.go", "dependent/code.go"} {
 					if !selected.IsChanged(token.Position{Filename: name, Line: 99}) {

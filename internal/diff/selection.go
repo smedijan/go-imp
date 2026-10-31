@@ -134,6 +134,9 @@ func NewSelection(mod gomodule.GoModule) (Diff, *Selection, error) {
 		}
 	}
 	if len(result) == 0 {
+		if scope == ChangedLine {
+			info.Reasons = append(info.Reasons, strictLineEmptyReason)
+		}
 		info.Effective = "empty"
 		info.Reasons = append(info.Reasons, "no selected production source in calling-directory/build scope")
 	}
@@ -241,6 +244,11 @@ func within(root, path string) (string, bool) {
 }
 
 func selectChanges(root, repo, module, scope string, files []*gitdiff.File, packages []packageInfo) (Diff, *Selection, error) {
+	if scope == ChangedLine {
+		selected, info := selectChangedLines(root, repo, files, productionSources(root, packages))
+
+		return selected, info, nil
+	}
 	result := make(Diff)
 	info := &Selection{Requested: scope, Effective: scope, Reasons: []string{}}
 	seeds := make(map[string]bool)

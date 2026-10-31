@@ -146,11 +146,22 @@ func TestCLIImpactScope(t *testing.T) {
 		args                           []string
 		calling                        string
 		wantA, wantB, wantOther        bool
+		strictALine                    int
 	}{
 		{name: "disabled", effective: "disabled", wantA: true, wantB: true, wantOther: true},
 		{name: "empty", scope: "changed-line", effective: "empty", reason: "no selected"},
-		{name: "test-only", scope: "changed-line", effective: "affected-package", reason: "test change", edit: func(t *testing.T, dir string) {
+		{name: "test-only", scope: "changed-line", effective: "empty", reason: "--diff-scope changed-function", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, "a", "extra_test.go"), "package a\n// improve tests\n")
+		}},
+		{name: "strict mixed production and test", scope: "changed-line", effective: "changed-line", reason: "changed-line", wantA: true, strictALine: 4, edit: func(t *testing.T, dir string) {
+			writeFixture(t, filepath.Join(dir, "a", "code.go"), "package a\nfunc Value(a,b int) int {\n _ = a + 0\n return a - b\n}\nfunc Other(a,b int) int { return a - b }\n")
+			writeFixture(t, filepath.Join(dir, "a", "extra_test.go"), "package a\n")
+		}},
+		{name: "strict deletion-only", scope: "changed-line", effective: "empty", reason: "--diff-scope changed-function", edit: func(t *testing.T, dir string) {
+			writeFixture(t, filepath.Join(dir, "a", "code.go"), "package a\nfunc Value(a,b int) int {\n return a + b\n}\nfunc Other(a,b int) int { return a - b }\n")
+		}},
+		{name: "test-only impact", scope: "changed-function", effective: "affected-package", reason: "test change", edit: func(t *testing.T, dir string) {
+			writeFixture(t, filepath.Join(dir, "a", "extra_test.go"), "package a\n")
 		}, wantA: true, wantB: true},
 		{name: "deletion-only", scope: "changed-function", effective: "affected-package", reason: "deletion fallback", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, "a", "code.go"), "package a\nfunc Value(a,b int) int {\n return a + b\n}\nfunc Other(a,b int) int { return a - b }\n")
@@ -158,7 +169,7 @@ func TestCLIImpactScope(t *testing.T) {
 		{name: "package", scope: "affected-package", effective: "affected-package", reason: "requested package", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, "a", "code.go"), "package a\nfunc Value(a,b int) int {\n _ = a + 0\n return a - b\n}\nfunc Other(a,b int) int { return a - b }\n")
 		}, wantA: true, wantB: true},
-		{name: "config", scope: "changed-line", effective: "module", reason: "configuration", edit: func(t *testing.T, dir string) {
+		{name: "config", scope: "changed-function", effective: "module", reason: "configuration", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, ".imp.yaml"), "# changed configuration\n")
 		}, wantA: true, wantB: true, wantOther: true},
 		{name: "calling-directory", scope: "affected-package", effective: "affected-package", calling: "b", reason: "reverse dependency", edit: func(t *testing.T, dir string) {
@@ -214,6 +225,19 @@ func TestCLIImpactScope(t *testing.T) {
 					t.Errorf("runnable %s=%t want %t\n%s", path, got, want, payload)
 				}
 			}
+			if tc.strictALine != 0 {
+				for _, finding := range report.Groups["RUNNABLE"]["a/code.go"] {
+					var mutation struct {
+						Line int `json:"line"`
+					}
+					if err := json.Unmarshal(finding, &mutation); err != nil {
+						t.Fatal(err)
+					}
+					if mutation.Line != tc.strictALine {
+						t.Errorf("hidden strict-line mutation: %s", finding)
+					}
+				}
+			}
 			if tc.scope != "" && len(report.Groups["RUNNABLE"]["a/inactive.go"]) > 0 {
 				t.Error("inactive build-tagged source selected")
 			}
@@ -246,7 +270,7 @@ func TestCLIDocsOnlyDoesNotExecuteMutations(t *testing.T) {
 	if document.Total == 0 || document.Skipped != document.Total {
 		t.Fatalf("docs-only run executed or selected mutants: %s", payload)
 	}
-	if document.Selection.Requested != "changed-line" || document.Selection.Effective != "empty" || !strings.Contains(strings.Join(document.Selection.Reasons, ";"), "ignored documentation/metadata: README.md") {
+	if document.Selection.Requested != "changed-line" || document.Selection.Effective != "empty" || !strings.Contains(strings.Join(document.Selection.Reasons, ";"), "changed-line ignores non-production input: README.md") {
 		t.Fatalf("missing bounded-scope explanation: %s", payload)
 	}
 }

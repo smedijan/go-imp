@@ -104,7 +104,7 @@ func TestParseStatuses(t *testing.T) {
 
 func TestJSONReport(t *testing.T) {
 	document, payload := renderJSON(t, fixtureResults(), report.Options{Color: true, Verbose: true})
-	if document.SchemaVersion != 1 || document.GoModule != "example.com" || math.Abs(document.ElapsedTime-2.345) > 1e-9 {
+	if document.SchemaVersion != 2 || document.GoModule != "example.com" || math.Abs(document.ElapsedTime-2.345) > 1e-9 {
 		t.Fatalf("incorrect metadata: %+v", document)
 	}
 	if document.MutantsTotal != 7 || len(document.Groups) != 7 || len(document.SelectedStatuses) != 7 {

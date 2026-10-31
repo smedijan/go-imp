@@ -70,7 +70,7 @@ func TestSelectionTransitiveHiddenTestHelpers(t *testing.T) {
 				"unrelated/code.go":        "package unrelated\nfunc Value(a,b int) int {return a+b}\n",
 			})
 			write(hidden+"/leaf/code.go", "package leaf\nfunc Value(a,b int) int {return a-b}\n")
-			configuration.Set(configuration.RunDiffScope, diff.ChangedLine)
+			configuration.Set(configuration.RunDiffScope, diff.ChangedFunction)
 			selected, info, err := diff.NewSelection(mod)
 			if err != nil {
 				t.Fatal(err)

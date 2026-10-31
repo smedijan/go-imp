@@ -74,7 +74,7 @@
         },
         "diff-scope": {
           "title": "Diff selection policy",
-          "description": "Requested scope; test, deletion, dependency and configuration changes can expand it conservatively",
+          "description": "Strict added/modified production lines by default; changed-function and affected-package opt into conservative impact expansion",
           "type": "string",
           "enum": ["changed-line", "changed-function", "affected-package"],
           "default": "changed-line"

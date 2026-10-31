@@ -92,7 +92,8 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 
 			return nil
 		},
-		RunE: runMutationTests(ctx),
+		RunE:        runMutationTests(ctx),
+		Annotations: map[string]string{},
 	}
 
 	if err := setFlagsOnCmd(cmd); err != nil {
@@ -126,11 +127,13 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		if len(args) > 0 {
 			path = args[0]
 		}
+		cmd.Annotations["report-stage"] = "module"
 		mod, err := gomodule.Init(path)
 		if err != nil {
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
+		cmd.Annotations["report-stage"] = "output"
 		output, err := output.Open(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
 		if err != nil {
 			return err
@@ -138,12 +141,14 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		defer func() { _ = output.Close() }()
 		options.Color = log.ColorEnabled(output.Writer)
 
+		cmd.Annotations["report-stage"] = "workdir"
 		workDir, err := os.MkdirTemp(os.TempDir(), "imp-")
 		if err != nil {
 			return fmt.Errorf("impossible to create the workdir: %w", err)
 		}
 		defer cleanUp(workDir)
 
+		cmd.Annotations["report-stage"] = "execution"
 		results, err := run(ctx, mod, workDir)
 		if err != nil {
 			return err
@@ -151,15 +156,17 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		cmd.Annotations["report-stage"] = "report"
 		reportErr := report.Write(output, results, options)
 		var gate *execution.ExitError
 		if reportErr != nil && !errors.As(reportErr, &gate) {
 			return reportErr
 		}
-
+		cmd.Annotations["report-stage"] = "commit"
 		if err := output.Commit(); err != nil {
 			return err
 		}
+		cmd.Annotations["report-stage"] = "committed"
 
 		for _, target := range results.Replay {
 			if target.Resolution != "matched" {
@@ -241,7 +248,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 		{Name: paramDryRun, CfgKey: configuration.RunDryRunKey, Shorthand: "d", DefaultV: false, Usage: "gather coverage and find mutations without testing them"},
 		{Name: paramBuildTags, CfgKey: configuration.RunTagsKey, Shorthand: "t", DefaultV: "", Usage: "comma-separated build tag `LIST`"},
 		{Name: paramCoverPackages, CfgKey: configuration.RunCoverPkgKey, DefaultV: "", Usage: "comma-separated coverage package pattern `LIST`"},
-		{Name: "diff-scope", CfgKey: configuration.RunDiffScope, DefaultV: "changed-line", Usage: "select changed-line, changed-function, or affected-package with --diff"},
+		{Name: "diff-scope", CfgKey: configuration.RunDiffScope, DefaultV: "changed-line", Usage: "strict changed-line (default), or opt-in changed-function/affected-package impact with --diff"},
 		{Name: paramDiff, CfgKey: configuration.RunDiffRef, Shorthand: "D", DefaultV: "", Usage: "limit mutations to changes against Git `REF`"},
 		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "write the selected report format to `FILE` (- for stdout)"},
 		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "run the whole module's test suite for each mutation"},
