@@ -58,6 +58,35 @@ func clearImpactGitEnvironment(t *testing.T) {
 	}
 }
 
+func TestImpactFixtureGitEnvironmentIsolation(t *testing.T) {
+	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"} {
+		t.Setenv(name, filepath.Join(t.TempDir(), "must-not-be-used"))
+	}
+	clearImpactGitEnvironment(t)
+	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"} {
+		if _, exists := os.LookupEnv(name); exists {
+			t.Fatalf("fixture inherited %s", name)
+		}
+	}
+	dir := newImpactFixture(t)
+	command := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel") // #nosec G204 -- test-owned temporary directory and fixed Git operation.
+	output, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := filepath.EvalSymlinks(strings.TrimSpace(string(output)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("fixture repository = %q, want %q", got, want)
+	}
+}
+
 func TestCLIImpactScope(t *testing.T) {
 	clearImpactGitEnvironment(t)
 	for _, tc := range []struct {
