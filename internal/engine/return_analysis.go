@@ -29,6 +29,11 @@ func (mu *Engine) returnMutations(ctx context.Context, files []string) ([]mutato
 			return nil, fmt.Errorf("return analysis on a supplied filesystem requires WithReturnAnalysisLoader")
 		}
 		loader = loadReturnPackages
+		if mu.verificationSnapshot {
+			loader = func(ctx context.Context, dir, tags string) ([]ReturnPackage, error) {
+				return loadReturnPackagesWithEnv(ctx, dir, tags, verificationEnvironment())
+			}
+		}
 	}
 	dir, err := filepath.Abs(filepath.Join(mu.module.Root, mu.module.CallingDir))
 	if err != nil {

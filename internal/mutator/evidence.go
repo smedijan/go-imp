@@ -11,6 +11,9 @@ type ExecutionEvidence struct {
 	Category              string        `json:"category"`
 	ExitCode              *int          `json:"exit_code,omitempty"`
 	FailingTests          []FailingTest `json:"failing_tests"`
+	PassingTests          []FailingTest `json:"passing_tests,omitempty"`
+	PassingTestsTruncated bool          `json:"passing_tests_truncated,omitempty"`
+	SelectedPassingTest   *FailingTest  `json:"selected_passing_test,omitempty"`
 	FailingTestsTruncated bool          `json:"failing_tests_truncated"`
 	Stdout                Diagnostic    `json:"stdout"`
 	Stderr                Diagnostic    `json:"stderr"`

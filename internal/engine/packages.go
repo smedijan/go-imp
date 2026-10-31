@@ -33,7 +33,11 @@ func (mu *Engine) activeSources(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	loaded, err := loadActivePackages(ctx, root)
+	cfg := activePackageConfig(ctx, root)
+	if mu.verificationSnapshot {
+		cfg.Env = verificationEnvironment()
+	}
+	loaded, err := checkedPackages(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +179,9 @@ func checkedPackages(cfg *packages.Config) ([]*packages.Package, error) {
 // declarations can nevertheless shadow predeclared Boolean names during tests.
 func (mu *Engine) loadTestBooleanShadows(ctx context.Context, root string, production []*packages.Package) error {
 	cfg := activePackageConfig(ctx, root)
+	if mu.verificationSnapshot {
+		cfg.Env = verificationEnvironment()
+	}
 	cfg.Mode = packages.NeedName | packages.NeedFiles
 	cfg.Tests = true
 	loaded, err := checkedPackages(cfg)

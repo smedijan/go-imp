@@ -74,15 +74,22 @@ func (b *synchronizedBuffer) diagnostic() mutator.Diagnostic {
 }
 
 type testOutput struct {
-	results   map[string]packageFailure
-	valid     bool
-	failing   []mutator.FailingTest
-	truncated bool
+	results          map[string]packageFailure
+	valid            bool
+	failing          []mutator.FailingTest
+	passing          []mutator.FailingTest
+	selectedPassing  *mutator.FailingTest
+	passingTruncated bool
+	truncated        bool
 }
 
 type packageFailure struct{ packageFailed, testFailed bool }
 
 func collectTestOutput(reader io.Reader) testOutput {
+	return collectSelectedTestOutput(reader, "")
+}
+
+func collectSelectedTestOutput(reader io.Reader, selectedTest string) testOutput {
 	result := testOutput{results: make(map[string]packageFailure), valid: true, failing: []mutator.FailingTest{}}
 	// The reducer validates and discards ignored string/number payloads before
 	// encoding/json buffers a token. Relevant metadata retains exact semantics.
@@ -98,6 +105,19 @@ func collectTestOutput(reader io.Reader) testOutput {
 			_, _ = io.Copy(io.Discard, reader)
 
 			break
+		}
+		if event.Action == "pass" && event.Test != "" {
+			withinNameBounds := len(event.Test) <= failingNameLimit && len(event.Package) <= failingNameLimit
+			if withinNameBounds && len(result.passing) < failingTestLimit {
+				result.passing = append(result.passing, mutator.FailingTest{Package: event.Package, Test: event.Test})
+			} else {
+				result.passingTruncated = true
+			}
+			// Subtests complete before their parent. Retain the selected parent
+			// independently so a long passing subtest prefix cannot hide it.
+			if withinNameBounds && event.Test == selectedTest {
+				result.selectedPassing = &mutator.FailingTest{Package: event.Package, Test: event.Test}
+			}
 		}
 		state := result.results[event.Package]
 		if event.Action == "fail" {
