@@ -51,6 +51,7 @@ type Engine struct {
 	mutantStream   chan mutator.Mutator
 	module         gomodule.GoModule
 	booleanShadows map[string]map[string]bool
+	sourceLocators map[string]bool
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -58,6 +59,7 @@ type CodeData struct {
 	Cov       coverage.Profile
 	Diff      diff.Diff
 	Exclusion exclusion.Rules
+	TargetIDs []string
 }
 
 // Option for the Engine initialization.
@@ -98,6 +100,7 @@ func WithDirFs(dirFS fs.FS) Option {
 func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
 	files := mu.sourceFiles()
+	mu.sourceLocators = make(map[string]bool)
 	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
 	progress := log.NewFileProgress(len(files))
 	defer progress.Finish()
@@ -117,7 +120,10 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		discovered = append(discovered, mutant)
 	}
 
+	discovered = canonicalMutants(discovered)
+	discovered, replay := selectMutants(discovered, mu.codeData.TargetIDs, mu.sourceLocators)
 	res, err := mu.executeTests(ctx, discovered, files, progress)
+	res.Replay = replay
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name
 
@@ -157,6 +163,10 @@ func (mu *Engine) runOnFile(fileName string) {
 	file, err := parser.ParseFile(set, fileName, src, parser.ParseComments)
 	if err != nil {
 		return
+	}
+
+	for _, decl := range file.Decls {
+		mu.sourceLocators[fingerprint(mu.module.Name, filepath.ToSlash(filepath.Join(mu.module.CallingDir, fileName)), declarationName(decl))] = true
 	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -339,6 +349,7 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm.SetType(mutantType)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
 		tm.captureSnippets(src)
+		tm.captureIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, fileName), src)
 
 		mu.mutantStream <- tm
 	}

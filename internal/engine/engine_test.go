@@ -522,7 +522,12 @@ func TestMutations(t *testing.T) {
 			}
 
 			for _, g := range got {
-				if g.Type() == tc.mutantType && g.Status() == tc.mutStatus && g.Pos() > 0 {
+				// SUB aliases canonicalize to the first enabled operator (InvertNegatives).
+				expectedType := tc.mutantType
+				if tc.token == token.SUB && expectedType == mutator.ArithmeticBase {
+					expectedType = mutator.InvertNegatives
+				}
+				if g.Type() == expectedType && g.Status() == tc.mutStatus && g.Pos() > 0 {
 					// PASS
 					return
 				}
