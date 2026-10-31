@@ -244,3 +244,30 @@ func TestExecutorConfirmationRealMutation(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutorConfirmationEmptyCampaignDoesNotSnapshot(t *testing.T) {
+	viperSet(map[string]any{configuration.RunConfirmOutcomesKey: true, configuration.RunWorkersKey: 1})
+	defer viperReset()
+	tmp := t.TempDir()
+	// An empty campaign needs neither source access nor a snapshot. In
+	// particular, it must succeed even if its source is no longer available.
+	source := filepath.Join(t.TempDir(), "missing-source")
+	dealer := workdir.NewCachedDealer(tmp, source)
+	defer dealer.Clean()
+	executor := engine.NewExecutor(gomodule.GoModule{Root: source, CallingDir: "."}, dealer, time.Second,
+		engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			t.Error("empty campaign launched a process")
+
+			return fakeExecCommandSuccess(ctx, name, args...)
+		}))
+	results, err := executor.Execute(context.Background(), nil, func(mutator.Mutator) {
+		t.Error("empty campaign reported a completion")
+	})
+	if err != nil || len(results) != 0 {
+		t.Fatalf("empty campaign: results=%v err=%v", results, err)
+	}
+	entries, err := os.ReadDir(tmp)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("empty campaign created temporary files: %v %v", entries, err)
+	}
+}
