@@ -280,6 +280,7 @@ Use `--json --output FILE` where `--output FILE` previously implied JSON.
 | Flag | Purpose |
 | --- | --- |
 | `--diff REF` / `-D REF` | Test mutations in changes against the merge base with a branch or commit |
+| `--diff-scope POLICY` | Strict `changed-line` (default), or opt-in `changed-function` / `affected-package` impact |
 | `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
 | `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
 | `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths from mutation discovery; repeat for multiple rules |
@@ -300,6 +301,59 @@ scope: paths are exact module-relative paths, and excluded directories are recur
 does not infer exclusions from `.gitignore`; all source files, including ignored build/test assets, are copied by
 default. Excluding a required asset can make builds or tests fail. Diff filtering marks out-of-scope mutants as
 `SKIPPED`; the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
+
+### Impact-aware diff selection
+
+`--diff-scope changed-line` is the strict, backward-compatible default: **only surviving added/modified production
+Go lines** are selected. New tracked and non-ignored untracked production files select only that new file, never
+unchanged files in its package. Renames with edits select only surviving added/modified lines at the new path.
+Test edits, deletion-only hunks, pure renames, configuration/assets and reverse dependencies never broaden this mode,
+even in a mixed production/test/configuration diff. Without surviving changed production lines, selection is explicitly
+empty and the report suggests an impact policy. There are no hidden package-level mutations under `changed-line`.
+
+Opt into impact analysis with `--diff-scope changed-function` or `--diff-scope affected-package`.
+`changed-function` selects whole enclosing function declarations (including methods and their function literals);
+changes outside functions fall back to the package. `affected-package` selects whole changed packages.
+Only these opt-in policies conservatively expand when line selection cannot express the impact:
+
+- Changed tests select production files in the same package (including external-package tests).
+- Deletion-only hunks and deleted files select the surviving package, not a guessed neighboring line.
+- Renames select both old and new packages. New tracked and non-ignored untracked Go files select their package.
+- Transitive reverse package imports select dependent packages, including imports from tests and shared test helpers.
+- Module/workspace, imp, and recognized build configuration changes select the module (for example `go.mod`,
+  `go.sum`, `go.work`, `.imp.yaml`, `Makefile`, `mise.toml`, or `.github/workflows/` inputs).
+- Under `changed-function`, embedded production/test inputs and native build inputs
+  reported by `go list` select their owning packages and reverse dependencies. Embed patterns also identify deleted
+  or renamed-away inputs before documentation exclusions, including directory and `all:` patterns. Pattern fallback
+  conservatively includes hidden descendants and reports an explicit ownership-fallback reason. Files under `testdata/`
+  select the nearest owning package and reverse dependencies, or the module when no owner is known.
+- Documentation (`docs/`, `doc/`, `.md`, `.rst`, `.adoc`) and recognized repository metadata (`LICENSE`, `COPYING`,
+  `AUTHORS`, `CONTRIBUTORS`, `CODEOWNERS`, `.gitignore`, `.gitattributes`, `.editorconfig`) are ignored in this
+  policy, unless identified as embedded/build inputs or test fixtures. Thus a docs/schema-only diff selects no
+  mutations, rather than silently requesting a full-module mutation run.
+- Unknown non-Go inputs are not discarded: they conservatively select the nearest owning package and reverse
+  dependencies, or the module if no package owns their path. Reports explicitly label this unknown-input fallback.
+  The opt-in `affected-package` policy retains a broad module fallback for every non-Go change, including docs.
+- Changes to repository `go.work` / `go.work.sum` also select a nested module. Other out-of-module paths are explicitly
+  ignored. Git-ignored untracked files are not considered.
+
+Without `--diff`, selection is disabled. With `--diff` and no relevant changes, **nothing is selected**; this never
+falls back to the whole module. The baseline coverage/test run still runs. Human and JSON reports include
+`selection.requested`, `selection.effective` (`disabled`, `empty`, a policy, or `module`), and sorted selection reasons.
+Effective scope describes automatic selection before exclusions and coverage, not a guarantee that tests run.
+
+Impact analysis uses `go list -deps -test` package/import metadata under the current build environment and `--tags`,
+not type or call-graph discovery. This includes transitive helpers imported from `testdata` and `_helpers`, while
+synthetic test variants/binaries never become production candidates. Changed-function selection skips build-inactive
+source before parsing function bodies. Selection intersects the calling directory, then existing file filters/exclusions
+and coverage eligibility still apply. Reverse dependencies outside that directory are not mutated; `--coverpkg` and
+`--integration` retain their existing test-execution meanings. Package loading errors fail explicitly.
+Changed-line/function modes do not follow callers within the changed package: choose `affected-package` for shared
+helpers or package-wide confidence. Dynamic/plugin dependencies and code outside the current module are not traced.
+Requested scope remains the configured policy; effective scope reports any opt-in package/module expansion or an empty
+selection. Unknown runtime file reads cannot be inferred from imports: the opt-in ownership fallback is conservative,
+not precise runtime dependency tracking. Arbitrary custom configurations use that same opt-in unknown-input policy.
+Use exclusions/calling-directory scope as usual. These policies complement periodic full-module runs.
 
 ## Execution
 
