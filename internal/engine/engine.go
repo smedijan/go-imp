@@ -52,6 +52,7 @@ type Engine struct {
 	mutantStream   chan mutator.Mutator
 	module         gomodule.GoModule
 	booleanShadows map[string]map[string]bool
+	sourceLocators map[string]bool
 	customFS       bool
 	packageSources map[string]packageSource
 	filtered       map[token.Pos]map[mutator.Type]string
@@ -64,6 +65,7 @@ type CodeData struct {
 	Cov       coverage.Profile
 	Diff      diff.Diff
 	Exclusion exclusion.Rules
+	TargetIDs []string
 }
 
 // Option for the Engine initialization.
@@ -105,6 +107,7 @@ func WithDirFs(dirFS fs.FS) Option {
 // sources for applicable mutations. Package/type errors stop discovery.
 func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
+	mu.sourceLocators = make(map[string]bool)
 	var files []string
 	if mu.customFS {
 		files = mu.sourceFiles()
@@ -154,7 +157,10 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		count := mu.filteredCounts[reason]
 		log.Summaryf("Discovery filtered %d candidates: %s\n", count, reason)
 	}
+	discovered = canonicalMutants(discovered)
+	discovered, replay := selectMutants(discovered, mu.codeData.TargetIDs, mu.sourceLocators)
 	res, err := mu.executeTests(ctx, discovered, files, progress)
+	res.Replay = replay
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name
 
@@ -210,6 +216,10 @@ func (mu *Engine) runOnFile(fileName string) {
 		if err != nil {
 			return
 		}
+	}
+
+	for _, decl := range file.Decls {
+		mu.sourceLocators[fingerprint(mu.module.Name, filepath.ToSlash(filepath.Join(mu.module.CallingDir, fileName)), declarationName(decl))] = true
 	}
 
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -417,8 +427,9 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm.families = []mutator.Type{mt}
 		byReplacement[replacement] = tm
 		unique = append(unique, tm)
-		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
+		tm.SetStatus(mu.mutationStatus(set.PositionFor(node.TokPos, false)))
 		tm.captureSnippets(src)
+		tm.captureIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, fileName), src)
 	}
 	for _, tm := range unique {
 		mu.mutantStream <- tm

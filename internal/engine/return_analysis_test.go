@@ -266,8 +266,8 @@ func TestReturnCategoriesIndependent(t *testing.T) {
 	configuration.Set(configuration.MutantTypeEnabledKey(mutator.BooleanLiteral), true)
 	source["source.go"] = &fstest.MapFile{Data: []byte("package example;func f()bool{return true}")}
 	got := discoverReturns(t, source, engine.CodeData{})
-	if len(got) != 2 || got[0].Type() == got[1].Type() {
-		t.Fatalf("return/literal categories should remain independent: %v", got)
+	if len(got) != 1 || got[0].Type() != mutator.BooleanReturn {
+		t.Fatalf("equivalent return/literal edits should canonicalize to one finding: %v", got)
 	}
 }
 

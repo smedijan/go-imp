@@ -36,6 +36,8 @@ import (
 const (
 	ImpQuietKey              = "quiet"
 	ImpNoColorKey            = "no-color"
+	RunMutantIDsKey          = "run.mutant-ids"
+	RunReplayReportKey       = "run.replay-report"
 	RunJSONKey               = "run.json"
 	RunVerboseKey            = "run.verbose"
 	RunDryRunKey             = "run.dry-run"

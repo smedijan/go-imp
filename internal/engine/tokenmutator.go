@@ -18,6 +18,7 @@ package engine
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"go/ast"
 	"go/printer"
@@ -52,9 +53,13 @@ type TokenMutator struct {
 	actualToken   token.Token
 	originalIdent string
 
-	origSnippet    []byte
-	mutatedSnippet []byte
-	testCommand    []string
+	origSnippet       []byte
+	mutatedSnippet    []byte
+	testCommand       []string
+	identity          mutator.Identity
+	applied           bool
+	sourceDigest      [32]byte
+	appliedSourceHash string
 }
 
 // NewTokenMutant initialises a TokenMutator.
@@ -96,7 +101,7 @@ func (m *TokenMutator) SetStatus(s mutator.Status) {
 
 // Position returns the token.Position where the TokenMutator resides.
 func (m *TokenMutator) Position() token.Position {
-	return m.fs.Position(m.tokenNode.TokPos)
+	return m.fs.PositionFor(m.tokenNode.TokPos, false)
 }
 
 // Pos returns the token.Pos where the TokenMutator resides.
@@ -134,6 +139,10 @@ func (m *TokenMutator) Apply() error {
 		return err
 	}
 
+	if m.identity.ID != "" && sha256.Sum256(m.origFile) != m.sourceDigest {
+		return fmt.Errorf("source changed after mutation discovery: %s", m.Position().Filename)
+	}
+
 	if len(m.origSnippet) == 0 {
 		m.origSnippet = extractSnippet(m.origFile, m.Position().Line, 3)
 	}
@@ -154,6 +163,9 @@ func (m *TokenMutator) Apply() error {
 		}
 		m.mutatedSnippet = extractSnippet(payload, m.Position().Line, 3)
 
+		m.appliedSourceHash = fmt.Sprintf("%x", sha256.Sum256(payload))
+		m.applied = true
+
 		return nil
 	}
 
@@ -172,7 +184,12 @@ func (m *TokenMutator) Apply() error {
 	// The shared AST must be restored even if writing the worker copy fails.
 	defer m.restoreNode()
 
-	return m.writeMutatedFile(filename)
+	if err := m.writeMutatedFile(filename); err != nil {
+		return err
+	}
+	m.applied = true
+
+	return nil
 }
 
 func (m *TokenMutator) restoreNode() {
@@ -197,6 +214,7 @@ func (m *TokenMutator) writeMutatedFile(filename string) error {
 	if err != nil {
 		return err
 	}
+	m.appliedSourceHash = fmt.Sprintf("%x", sha256.Sum256(payload))
 
 	if len(m.mutatedSnippet) == 0 {
 		m.mutatedSnippet = extractSnippet(payload, m.Position().Line, 3)
@@ -298,6 +316,7 @@ func (m *TokenMutator) captureSnippets(source []byte) {
 	if !ok {
 		return
 	}
+
 	pos := m.Position()
 	end := pos.Offset + len(originalText)
 	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != originalText {
@@ -351,3 +370,9 @@ func extractSnippet(content []byte, targetLine, contextLines int) []byte {
 
 	return bytes.Join(lines[start:end], []byte("\n"))
 }
+
+// Applied reports a successfully written mutation, not merely a test command.
+func (m *TokenMutator) Applied() bool { return m.applied }
+
+// AppliedSourceHash returns the SHA-256 of the mutated file actually written.
+func (m *TokenMutator) AppliedSourceHash() string { return m.appliedSourceHash }

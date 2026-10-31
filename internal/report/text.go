@@ -32,6 +32,9 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 			fmt.Fprintf(out, "  %s\n", reason)
 		}
 	}
+	for _, target := range document.Replay {
+		fmt.Fprintf(out, "Replay %s: %s\n", target.ID, target.Resolution)
+	}
 	title := "Mutation testing"
 	if options.DryRun {
 		title = "Dry run"

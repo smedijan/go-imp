@@ -33,7 +33,7 @@ func TestRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, flag := range []string{"coverpkg", "diff", "dry-run", "json", "integration", "output", "statuses", "verbose", "tags", "test-cpu", "threshold-efficacy", "threshold-mcover", "timeout-coefficient", "workers", "exclude-files", "include-files", "exclude-workdir"} {
+		for _, flag := range []string{"coverpkg", "diff", "dry-run", "json", "integration", "output", "statuses", "verbose", "tags", "test-cpu", "threshold-efficacy", "threshold-mcover", "timeout-coefficient", "workers", "exclude-files", "include-files", "exclude-workdir", "mutant-ids", "replay-report"} {
 			if !strings.Contains(out, "--"+flag) {
 				t.Errorf("%s help missing flag --%s", name, flag)
 			}
