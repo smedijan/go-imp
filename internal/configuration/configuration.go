@@ -44,6 +44,7 @@ const (
 	RunGroupReviewKey        = "run.group-review"
 	RunJSONKey               = "run.json"
 	RunVerboseKey            = "run.verbose"
+	RunConfirmOutcomesKey    = "run.confirm-outcomes"
 	RunDryRunKey             = "run.dry-run"
 	RunStatusesKey           = "run.statuses"
 	RunOutputKey             = "run.output"

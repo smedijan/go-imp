@@ -107,3 +107,29 @@ func TestReportObservationContextAndUnknown(t *testing.T) {
 		t.Fatalf("unknown context invented from terminal status: %s", payload)
 	}
 }
+
+func TestReportUnconfirmedOutcomeEvidenceAndScore(t *testing.T) {
+	m := &evidenceMutant{stubMutant: stubMutant{status: mutator.NotViable}}
+	e := &mutator.ExecutionEvidence{Category: "test", Confidence: "baseline-unstable", Attempts: []mutator.ExecutionEvidence{{Role: "initial-mutant", Category: "test"}, {Role: "baseline", Category: "test"}}}
+	m.SetExecutionEvidence(e)
+	doc, payload := renderJSON(t, report.Results{Mutants: []mutator.Mutator{m}}, report.Options{})
+	if doc.TestEfficacy != 0 || doc.MutantsKilled != 0 || doc.MutantsNotViable != 1 || doc.MutationsCoverage != 100 {
+		t.Fatalf("incorrect unknown scores: %+v", doc)
+	}
+	if delta := cmp.Diff(e, doc.Groups["NOT VIABLE"][""][0].Execution); delta != "" {
+		t.Fatal(delta)
+	}
+	if !strings.Contains(payload, `"baseline-unstable"`) || e.ReusableDetection() {
+		t.Fatal(payload)
+	}
+	var out bytes.Buffer
+	if err := report.Write(&out, report.Results{Mutants: []mutator.Mutator{m}}, report.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Outcome confirmation: baseline-unstable") {
+		t.Fatal(out.String())
+	}
+	if err := report.Write(&out, report.Results{Mutants: []mutator.Mutator{m}}, report.Options{EfficacyThreshold: 1}); err == nil {
+		t.Fatal("unknown efficacy must not pass a positive threshold")
+	}
+}

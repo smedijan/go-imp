@@ -32,10 +32,8 @@ func TestTriageCLIAtomicPersistence(t *testing.T) {
 			inputData := `{"version":1,"module":"example.com/fixture","entries":[]}`
 			writeFixture(t, input, inputData)
 			writeFixture(t, destination, "previous ledger")
-			configuration.Set(configuration.RunTriageInputKey, input)
-			configuration.Set(configuration.RunTriageOutputKey, destination)
-			configuration.Set(configuration.RunDryRunKey, true)
-			_, err := executeCLI(context.Background(), t, "test", "run")
+			_, err := executeCLI(context.Background(), t, "test", "run", "--dry-run", "--confirm-outcomes",
+				"--triage-input", input, "--triage-output", destination, "--hide-reviewed", "--group-review")
 			if (err != nil) != fail {
 				t.Fatalf("error=%v", err)
 			}
@@ -232,5 +230,14 @@ func TestTriageCLILedgerPublicationFailureAfterReportCommit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join("missing", "triage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("unexpected ledger publication: %v", err)
+	}
+}
+
+func TestTriageCLIConfirmOutcomesValidation(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	_, err := executeCLI(context.Background(), t, "test", "run", "--triage-input", "review.json", "--hide-reviewed", "--confirm-outcomes=invalid")
+	if err == nil || !strings.Contains(err.Error(), "confirm-outcomes") {
+		t.Fatalf("invalid confirmation flag accepted alongside triage flags: %v", err)
 	}
 }

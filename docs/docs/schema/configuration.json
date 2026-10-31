@@ -60,6 +60,12 @@
           "default": [],
           "examples": [["ignored-cache", "generated-data"]]
         },
+        "confirm-outcomes": {
+          "title": "Bounded outcome confirmation",
+          "description": "Confirm killed/timed-out outcomes with a pristine baseline and at most one fresh mutant repeat",
+          "type": "boolean",
+          "default": false
+        },
         "dry-run": {
           "title": "Dry-run mode",
           "description": "Searches for mutants but doesn't execute the tests",

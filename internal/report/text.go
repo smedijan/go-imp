@@ -89,6 +89,13 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 func writeFinding(out io.Writer, m mutator.Mutator, options Options) {
 	pos := m.Position()
 	fmt.Fprintf(out, "    %d:%d %s\n", pos.Line, pos.Column, m.Type())
+	if p, ok := m.(interface {
+		ExecutionEvidence() *mutator.ExecutionEvidence
+	}); ok {
+		if e := p.ExecutionEvidence(); e != nil && e.Confidence != "" {
+			fmt.Fprintf(out, "      Outcome confirmation: %s (%d attempts)\n", e.Confidence, len(e.Attempts))
+		}
+	}
 	if options.Verbose || m.Status() == mutator.Lived {
 		if command := testCommand(m); len(command) > 0 {
 			fmt.Fprintf(out, "      Test command: %s\n", formatCommand(command))
