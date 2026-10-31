@@ -50,7 +50,7 @@ type rootCommand struct {
 
 func (gc rootCommand) execute() error {
 	command, err := gc.cmd.ExecuteC()
-	if err != nil && command != nil && command.Name() == commandName {
+	if err != nil && command != nil && command.Name() == commandName && command.Annotations["report-stage"] != "committed" {
 		jsonFlag, _ := command.Flags().GetBool("json")
 		var gate *execution.ExitError
 		if (jsonFlag || configuration.Get[bool](configuration.RunJSONKey)) && !errors.As(err, &gate) {

@@ -171,25 +171,11 @@ func TestCLIOutputContract(t *testing.T) {
 				}
 			}
 			checkCLIPayload(t, payload, tc.json, tc.noReport)
-			var failures []report.Failure
-			for _, line := range strings.Split(stderr.String(), "\n") {
-				var failure report.Failure
-				if json.Unmarshal([]byte(line), &failure) == nil && failure.Kind == "run_error" {
-					failures = append(failures, failure)
-				}
-			}
-			wantsFailure := tc.noReport && slices.Contains(tc.args, "--json")
-			if wantsFailure {
-				if len(failures) != 1 || failures[0].SchemaVersion != 2 || failures[0].Stage == "" || failures[0].ReportState != "not-committed" || failures[0].PartialResultsAvailable {
-					t.Fatalf("missing/incorrect failure envelope: %+v; stderr: %s", failures, &stderr)
-				}
-			} else if len(failures) != 0 {
-				t.Fatalf("unexpected failure envelope: %+v", failures)
-			}
+			checkCLIErrorEnvelope(t, stderr.String(), tc.noReport && slices.Contains(tc.args, "--json"))
 
 			if tc.exit == 0 {
 				for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
-					if line != "" && !strings.HasPrefix(line, "Progress: ") {
+					if line != "" && !strings.HasPrefix(line, "Progress: ") && !strings.HasPrefix(line, "Discovery: ") && !strings.HasPrefix(line, "Discovery filtered ") {
 						t.Errorf("unexpected non-TTY diagnostic: %s", line)
 					}
 				}
@@ -239,5 +225,23 @@ func checkCLIPayload(t *testing.T, payload []byte, jsonOutput, noReport bool) {
 	}
 	if bytes.Contains(payload, []byte("\x1b[")) {
 		t.Error("redirected report contains ANSI escapes")
+	}
+}
+
+func checkCLIErrorEnvelope(t *testing.T, stderr string, wantsFailure bool) {
+	t.Helper()
+	var failures []report.Failure
+	for _, line := range strings.Split(stderr, "\n") {
+		var failure report.Failure
+		if json.Unmarshal([]byte(line), &failure) == nil && failure.Kind == "run_error" {
+			failures = append(failures, failure)
+		}
+	}
+	if wantsFailure {
+		if len(failures) != 1 || failures[0].SchemaVersion != 2 || failures[0].Stage == "" || failures[0].ReportState != "not-committed" || failures[0].PartialResultsAvailable {
+			t.Fatalf("missing/incorrect failure envelope: %+v; stderr: %s", failures, stderr)
+		}
+	} else if len(failures) != 0 {
+		t.Fatalf("unexpected failure envelope: %+v", failures)
 	}
 }

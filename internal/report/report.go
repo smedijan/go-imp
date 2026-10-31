@@ -23,6 +23,7 @@ type Results struct {
 	Module  string
 	Mutants []mutator.Mutator
 	Elapsed time.Duration
+	Replay  []mutator.ReplayTarget
 }
 
 // Options selects presentation and quality gates, never which mutants are executed.
@@ -121,7 +122,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
-		SchemaVersion: 2, GoModule: results.Module, DryRun: options.DryRun,
+		SchemaVersion: 2, IdentityVersion: 1, Replay: results.Replay, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
 		TestEfficacy: 100, MutationsCoverage: 100,
 		SelectedStatuses:  make([]string, 0, len(options.Statuses)),
@@ -180,15 +181,28 @@ func addFinding(document *internal.OutputResult, m mutator.Mutator) {
 		document.Groups[status] = files
 	}
 	pos := m.Position()
-	var evidence *mutator.ExecutionEvidence
+	finding := internal.Mutation{
+		Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
+	}
 	if provider, ok := m.(interface {
 		ExecutionEvidence() *mutator.ExecutionEvidence
 	}); ok {
-		evidence = provider.ExecutionEvidence()
+		finding.Execution = provider.ExecutionEvidence()
 	}
-	files[pos.Filename] = append(files[pos.Filename], internal.Mutation{
-		Execution: evidence, Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
-	})
+	if identified, ok := m.(mutator.Identified); ok {
+		identity := identified.Identity()
+		finding.Identity = &identity
+		finding.ID = identity.ID
+	}
+	if applied, ok := m.(interface{ Applied() bool }); ok {
+		finding.Applied = applied.Applied()
+	}
+	if evidence, ok := m.(interface{ AppliedSourceHash() string }); ok {
+		finding.AppliedSourceHash = evidence.AppliedSourceHash()
+	}
+	finding.OriginalSnippet = string(m.OrigSnippet())
+	finding.MutatedSnippet = string(m.MutatedSnippet())
+	files[pos.Filename] = append(files[pos.Filename], finding)
 }
 
 func selected(statuses []mutator.Status, status mutator.Status) bool {

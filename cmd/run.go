@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/MakeNowJust/heredoc"
@@ -162,6 +163,13 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		if err := output.Commit(); err != nil {
 			return err
 		}
+		cmd.Annotations["report-stage"] = "committed"
+
+		for _, target := range results.Replay {
+			if target.Resolution != "matched" {
+				return fmt.Errorf("exact replay unresolved; no mutants executed (see replay diagnostics)")
+			}
+		}
 
 		return reportErr
 	}
@@ -177,6 +185,11 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 	fDiff, err := diff.New(mod)
 	if err != nil {
 		return report.Results{}, err
+	}
+
+	ids, err := configuredReplayIDs(mod.Name)
+	if err != nil {
+		return report.Results{}, execution.NewUsageError(err)
 	}
 
 	c := coverage.New(workDir, mod)
@@ -200,6 +213,7 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		Cov:       cProfile.Profile,
 		Diff:      fDiff,
 		Exclusion: exclude,
+		TargetIDs: ids,
 	}
 
 	mut := engine.New(mod, codeData, executor)
@@ -220,6 +234,8 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "mutant-ids", CfgKey: configuration.RunMutantIDsKey, DefaultV: []string{}, Usage: "select exact mutant IDs (comma-separated or repeated)"},
+		{Name: "replay-report", CfgKey: configuration.RunReplayReportKey, DefaultV: "", Usage: "select all findings in an identity-aware JSON `FILE`"},
 		{Name: "json", CfgKey: configuration.RunJSONKey, DefaultV: false, Usage: "write grouped JSON instead of human-readable text"},
 		{Name: "statuses", CfgKey: configuration.RunStatusesKey, DefaultV: "", Usage: "filter findings by comma-separated status `LIST` (default all)"},
 		{Name: "verbose", CfgKey: configuration.RunVerboseKey, Shorthand: "v", DefaultV: false, Usage: "expand source context and test commands for all selected statuses"},
@@ -269,4 +285,30 @@ func setMutantTypeFlags(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+func configuredReplayIDs(module string) ([]string, error) {
+	var ids []string
+	for _, list := range configuration.Get[[]string](configuration.RunMutantIDsKey) {
+		ids = append(ids, strings.Split(list, ",")...)
+	}
+	if err := report.ValidateMutantIDs(ids); err != nil {
+		return nil, err
+	}
+	if path := configuration.Get[string](configuration.RunReplayReportKey); path != "" {
+		// #nosec G304 -- the user explicitly selects this replay input file.
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open replay report: %w", err)
+		}
+		defer func() { _ = file.Close() }()
+		prior, err := report.ReplayIDs(file, module)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, prior...)
+	}
+	slices.Sort(ids)
+
+	return slices.Compact(ids), nil
 }

@@ -35,7 +35,8 @@ require judgment: equivalent mutations and intentional behavior are possible.
 ### JSON
 
 `--json` selects grouped JSON instead of human-readable text. It writes exactly one
-JSON document, without progress messages, ANSI escapes or source snippets.
+JSON document, without progress messages or ANSI escapes. Findings include source
+snippets when available.
 
 ```shell
 imp run --json --statuses lived,not-covered | jq '.groups'
@@ -168,7 +169,8 @@ still returned. Exit codes remain unchanged.
 The envelope never replaces a report file. Existing committed files survive
 pre-final failures. A report/write failure on stdout can leave a partial report
 stream, which must not be treated as a completed report. Quality-gate failures
-have a completed report and **do not** emit `run_error`.
+have a completed report and **do not** emit `run_error`. Unresolved exact replay
+also returns a completed diagnostic report without a pre-final envelope.
 
 ### Status filtering
 
