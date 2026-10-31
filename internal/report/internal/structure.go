@@ -1,10 +1,14 @@
 // Package internal provides the versioned JSON report schema.
 package internal
 
-import "github.com/smedijan/go-imp/internal/mutator"
+import (
+	"github.com/smedijan/go-imp/internal/diff"
+	"github.com/smedijan/go-imp/internal/mutator"
+)
 
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
+	Selection         *diff.Selection                  `json:"selection,omitempty"`
 	IdentityVersion   int                              `json:"identity_version"`
 	Replay            []mutator.ReplayTarget           `json:"replay,omitempty"`
 	SchemaVersion     int                              `json:"schema_version"`
