@@ -85,6 +85,8 @@ const (
 	InvertLoopCtrl
 	InvertNegatives
 	RemoveSelfAssignments
+	BooleanReturn
+	ErrorReturn
 )
 
 // Types allows to iterate over Type.
@@ -101,6 +103,8 @@ var Types = []Type{
 	InvertLoopCtrl,
 	InvertNegatives,
 	RemoveSelfAssignments,
+	BooleanReturn,
+	ErrorReturn,
 }
 
 func (mt Type) String() string {
@@ -130,6 +134,10 @@ func (mt Type) String() string {
 	case RemoveSelfAssignments:
 		return "REMOVE_SELF_ASSIGNMENTS"
 
+	case BooleanReturn:
+		return "BOOLEAN_RETURN"
+	case ErrorReturn:
+		return "ERROR_RETURN"
 	default:
 		panic("this should not happen")
 	}

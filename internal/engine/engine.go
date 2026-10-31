@@ -51,6 +51,8 @@ type Engine struct {
 	mutantStream   chan mutator.Mutator
 	module         gomodule.GoModule
 	booleanShadows map[string]map[string]bool
+	returnLoader   ReturnAnalysisLoader
+	customFS       bool
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -86,6 +88,7 @@ func New(mod gomodule.GoModule, codeData CodeData, executor Executor, opts ...Op
 func WithDirFs(dirFS fs.FS) Option {
 	return func(m Engine) Engine {
 		m.fs = dirFS
+		m.customFS = true
 
 		return m
 	}
@@ -98,6 +101,14 @@ func WithDirFs(dirFS fs.FS) Option {
 func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
 	files := mu.sourceFiles()
+	var returns []mutator.Mutator
+	if returnAnalysisEnabled() {
+		var err error
+		returns, err = mu.returnMutations(ctx, files)
+		if err != nil {
+			return report.Results{}, err
+		}
+	}
 	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
 	progress := log.NewFileProgress(len(files))
 	defer progress.Finish()
@@ -112,7 +123,7 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		}
 	}()
 
-	var discovered []mutator.Mutator
+	discovered := returns
 	for mutant := range mu.mutantStream {
 		discovered = append(discovered, mutant)
 	}
