@@ -293,8 +293,6 @@ func (s *Session) observation(id string, status mutator.Status, now time.Time) (
 	if s.reused[id] {
 		e.Provenance = "reused"
 		e.Confidence = "confirmed"
-	} else if exists && old.Fingerprint != s.fingerprint {
-		e.Transition = "unresolved"
 	}
 	if exists && conclusive(status) && conclusive(old.Status) {
 		if old.Status != status {

@@ -243,3 +243,17 @@ func TestFingerprintToolchainAndUnsupportedMetadata(t *testing.T) {
 		t.Fatal("external GOFLAGS inputs accepted")
 	}
 }
+
+func TestFingerprintTagsSelectDependencyClosure(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "0")
+	t.Setenv("GOWORK", "off")
+	root, _ := fixture(t)
+	write(t, filepath.Join(root, "tagged.s"), "//go:build customasm\n\n")
+	path := filepath.Join(t.TempDir(), "ledger")
+	if _, err := ledger.Fingerprint(context.Background(), root, path, "", ""); err != nil {
+		t.Fatal("inactive assembly must not affect active closure", err)
+	}
+	if _, err := ledger.Fingerprint(context.Background(), root, path, "", "customasm"); err == nil || !strings.Contains(err.Error(), "nonstandard assembly") {
+		t.Fatalf("build tags not applied to dependency metadata: %v", err)
+	}
+}

@@ -36,13 +36,16 @@ same broad SHA-256 fingerprint of:
 - The sorted process environment, including flags and potential secrets. Only
   the resulting hash is persisted, **never raw environment values**.
 
-Any such change invalidates survivors **and kills**. Dependency metadata failure,
-symlinks/nonregular inputs, cgo, nonstandard assembly, and unsupported `GOFLAGS`
-disable reuse and persistence for that run, with a report note. Supported
-`GOFLAGS` are `-p=`, `-tags=`, `-race`, `-trimpath`, `-mod=`, and `-buildvcs=`;
-input-bearing options such as overlays, external modfiles and tool executors
-conservatively bypass reuse. Cgo's generated temporary `GOGCCFLAGS` is not hashed
-because cgo execution is unsupported. No dependency graph narrowing is attempted.
+Any such change invalidates survivors **and kills**. Dependency metadata failure, nested symlinks/junctions or
+nonregular inputs, cgo, nonstandard assembly, and unsupported `GOFLAGS` disable reuse and persistence for that run, with
+a report note. Supported `GOFLAGS` are `-p=`, `-tags=`, `-race`, `-trimpath`, `-mod=`, and `-buildvcs=`; input-bearing
+options such as overlays, external modfiles and tool executors conservatively bypass reuse. Cgo's generated temporary
+`GOGCCFLAGS` is not hashed because cgo execution is unsupported. Explicitly selected module, workspace, dependency and
+toolchain root directories are canonicalized (`EvalSymlinks` on non-Windows; on Windows, a directory handle's normalized
+final DOS/UNC path, including GOROOT junctions). Both the original selection and canonical root path are hashed, along
+with the canonical tree; retargeting a root invalidates evidence. Links encountered **inside** any tree remain
+unsupported and are never followed. Ledger overlap is refused for both selected and resolved paths, including
+cache-directory aliases. No dependency graph narrowing is attempted.
 
 This is not a sandbox or a proof of deterministic tests. Network services,
 clocks, random inputs, external repository metadata and files outside these roots cannot
@@ -52,7 +55,7 @@ Worker isolation currently creates fresh file/directory timestamps rather than
 preserving original timestamps. Tests reading original fixture metadata through
 stable original paths are covered by timestamp invalidation; tests whose behavior
 depends on worker-copy creation/modification times are not hermetic and must keep
-incremental mode disabled. Access times and other untracked filesystem metadata
+incremental mode disabled. Access times, root-alias metadata and other untracked filesystem metadata
 are likewise unsupported inputs. Refresh after changing external state.
 Whole-tree hashing is intentionally
 expensive and may outweigh savings on small suites. Reports stored inside an

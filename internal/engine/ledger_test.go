@@ -116,3 +116,58 @@ func TestEngineLedgerReuseCoverageTransitionsAndFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestEngineLedgerReplayPublishesOnlyResolvedSet(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	configuration.Set(configuration.MutantTypeEnabledKey(mutator.ArithmeticBase), true)
+	source := fstest.MapFS{"calc.go": &fstest.MapFile{Data: []byte("package calc\nfunc Sum(a,b int)int{return a+b}\n")}}
+	covered := coverage.Profile{"calc.go": {{StartLine: 2, EndLine: 2, StartCol: 1, EndCol: 100}}}
+	options := ledger.Options{Path: filepath.Join(t.TempDir(), "ledger.json"), TTL: time.Hour, MaxEntries: 20, Fingerprint: func(context.Context) (string, error) { return "same-inputs", nil }}
+	run := func(ids []string) report.Results {
+		t.Helper()
+		session := ledger.Open(context.Background(), options)
+		defer session.Close()
+		executor := &ledgerExecutor{status: mutator.Killed}
+		e := engine.New(gomodule.GoModule{Name: "example.com/ledger", CallingDir: "."}, engine.CodeData{Cov: covered, TargetIDs: ids}, executor, engine.WithDirFs(source), engine.WithLedger(session))
+		result, err := e.Run(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.Reason != "" {
+			t.Fatal(session.Reason)
+		}
+
+		return result
+	}
+	initial := run(nil)
+	id := identityID(initial.Mutants[0])
+	run(nil)
+	options.Refresh = true
+	matched := run([]string{id})
+	if len(matched.Replay) != 1 || matched.Replay[0].Resolution != "matched" || matched.Evidence[0].Confirmations != 1 {
+		t.Fatal(matched)
+	}
+	options.Refresh = false
+	session := ledger.Open(context.Background(), options)
+	if _, ok := session.Reuse(id); ok {
+		t.Fatal("successful replay refresh did not replace confirmed history")
+	}
+	session.Close()
+	before, err := os.ReadFile(options.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Refresh = true
+	missing := run([]string{"imp-v1:" + strings.Repeat("a", 64) + ":" + strings.Repeat("b", 64)})
+	if len(missing.Mutants) != 0 || len(missing.Replay) != 1 || missing.Replay[0].Resolution != "missing" {
+		t.Fatal(missing)
+	}
+	after, err := os.ReadFile(options.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("unresolved replay refresh published history")
+	}
+}

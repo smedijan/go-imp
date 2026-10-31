@@ -32,7 +32,17 @@ func TestReportLedgerHistoricalEvidenceDoesNotCountAsCurrent(t *testing.T) {
 	if err := report.Write(&output, results, report.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "stale (historical,") || !strings.Contains(output.String(), "historical=KILLED") {
+	if !strings.Contains(output.String(), "Ledger: historical outcomes only\n") || !strings.Contains(output.String(), "stale (historical,") || !strings.Contains(output.String(), "historical=KILLED") {
 		t.Fatal(output.String())
+	}
+}
+
+func TestReportLedgerEmptyNoteIsOmitted(t *testing.T) {
+	var output bytes.Buffer
+	if err := report.Write(&output, report.Results{}, report.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "Ledger:") {
+		t.Fatal("empty ledger note rendered", output.String())
 	}
 }

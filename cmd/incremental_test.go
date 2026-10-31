@@ -212,3 +212,20 @@ func TestCLIIncrementalFailedReplayRefreshPreservesLedger(t *testing.T) {
 		})
 	}
 }
+
+func TestCLIIncrementalAcceptsRetentionBoundaries(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	dir := newModuleFixture(t)
+	t.Chdir(dir)
+	for _, limits := range [][]string{
+		{"--incremental-ttl-hours=1", "--incremental-max-entries=1"},
+		{"--incremental-ttl-hours=720", "--incremental-max-entries=10000"},
+	} {
+		configuration.Reset()
+		args := append([]string{"run", "--json", "--dry-run", "--incremental"}, limits...)
+		if out, err := executeCLI(context.Background(), t, "test", args...); err != nil {
+			t.Fatalf("valid retention limits rejected: %v: %s", err, out)
+		}
+	}
+}

@@ -161,56 +161,84 @@ func hashFile(ctx context.Context, h hash.Hash, path string) error {
 }
 
 func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPath string) error {
+	resolvedParent, err := canonicalRoot(filepath.Dir(ledgerPath))
+	if err != nil {
+		return fmt.Errorf("ledger directory resolution unavailable")
+	}
+	resolvedLedger := filepath.Join(resolvedParent, filepath.Base(ledgerPath))
 	paths := make([]string, 0, len(roots))
 	for path := range roots {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
-	for _, path := range paths {
-		if path == "" {
+	for _, selected := range paths {
+		if selected == "" {
 			return fmt.Errorf("empty dependency root")
 		}
-		relative, err := filepath.Rel(path, ledgerPath)
-		if err != nil || relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+		resolved, err := canonicalRoot(selected)
+		if err != nil {
+			return fmt.Errorf("input root resolution unavailable")
+		}
+		if InputRootOverlapsPath(selected, ledgerPath) || InputRootOverlapsPath(resolved, resolvedLedger) {
 			return fmt.Errorf("ledger overlaps input tree")
 		}
-		frame(h, path)
-		err = filepath.WalkDir(path, func(name string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if d.IsDir() {
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-				frame(h, name)
-				frame(h, info.Mode().String())
-				_, _ = fmt.Fprintf(h, "%d:", info.ModTime().UnixNano())
-
-				return nil
-			}
-			if !d.Type().IsRegular() {
-				relative, err := filepath.Rel(path, name)
-				if err != nil {
-					return fmt.Errorf("unsupported nonregular input (mode=%s)", d.Type())
-				}
-
-				return fmt.Errorf("unsupported nonregular input %q (mode=%s)", filepath.ToSlash(relative), d.Type())
-			}
-			frame(h, name)
-
-			return hashFile(ctx, h, name)
-		})
-		if err != nil {
+		// Only explicitly selected roots are resolved. Their selection identity and
+		// canonical targets both participate, so retargeting invalidates evidence.
+		frame(h, selected)
+		frame(h, resolved)
+		if err = hashTree(ctx, h, resolved); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// InputRootOverlapsPath checks lexical containment, failing closed on ambiguous
+// paths. Root aliases must also be checked using their canonical targets.
+func InputRootOverlapsPath(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		rootVolume, pathVolume := filepath.VolumeName(root), filepath.VolumeName(path)
+		differentDOSVolumes := filepath.IsAbs(root) && filepath.IsAbs(path) && len(rootVolume) == 2 && len(pathVolume) == 2 && rootVolume[1] == ':' && pathVolume[1] == ':' && !strings.EqualFold(rootVolume, pathVolume)
+
+		return !differentDOSVolumes
+	}
+
+	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
+}
+
+func hashTree(ctx context.Context, h hash.Hash, root string) error {
+	return filepath.WalkDir(root, func(name string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			frame(h, name)
+			frame(h, info.Mode().String())
+			_, _ = fmt.Fprintf(h, "%d:", info.ModTime().UnixNano())
+
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			relative, err := filepath.Rel(root, name)
+			if err != nil {
+				return fmt.Errorf("unsupported nonregular input (mode=%s)", d.Type())
+			}
+
+			return fmt.Errorf("unsupported nonregular input %q (mode=%s)", filepath.ToSlash(relative), d.Type())
+		}
+		frame(h, name)
+
+		return hashFile(ctx, h, name)
+	})
 }
 
 // Input-bearing Go flags cannot safely be represented by their spelling alone.
