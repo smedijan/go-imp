@@ -28,3 +28,16 @@ Each _mutant type_ can be enabled or disabled, and only a subset of mutations is
 | [INVERT BITWISE ](invert_bitwise.md)                   |  FALSE  |
 | [INVERT BWASSIGN ](invert_bitwise_assignments.md)      |  FALSE  |
 | [REMOVE_SELF_ASSIGNMENTS ](remove_self_assignments.md) |  FALSE  |
+
+## Unique edits and counts
+
+After selecting enabled mutation types, imp keeps only one edit for the same source token location and replacement.
+Identity token substitutions are discarded before formatting; formatting changes alone do not constitute a mutation.
+This is mechanical deduplication, not general semantic-equivalence detection.
+
+Global totals, status counts, and efficacy/coverage metrics count unique mutants, not contributing mutation types.
+Per-operator statistics and finding types attribute each unique edit exclusively to the first enabled family in the
+engine's stable token mapping order, so operator counts sum to the global total. For subtraction this primary family is
+`INVERT_NEGATIVES` when enabled, otherwise `ARITHMETIC_BASE`. Both families independently select unary and binary
+subtraction-to-addition edits; enabling both does not execute or count those edits twice. Token-mutator discovery
+metadata retains all enabled contributing families without changing the report schema or the mutator interface.

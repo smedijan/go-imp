@@ -51,7 +51,7 @@ var TokenMutantType = map[token.Token][]mutator.Type{
 	token.QUO:            {mutator.ArithmeticBase},
 	token.QUO_ASSIGN:     {mutator.InvertAssignments, mutator.RemoveSelfAssignments},
 	token.REM:            {mutator.ArithmeticBase},
-	token.REM_ASSIGN:     {mutator.InvertAssignments, mutator.RemoveSelfAssignments},
+	token.REM_ASSIGN:     {mutator.RemoveSelfAssignments},
 	token.SHL:            {mutator.InvertBitwise},
 	token.SHL_ASSIGN:     {mutator.RemoveSelfAssignments, mutator.InvertBitwiseAssignments},
 	token.SHR:            {mutator.InvertBitwise},
@@ -95,7 +95,6 @@ var tokenMutations = map[mutator.Type]map[token.Token]token.Token{
 		token.ADD_ASSIGN: token.SUB_ASSIGN,
 		token.MUL_ASSIGN: token.QUO_ASSIGN,
 		token.QUO_ASSIGN: token.MUL_ASSIGN,
-		token.REM_ASSIGN: token.REM_ASSIGN,
 		token.SUB_ASSIGN: token.ADD_ASSIGN,
 	},
 	mutator.InvertBitwise: {
