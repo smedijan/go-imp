@@ -40,7 +40,6 @@ func ObserveSelectedTest(ctx context.Context, directory, pkg, test string, timeo
 	mutant.SetWorkdir(directory)
 	executor := &MutantExecutor{execContext: exec.CommandContext, testExecutionTime: timeout, buildTags: configuration.Get[string](configuration.RunTagsKey), selectedTest: test, verificationSnapshot: true}
 	attempt := mutantExecutor{executor: executor, mutant: mutant}
-	status := attempt.runTests(ctx, directory, pkg)
 
-	return status, mutant.ExecutionEvidence()
+	return attempt.runTests(ctx, directory, pkg)
 }

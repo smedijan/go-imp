@@ -561,3 +561,41 @@ func TestVerificationRejectsDistinctRootAnchor(t *testing.T) {
 		t.Fatalf("distinct Git/module directory anchor accepted: %v", err)
 	}
 }
+
+func TestVerificationIgnoresGlobalConfirmation(t *testing.T) {
+	configure(t)
+	for _, enabled := range []bool{false, true} {
+		name := "disabled"
+		if enabled {
+			name = "enabled"
+		}
+		t.Run(name, func(t *testing.T) {
+			configuration.Set(configuration.RunConfirmOutcomesKey, enabled)
+			// Verification intentionally ignores run.diff and must never execute
+			// the unrelated failing test, even with global confirmation enabled.
+			configuration.Set(configuration.RunDiffRef, "not-a-valid-ref")
+			unrelated := "func TestUnrelated(t *testing.T) { t.Fatal(\"not selected\") }\n"
+			root := repository(t, production, ignored+unrelated)
+			id := targetID(t, root)
+			put(t, root, "value_test.go", caught+unrelated)
+			result := runFixture(t, root, id)
+			if result.Outcome != "detected" || !result.HistoricalImprovement || len(result.Observations) != 8 {
+				t.Fatalf("verification changed with confirmation=%t: %+v", enabled, result)
+			}
+			for _, observation := range result.Observations {
+				e := observation.Evidence
+				if e == nil || len(e.Attempts) != 0 || e.Confidence != "" || !e.JSONValid {
+					t.Fatalf("not direct selected-test evidence: %+v", e)
+				}
+				if !strings.Contains(strings.Join(e.Args, " "), "-run ^TestValue$ .") {
+					t.Fatalf("selection broadened: %v", e.Args)
+				}
+				for _, failure := range e.FailingTests {
+					if failure.Test != "TestValue" {
+						t.Fatalf("unrelated attribution: %+v", failure)
+					}
+				}
+			}
+		})
+	}
+}

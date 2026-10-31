@@ -17,6 +17,7 @@
 package workdir_test
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -376,4 +377,50 @@ func getFileBytes() []byte {
 	b, _ := os.ReadFile("testdata/filetocopy_go")
 
 	return b
+}
+
+func TestSnapshotExcludesGitMetadataAndRetainsPristineSource(t *testing.T) {
+	src, tmp := t.TempDir(), t.TempDir()
+	for _, name := range []string{".git", "nested/.git", "source.go"} {
+		path := filepath.Join(src, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("original"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dealer := workdir.NewCachedDealer(tmp, src)
+	snapshot, err := dealer.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(snapshot)
+	if err := os.WriteFile(filepath.Join(src, "source.go"), []byte("edited"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{".git", "nested/.git"} {
+		if _, err := os.Lstat(filepath.Join(snapshot, name)); !os.IsNotExist(err) {
+			t.Fatalf("Git pointer copied: %s: %v", name, err)
+		}
+	}
+	// #nosec G304 -- path belongs to this test-owned snapshot.
+	source, err := os.ReadFile(filepath.Join(snapshot, "source.go"))
+	if err != nil || string(source) != "original" {
+		t.Fatalf("snapshot changed: %s: %v", source, err)
+	}
+}
+
+func TestSnapshotCancellationLeavesNoPartialCopy(t *testing.T) {
+	src, tmp := t.TempDir(), t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	dealer := workdir.NewCachedDealer(tmp, src)
+	if _, err := dealer.Snapshot(ctx); err == nil {
+		t.Fatal("cancelled snapshot succeeded")
+	}
+	entries, err := os.ReadDir(tmp)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("partial snapshot: %v %v", entries, err)
+	}
 }

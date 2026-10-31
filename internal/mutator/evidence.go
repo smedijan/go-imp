@@ -3,6 +3,13 @@ package mutator
 // ExecutionEvidence describes an observed process attempt, not a replay recipe.
 // A nil evidence pointer means no attempt was observed by this implementation.
 type ExecutionEvidence struct {
+	// Confidence is absent unless bounded outcome confirmation was requested.
+	Confidence string `json:"confidence,omitempty"`
+	// Attempts contains the original observation followed by bounded confirmation
+	// observations. Children have no nested Attempts.
+	Attempts []ExecutionEvidence `json:"attempts,omitempty"`
+	Role     string              `json:"role,omitempty"`
+
 	Args                  []string      `json:"args"`
 	WorkingDirectory      string        `json:"working_directory"`
 	PackageScope          string        `json:"package_scope"`
@@ -44,3 +51,9 @@ func (r *EvidenceRecorder) SetExecutionEvidence(e *ExecutionEvidence) { r.execut
 
 // ExecutionEvidence returns the observation, or nil when unavailable.
 func (r *EvidenceRecorder) ExecutionEvidence() *ExecutionEvidence { return r.executionEvidence }
+
+// ReusableDetection explicitly opts confirmed test failures into future reuse.
+// Missing evidence, timeouts and unverified/unstable observations are not reusable.
+func (e *ExecutionEvidence) ReusableDetection() bool {
+	return e != nil && e.Confidence == "confirmed" && e.Category == "test"
+}

@@ -31,10 +31,23 @@ func (identityExecutor) Execute(_ context.Context, mutants []mutator.Mutator, _ 
 
 func enableIdentityOperators(t *testing.T) {
 	t.Helper()
-	configuration.Reset()
-	t.Cleanup(configuration.Reset)
+	viperSet(map[string]any{})
+	t.Cleanup(viperReset)
+}
+
+func TestEnableIdentityOperatorsRestoresDefaults(t *testing.T) {
+	t.Run("identity configuration", func(t *testing.T) {
+		enableIdentityOperators(t)
+		configuration.Set(configuration.MutantTypeEnabledKey(mutator.InvertNegatives), false)
+	})
+
+	viperSet(map[string]any{})
+	defer viperReset()
 	for _, operator := range mutator.Types {
-		configuration.Set(configuration.MutantTypeEnabledKey(operator), operator != mutator.BooleanReturn && operator != mutator.ErrorReturn)
+		want := operator != mutator.BooleanReturn && operator != mutator.ErrorReturn
+		if got := configuration.Get[bool](configuration.MutantTypeEnabledKey(operator)); got != want {
+			t.Errorf("%s enabled after identity cleanup: got %t, want %t", operator, got, want)
+		}
 	}
 }
 
