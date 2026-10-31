@@ -42,6 +42,7 @@ import (
 // mutations on different files in parallel.
 type TokenMutator struct {
 	mutator.EvidenceRecorder
+	mutator.ObservationRecorder
 	pkg           string
 	fs            *token.FileSet
 	file          *ast.File

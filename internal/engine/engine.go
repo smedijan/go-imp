@@ -159,6 +159,7 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	}
 	discovered = canonicalMutants(discovered)
 	discovered, replay := selectMutants(discovered, mu.codeData.TargetIDs, mu.sourceLocators)
+	observeReplaySelection(discovered, len(mu.codeData.TargetIDs) > 0)
 	res, err := mu.executeTests(ctx, discovered, files, progress)
 	res.Replay = replay
 	res.Elapsed = time.Since(start)
@@ -427,7 +428,9 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm.families = []mutator.Type{mt}
 		byReplacement[replacement] = tm
 		unique = append(unique, tm)
-		tm.SetStatus(mu.mutationStatus(set.PositionFor(node.TokPos, false)))
+		status, observation := mu.observeMutation(pkg, set, file, set.PositionFor(node.TokPos, false))
+		tm.SetStatus(status)
+		tm.SetObservationContext(observation)
 		tm.captureSnippets(src)
 		tm.captureIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, fileName), src)
 	}
@@ -499,20 +502,6 @@ func normalisePkgPath(pkg string) string {
 	sep := fmt.Sprintf("%c", os.PathSeparator)
 
 	return strings.ReplaceAll(pkg, sep, "/")
-}
-
-func (mu *Engine) mutationStatus(pos token.Position) mutator.Status {
-	var status mutator.Status
-
-	if mu.codeData.Cov.IsCovered(pos) {
-		status = mutator.Runnable
-	}
-
-	if !mu.codeData.Diff.IsChanged(pos) {
-		status = mutator.Skipped
-	}
-
-	return status
 }
 
 func (mu *Engine) executeTests(ctx context.Context, discovered []mutator.Mutator, files []string, progress *log.FileProgress) (report.Results, error) {

@@ -89,6 +89,47 @@ JSON object key order is not significant. Findings within each file are sorted b
 location and operator, independent of worker completion order. Elapsed time is in
 seconds. Empty or unmatched results produce a valid report with `"groups": {}`.
 
+### Source ownership and selection (schema 2)
+
+Each finding has `observation_context`, or explicit `null` when its mutator does not
+supply source/selection observations. Missing context is **not** reconstructed from
+terminal status, a test command, or an opaque mutant ID.
+
+`package`, `package_path`, and `enclosing_symbol` are objects with `value`, `known`
+and `truncated`. Labels retain at most 1024 UTF-8 bytes without splitting a rune;
+truncated labels are display prefixes, never identities. `package` is the source
+package declaration name; `package_path` is the resolved import path. Syntax-only
+filesystem adapters cannot establish that import path and mark it unknown.
+Unknown labels use `known: false`, an empty value, and `truncated: false`.
+
+The enclosing symbol reuses the parsed top-level declaration used by identity:
+`func::Name` for functions, `func:/ReceiverType:Method` for methods, and declaration
+kind plus colon-separated names for grouped declarations (for example `var:A:B`).
+Mutations inside anonymous functions name the containing top-level declaration;
+no synthetic closure identity or inner-function attribution is invented.
+
+`selection` records actual engine inputs/decisions before terminal test outcomes:
+
+| Field | Values and meaning |
+| --- | --- |
+| `discovery` | `active-build`, or `syntax-only` for explicit filesystem adapters |
+| `file` | `included`: the source passed file exclusion/generated-file rules |
+| `coverage` | `covered` or `not-covered`, from the coverage position check |
+| `diff` | `changed`, `outside-diff`, or `unrestricted` for an empty effective diff |
+| `replay` | `not-requested`, or `matched` after atomic exact-set resolution |
+| `dry_run` | Observed dry-run configuration; the standard executor's captured mode is authoritative |
+| `eligibility_reason` | `outside-diff`, `not-covered`, `dry-run`, or `covered-and-in-scope` |
+| `impact_provenance` | `unknown`: no dependency/individual-test impact provenance is inferred |
+
+Eligibility follows scheduling precedence: outside-diff candidates are skipped,
+otherwise uncovered candidates are not executed, otherwise dry-run candidates are
+not applied, otherwise the candidate is eligible. Eligibility is not proof of an
+attempt or success; use `execution` and terminal status for observed outcomes.
+Excluded/inactive files and unselected mutants have no findings: this metadata does
+not invent exclusion-pattern explanations or observations for absent candidates.
+Unresolved replay sets have only the existing top-level replay diagnostics.
+Detailed dependency/impact selection provenance remains explicitly unknown.
+
 ### Execution evidence (schema 2)
 
 Schema 2 adds optional `execution` on each finding; existing groups, counts and

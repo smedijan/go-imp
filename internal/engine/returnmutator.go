@@ -15,6 +15,7 @@ import (
 // the AST, preserving all other expressions, comments, and formatting.
 type ReturnMutator struct {
 	mutator.EvidenceRecorder
+	mutator.ObservationRecorder
 	pkg                         string
 	position                    token.Position
 	pos                         token.Pos

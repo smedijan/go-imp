@@ -206,6 +206,7 @@ func (m *mutantExecutor) execute(ctx context.Context, workerName string, cancel 
 	if ctx.Err() != nil {
 		return nil, errExecutionStopped
 	}
+	observeExecutionMode(m.mutant, m.executor.dryRun)
 	if m.mutant.Status() == mutator.NotCovered || m.mutant.Status() == mutator.Skipped || m.executor.dryRun {
 		return m.mutant, nil
 	}

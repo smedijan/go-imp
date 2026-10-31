@@ -28,15 +28,16 @@ type OutputResult struct {
 
 // Mutation omits the status and filename supplied by its enclosing group.
 type Mutation struct {
-	Execution         *mutator.ExecutionEvidence `json:"execution,omitempty"`
-	ID                string                     `json:"id,omitempty"`
-	Identity          *mutator.Identity          `json:"identity,omitempty"`
-	AppliedSourceHash string                     `json:"applied_source_sha256,omitempty"`
-	Applied           bool                       `json:"applied"`
-	OriginalSnippet   string                     `json:"original_snippet,omitempty"`
-	MutatedSnippet    string                     `json:"mutated_snippet,omitempty"`
-	Type              string                     `json:"type"`
-	Line              int                        `json:"line"`
-	Column            int                        `json:"column"`
-	TestCommand       string                     `json:"test_command,omitempty"`
+	ObservationContext *mutator.ObservationContext `json:"observation_context"`
+	Execution          *mutator.ExecutionEvidence  `json:"execution,omitempty"`
+	ID                 string                      `json:"id,omitempty"`
+	Identity           *mutator.Identity           `json:"identity,omitempty"`
+	AppliedSourceHash  string                      `json:"applied_source_sha256,omitempty"`
+	Applied            bool                        `json:"applied"`
+	OriginalSnippet    string                      `json:"original_snippet,omitempty"`
+	MutatedSnippet     string                      `json:"mutated_snippet,omitempty"`
+	Type               string                      `json:"type"`
+	Line               int                         `json:"line"`
+	Column             int                         `json:"column"`
+	TestCommand        string                      `json:"test_command,omitempty"`
 }

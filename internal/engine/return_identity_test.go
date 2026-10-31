@@ -49,6 +49,10 @@ func TestReturnIdentityDeterminismAndReplayResolution(t *testing.T) {
 		if !ok {
 			t.Fatal("return mutation has no identity")
 		}
+		observation := observationOf(t, m)
+		if observation.Package.Value != "calc" || observation.EnclosingSymbol.Value != "func::Keep" || observation.Selection.Coverage != "not-covered" || observation.Selection.ImpactProvenance != "unknown" {
+			t.Fatalf("missing return owner/eligibility context: %+v", observation)
+		}
 		edit := identity.Identity()
 		if edit.ID == "" || edit.ModulePath != "calc.go" || edit.Original == "" || edit.Replacement == "" {
 			t.Fatalf("incomplete return identity: %+v", edit)

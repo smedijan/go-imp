@@ -189,6 +189,9 @@ func addFinding(document *internal.OutputResult, m mutator.Mutator) {
 	}); ok {
 		finding.Execution = provider.ExecutionEvidence()
 	}
+	if provider, ok := m.(mutator.ObservationProvider); ok {
+		finding.ObservationContext = provider.ObservationContext()
+	}
 	if identified, ok := m.(mutator.Identified); ok {
 		identity := identified.Identity()
 		finding.Identity = &identity

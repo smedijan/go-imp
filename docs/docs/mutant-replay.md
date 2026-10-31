@@ -91,6 +91,13 @@ successful report. Worker source bytes must still match discovery before Apply;
 stale worker copies fail rather than receiving a mutation against other source.
 The isolated worker copy is restored before results are returned.
 
+Schema 2 findings also expose bounded `observation_context` source ownership and
+selection observations: covered/uncovered, effective diff scope, exact replay
+matching and dry-run eligibility. These labels never participate in the ID.
+Unknown context is explicit `null`; dependency/individual-test impact provenance
+is explicitly `unknown`. See [run reporting](usage/commands/run/index.md) for the
+field contract and truncation policy.
+
 The v1 contract is intentionally conservative; there is no cache, persistent
 ledger, semantic matching, cross-file migration, or support for legacy position
 replay. Future identity algorithms require a new identity version.

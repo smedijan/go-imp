@@ -60,6 +60,7 @@ func TestCommandArgumentsRoundTrip(t *testing.T) {
 type evidenceMutant struct {
 	stubMutant
 	mutator.EvidenceRecorder
+	mutator.ObservationRecorder
 }
 
 func TestReportExecutionEvidence(t *testing.T) {
@@ -90,5 +91,19 @@ func TestReportFailureEnvelope(t *testing.T) {
 	}
 	if failure.SchemaVersion != 2 || failure.Kind != "run_error" || failure.ReportState != "not-committed" || failure.PartialResultsAvailable || !failure.Cancelled {
 		t.Fatalf("incorrect envelope: %+v", failure)
+	}
+}
+
+func TestReportObservationContextAndUnknown(t *testing.T) {
+	m := &evidenceMutant{stubMutant: stubMutant{status: mutator.Runnable}}
+	observation := &mutator.ObservationContext{Package: mutator.ObservedName{Known: true, Value: "calc"}, EnclosingSymbol: mutator.ObservedName{Known: true, Value: "func::Add", Truncated: true}, Selection: mutator.SelectionObservation{Coverage: "covered", EligibilityReason: "dry-run", DryRun: true, ImpactProvenance: "unknown"}}
+	m.SetObservationContext(observation)
+	document, _ := renderJSON(t, report.Results{Mutants: []mutator.Mutator{m}}, report.Options{DryRun: true})
+	if delta := cmp.Diff(observation, document.Groups["RUNNABLE"][""][0].ObservationContext); delta != "" {
+		t.Fatal(delta)
+	}
+	document, payload := renderJSON(t, report.Results{Mutants: []mutator.Mutator{stubMutant{status: mutator.NotCovered}}}, report.Options{})
+	if document.Groups["NOT COVERED"][""][0].ObservationContext != nil || !strings.Contains(payload, `"observation_context":null`) {
+		t.Fatalf("unknown context invented from terminal status: %s", payload)
 	}
 }
