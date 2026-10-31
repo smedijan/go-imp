@@ -140,8 +140,18 @@ func conclusive(status mutator.Status) bool {
 
 // Reuse requires two independent completed fresh runs with no observed disagreement.
 func (s *Session) Reuse(id string) (mutator.Status, bool) {
+	return s.reuse(id, false)
+}
+
+// ReuseKilled restricts reuse to detections; callers establish confirmation
+// eligibility when observing outcomes and fingerprint that policy separately.
+func (s *Session) ReuseKilled(id string) (mutator.Status, bool) {
+	return s.reuse(id, true)
+}
+
+func (s *Session) reuse(id string, killedOnly bool) (mutator.Status, bool) {
 	e, ok := s.entries[id]
-	ok = ok && !s.inconclusive && s.Reason == "" && e.Fingerprint == s.fingerprint && e.Confirmations >= 2 && time.Since(e.Observed) < s.options.TTL && !e.Flaky && conclusive(e.Status)
+	ok = ok && (!killedOnly || e.Status == mutator.Killed) && !s.inconclusive && s.Reason == "" && e.Fingerprint == s.fingerprint && e.Confirmations >= 2 && time.Since(e.Observed) < s.options.TTL && !e.Flaky && conclusive(e.Status)
 	if ok {
 		s.reused[id] = true
 	}

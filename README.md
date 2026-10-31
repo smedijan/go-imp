@@ -38,6 +38,9 @@ always describe the whole run, even when findings are filtered.
 Optional [incremental results](docs/docs/incremental-results.md) reuse only
 repeatedly confirmed outcomes; coverage and baseline tests still execute.
 
+Verify a bounded test-only patch against exact findings with `imp verify`;
+see [test-patch verification](docs/verification.md) for selectors, evidence and limits.
+
 See the [installation guide](docs/docs/install.md) for mise and Go options.
 Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/docs/faq.md).
 

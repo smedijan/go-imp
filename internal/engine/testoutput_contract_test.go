@@ -204,3 +204,78 @@ func TestSynchronizedBufferRedactsEscapesAndLongestValues(t *testing.T) {
 		}
 	}
 }
+
+func TestTestOutputPassingNameBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, pkg, test, encodedTest string
+		truncated                    bool
+	}{
+		{name: "package limit", pkg: strings.Repeat("p", 1024), test: "TestSelected"},
+		{name: "test limit", pkg: "p", test: strings.Repeat("t", 1024)},
+		{name: "escaped test limit", pkg: "p", test: strings.Repeat("a", 1024), encodedTest: `"` + strings.Repeat(`\u0061`, 1024) + `"`},
+		{name: "package over limit", pkg: strings.Repeat("p", 1025), test: "TestSelected", truncated: true},
+		{name: "test over limit", pkg: "p", test: strings.Repeat("t", 1025), truncated: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pkg, _ := json.Marshal(tc.pkg)
+			test, _ := json.Marshal(tc.test)
+			if tc.encodedTest != "" {
+				test = []byte(tc.encodedTest)
+			}
+			output := `{"Action":"pass","Package":` + string(pkg) + `,"Test":` + string(test) + `}`
+			result := collectSelectedTestOutput(strings.NewReader(output), tc.test)
+			if !result.valid || result.passingTruncated != tc.truncated {
+				t.Fatalf("incorrect validity/truncation: %+v", result)
+			}
+			if tc.truncated {
+				if len(result.passing) != 0 || result.selectedPassing != nil {
+					t.Fatalf("oversized name attributed: %+v", result)
+				}
+			} else {
+				want := mutator.FailingTest{Package: tc.pkg, Test: tc.test}
+				if len(result.passing) != 1 || result.passing[0] != want || result.selectedPassing == nil || *result.selectedPassing != want {
+					t.Fatalf("exact-limit pass lost: %+v", result)
+				}
+			}
+		})
+	}
+}
+
+func TestTestOutputPassingEventCountBoundaries(t *testing.T) {
+	for _, count := range []int{99, 100, 101} {
+		var output strings.Builder
+		for i := 0; i < count; i++ {
+			fmt.Fprintf(&output, "{\"Action\":\"pass\",\"Package\":\"p\",\"Test\":\"TestSelected/sub%d\"}\n", i)
+		}
+		result := collectSelectedTestOutput(strings.NewReader(output.String()), "TestSelected")
+		if len(result.passing) != min(count, 100) || result.passingTruncated != (count > 100) || result.selectedPassing != nil {
+			t.Fatalf("count=%d result=%+v", count, result)
+		}
+		if last := result.passing[len(result.passing)-1].Test; last != fmt.Sprintf("TestSelected/sub%d", min(count, 100)-1) {
+			t.Fatalf("not a prefix: %q", last)
+		}
+		output.WriteString(`{"Action":"pass","Package":"p","Test":"TestSelected"}`)
+		result = collectSelectedTestOutput(strings.NewReader(output.String()), "TestSelected")
+		if result.selectedPassing == nil || result.selectedPassing.Test != "TestSelected" || result.selectedPassing.Package != "p" || len(result.passing) != min(count+1, 100) || result.passingTruncated != (count+1 > 100) {
+			t.Fatalf("selected completion hidden: %+v", result)
+		}
+	}
+}
+
+func TestTestOutputPassingEventsRequireNamedPass(t *testing.T) {
+	for _, event := range []string{
+		`{"Action":"pass","Package":"p"}`,
+		`{"Action":"run","Package":"p","Test":"TestSelected"}`,
+		`{"Action":"skip","Package":"p","Test":"TestSelected"}`,
+		`{"Action":"fail","Package":"p","Test":"TestSelected"}`,
+	} {
+		result := collectSelectedTestOutput(strings.NewReader(event), "TestSelected")
+		if len(result.passing) != 0 || result.passingTruncated || result.selectedPassing != nil {
+			t.Fatalf("non-pass event attributed: %s %+v", event, result)
+		}
+	}
+	result := collectSelectedTestOutput(strings.NewReader(`{"Action":"pass","Package":"p","Test":"TestOther"}`), "TestSelected")
+	if len(result.passing) != 1 || result.selectedPassing != nil || result.passingTruncated {
+		t.Fatalf("unselected pass attributed as selected: %+v", result)
+	}
+}

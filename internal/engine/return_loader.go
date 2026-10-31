@@ -40,7 +40,11 @@ func WithReturnAnalysisLoader(loader ReturnAnalysisLoader) Option {
 }
 
 func loadReturnPackages(ctx context.Context, dir, tags string) ([]ReturnPackage, error) {
-	config := &packages.Config{Context: ctx, Dir: dir, Mode: packages.LoadSyntax | packages.NeedTypesSizes | packages.NeedModule}
+	return loadReturnPackagesWithEnv(ctx, dir, tags, nil)
+}
+
+func loadReturnPackagesWithEnv(ctx context.Context, dir, tags string, env []string) ([]ReturnPackage, error) {
+	config := &packages.Config{Context: ctx, Dir: dir, Env: env, Mode: packages.LoadSyntax | packages.NeedTypesSizes | packages.NeedModule}
 	if tags != "" {
 		config.BuildFlags = []string{"-tags=" + tags}
 	}

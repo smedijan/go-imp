@@ -47,19 +47,20 @@ import (
 // It traverses the AST of the project, finds which TokenMutator can be applied and
 // performs the actual mutation testing.
 type Engine struct {
-	ledger         *ledger.Session
-	fs             fs.FS
-	executor       Executor
-	codeData       CodeData
-	mutantStream   chan mutator.Mutator
-	module         gomodule.GoModule
-	booleanShadows map[string]map[string]bool
-	sourceLocators map[string]bool
-	customFS       bool
-	packageSources map[string]packageSource
-	filtered       map[token.Pos]map[mutator.Type]string
-	filteredCounts map[string]int
-	returnLoader   ReturnAnalysisLoader
+	ledger               *ledger.Session
+	fs                   fs.FS
+	executor             Executor
+	codeData             CodeData
+	mutantStream         chan mutator.Mutator
+	module               gomodule.GoModule
+	booleanShadows       map[string]map[string]bool
+	sourceLocators       map[string]bool
+	customFS             bool
+	packageSources       map[string]packageSource
+	filtered             map[token.Pos]map[mutator.Type]string
+	filteredCounts       map[string]int
+	returnLoader         ReturnAnalysisLoader
+	verificationSnapshot bool
 }
 
 // CodeData is used to check if the mutant should be executed.

@@ -103,3 +103,6 @@ cross-file migration, or legacy position replay. Future identity algorithms
 require a new identity version. [Incremental results](incremental-results.md)
 optionally reuse independently confirmed outcomes; exact replay still respects
 all current discovery and coverage constraints.
+
+For durable human review decisions without changing execution or gates, see
+[persistent triage](persistent-triage.md).

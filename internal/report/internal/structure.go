@@ -5,12 +5,15 @@ import (
 	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/mutator"
+	"github.com/smedijan/go-imp/internal/triage"
 )
 
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
 	Evidence          []ledger.Evidence                `json:"evidence,omitempty"`
 	LedgerNote        string                           `json:"ledger_note,omitempty"`
+	Triage            *TriageAudit                     `json:"triage,omitempty"`
+	ReviewGroups      []ReviewGroup                    `json:"review_groups,omitempty"`
 	Selection         *diff.Selection                  `json:"selection,omitempty"`
 	IdentityVersion   int                              `json:"identity_version"`
 	Replay            []mutator.ReplayTarget           `json:"replay,omitempty"`
@@ -47,4 +50,22 @@ type Mutation struct {
 	Line               int                         `json:"line"`
 	Column             int                         `json:"column"`
 	TestCommand        string                      `json:"test_command,omitempty"`
+}
+
+// ReviewGroup is a bounded review task, not a claim of shared root cause.
+// IDs refer to the underlying findings; grouping never replaces them.
+type ReviewGroup struct {
+	ID        string   `json:"id"`
+	Criterion string   `json:"criterion"`
+	MutantIDs []string `json:"mutant_ids"`
+}
+
+// TriageAudit retains all dispositions even when reviewed findings are hidden.
+type TriageAudit struct {
+	Ledger       triage.Ledger  `json:"ledger"`
+	Counts       map[string]int `json:"disposition_counts"`
+	Reviewed     int            `json:"reviewed"`
+	Hidden       int            `json:"hidden"`
+	HideReviewed bool           `json:"hide_reviewed"`
+	GatePolicy   string         `json:"gate_policy"`
 }

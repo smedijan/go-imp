@@ -19,6 +19,19 @@ run fresh. Baseline tests and coverage **always** run, including fully reused
 runs. Fresh mutant tests retain `go test -count=1`; independent observations are
 separate successfully completed runs, not Go's test-result cache.
 
+`--confirm-outcomes` is a separately fingerprinted execution policy: switching it
+on or off invalidates historical reuse. With confirmation enabled, the ledger
+only admits killed outcomes whose current execution evidence satisfies
+`ReusableDetection()`; two independent agreeing fresh runs are still required.
+Strict-mode survivors, missing/unverified evidence, unreliable confidence,
+timeouts and nonviable outcomes cannot become reusable detections. Uncertain
+fresh terminal observations replace historical conclusive ledger evidence without
+changing the current executor status or observations. Default confirmation-off
+mode retains normal two-observation killed/lived reuse. Reused findings never
+fabricate a current confirmation attempt, test attribution, duration or applied
+source hash; current source/selection/identity observations remain available.
+
+
 ## Validity and confidence
 
 Stable mutant IDs identify edits, not behavior. Reuse additionally requires the

@@ -26,13 +26,14 @@ func incrementalSession(ctx context.Context, mod gomodule.GoModule) *ledger.Sess
 	}
 	path := filepath.Join(cache, "imp", "outcomes-v1", fmt.Sprintf("%x.json", sha256.Sum256([]byte(mod.Root))))
 	settings := map[string]any{"calling-dir": mod.CallingDir, "cpus": runtime.NumCPU(), "gomaxprocs": runtime.GOMAXPROCS(0)}
-	for _, key := range []string{configuration.RunTagsKey, configuration.RunCoverPkgKey, configuration.RunDiffRef} {
+	for _, key := range []string{configuration.RunTagsKey, configuration.RunCoverPkgKey, configuration.RunDiffRef, configuration.RunDiffScope} {
 		settings[key] = configuration.Get[string](key)
 	}
 	for _, key := range []string{configuration.RunTestCPUKey, configuration.RunTimeoutCoefficientKey, configuration.RunWorkersKey} {
 		settings[key] = configuration.Get[int](key)
 	}
 	settings[configuration.RunIntegrationMode] = configuration.Get[bool](configuration.RunIntegrationMode)
+	settings[configuration.RunConfirmOutcomesKey] = configuration.Get[bool](configuration.RunConfirmOutcomesKey)
 	for _, key := range []string{configuration.RunExcludeFiles, configuration.RunIncludeFiles, configuration.RunExcludeWorkdir} {
 		settings[key] = configuration.Get[[]string](key)
 	}

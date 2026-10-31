@@ -95,7 +95,7 @@ func newRootCmd(ctx context.Context, version string) (*rootCommand, error) {
 		return nil, err
 
 	}
-	cmd.AddCommand(run.cmd)
+	cmd.AddCommand(run.cmd, newVerifyCmd(ctx))
 
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return execution.NewUsageError(err)

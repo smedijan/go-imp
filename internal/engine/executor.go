@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sync"
 	"time"
@@ -53,15 +54,19 @@ type Executor interface {
 
 // MutantExecutor runs mutants in isolated, reusable worker directories.
 type MutantExecutor struct {
-	wdDealer          workdir.Dealer
-	execContext       execContext
-	mod               gomodule.GoModule
-	buildTags         string
-	testExecutionTime time.Duration
-	dryRun            bool
-	integrationMode   bool
-	testCPU           int
-	workers           int
+	wdDealer             workdir.Dealer
+	execContext          execContext
+	mod                  gomodule.GoModule
+	buildTags            string
+	testExecutionTime    time.Duration
+	dryRun               bool
+	integrationMode      bool
+	testCPU              int
+	workers              int
+	selectedTest         string
+	verificationSnapshot bool
+	confirmOutcomes      bool
+	pristine             string
 }
 
 // ExecutorOption configures a MutantExecutor.
@@ -110,6 +115,7 @@ func NewExecutor(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.Duratio
 
 	jd := MutantExecutor{
 		mod:               mod,
+		confirmOutcomes:   configuration.Get[bool](configuration.RunConfirmOutcomesKey),
 		wdDealer:          wdd,
 		buildTags:         buildTags,
 		dryRun:            dryRun,
@@ -134,6 +140,24 @@ func NewExecutor(mod gomodule.GoModule, wdd workdir.Dealer, elapsed time.Duratio
 func (m *MutantExecutor) Execute(ctx context.Context, mutants []mutator.Mutator, completed func(mutator.Mutator)) ([]mutator.Mutator, error) {
 	if m.workers < 1 {
 		return nil, fmt.Errorf("mutation worker count must be positive")
+	}
+	// Snapshot state belongs to this Execute call, not the reusable executor.
+	runExecutor := *m
+	m = &runExecutor
+	if m.confirmOutcomes && !m.dryRun && len(mutants) > 0 {
+		snapshotter, ok := m.wdDealer.(interface {
+			Snapshot(context.Context) (string, error)
+		})
+		if !ok {
+			return nil, fmt.Errorf("outcome confirmation requires pristine snapshot support")
+		}
+		pristine, err := snapshotter.Snapshot(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("capture pristine snapshot: %w", err)
+		}
+		defer os.RemoveAll(pristine)
+		// Execute owns this snapshot; worker copies can never become its source.
+		m.pristine = pristine
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -226,12 +250,32 @@ func (m *mutantExecutor) execute(ctx context.Context, workerName string, cancel 
 		return nil, errors.Join(fmt.Errorf("apply mutation at %s: %w", m.mutant.Position(), err), m.rollback(cancel))
 	}
 
-	status := m.runTests(ctx, rootDir, m.mutant.Pkg())
+	status, evidence := m.runTests(ctx, rootDir, m.mutant.Pkg())
 	if err := m.rollback(cancel); err != nil {
 		return nil, err
 	}
 	if ctx.Err() != nil {
 		return nil, errExecutionStopped
+	}
+	if m.executor.confirmOutcomes && status == mutator.NotViable {
+		initial := *evidence
+		initial.Role = "initial-mutant"
+		evidence.Attempts = []mutator.ExecutionEvidence{initial}
+		evidence.Confidence = "infrastructure"
+	}
+	if m.executor.confirmOutcomes && (status == mutator.Killed || status == mutator.TimedOut) {
+		status, err = m.confirm(ctx, status, evidence, cancel)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, errExecutionStopped
+	}
+	if recorder, ok := m.mutant.(interface {
+		SetExecutionEvidence(*mutator.ExecutionEvidence)
+	}); ok {
+		recorder.SetExecutionEvidence(evidence)
 	}
 	m.mutant.SetStatus(status)
 
@@ -248,7 +292,7 @@ func (m *mutantExecutor) rollback(cancel context.CancelFunc) error {
 	return nil
 }
 
-func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) mutator.Status {
+func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) (mutator.Status, *mutator.ExecutionEvidence) {
 	ctx, cancel := context.WithTimeout(parent, m.executor.testExecutionTime)
 	defer cancel()
 
@@ -261,8 +305,14 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) m
 	if m.executor.integrationMode {
 		cmd.Dir = rootDir
 	}
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.executor.wdDealer.WorkDir()))
+	env := os.Environ()
+	if m.executor.verificationSnapshot {
+		env = verificationEnvironment()
+	}
+	cmd.Env = append(cmd.Env, env...)
+	if m.executor.wdDealer != nil {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.executor.wdDealer.WorkDir()))
+	}
 
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
@@ -271,7 +321,7 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) m
 	reader, writer := io.Pipe()
 	observed := make(chan testOutput, 1)
 	go func() {
-		observed <- collectTestOutput(reader)
+		observed <- collectSelectedTestOutput(reader, m.executor.selectedTest)
 		_ = reader.Close()
 	}()
 	cmd.Stdout = io.MultiWriter(&stdout, writer)
@@ -286,6 +336,11 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) m
 		TimeoutSeconds: m.executor.testExecutionTime.Seconds(),
 		FailingTests:   parsed.failing, FailingTestsTruncated: parsed.truncated,
 		Stdout: stdout.diagnostic(), Stderr: stderr.diagnostic(), JSONValid: parsed.valid,
+	}
+	if m.executor.verificationSnapshot {
+		evidence.PassingTests = parsed.passing
+		evidence.PassingTestsTruncated = parsed.passingTruncated
+		evidence.SelectedPassingTest = parsed.selectedPassing
 	}
 	if err != nil {
 		var failure synchronizedBuffer
@@ -329,7 +384,7 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) m
 		recorder.SetExecutionEvidence(evidence)
 	}
 
-	return status
+	return status, evidence
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
@@ -342,6 +397,9 @@ func (m *mutantExecutor) getTestArgs(pkg string) []string {
 	// from hanging forever.
 	args = append(args, "-timeout", (2*time.Second + m.executor.testExecutionTime).String())
 	args = append(args, "-failfast")
+	if m.executor.selectedTest != "" {
+		args = append(args, "-run", "^"+regexp.QuoteMeta(m.executor.selectedTest)+"$")
+	}
 
 	if m.executor.testCPU != 0 {
 		args = append(args, "-cpu", fmt.Sprintf("%d", m.executor.testCPU))

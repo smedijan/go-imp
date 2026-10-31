@@ -21,6 +21,7 @@ import (
 
 type ledgerExecutor struct {
 	status   mutator.Status
+	evidence *mutator.ExecutionEvidence
 	attempts int
 	err      error
 }
@@ -30,6 +31,11 @@ func (e *ledgerExecutor) Execute(_ context.Context, mutants []mutator.Mutator, c
 		if m.Status() == mutator.Runnable {
 			e.attempts++
 			m.SetStatus(e.status)
+			if recorder, ok := m.(interface {
+				SetExecutionEvidence(*mutator.ExecutionEvidence)
+			}); ok {
+				recorder.SetExecutionEvidence(e.evidence)
+			}
 		}
 		if completed != nil {
 			completed(m)
@@ -39,8 +45,8 @@ func (e *ledgerExecutor) Execute(_ context.Context, mutants []mutator.Mutator, c
 	return mutants, e.err
 }
 func TestEngineLedgerReuseCoverageTransitionsAndFailure(t *testing.T) {
-	configuration.Reset()
-	t.Cleanup(configuration.Reset)
+	enableIdentityOperators(t)
+	configuration.Set(configuration.RunConfirmOutcomesKey, false)
 	configuration.Set(configuration.MutantTypeEnabledKey(mutator.ArithmeticBase), true)
 	source := "package calc\nfunc Sum(a,b int)int{return a+b}\n"
 	options := ledger.Options{Path: filepath.Join(t.TempDir(), "ledger.json"), TTL: time.Hour, MaxEntries: 100, Fingerprint: func(context.Context) (string, error) { return "same-inputs", nil }}
@@ -118,8 +124,8 @@ func TestEngineLedgerReuseCoverageTransitionsAndFailure(t *testing.T) {
 }
 
 func TestEngineLedgerReplayPublishesOnlyResolvedSet(t *testing.T) {
-	configuration.Reset()
-	t.Cleanup(configuration.Reset)
+	enableIdentityOperators(t)
+	configuration.Set(configuration.RunConfirmOutcomesKey, false)
 	configuration.Set(configuration.MutantTypeEnabledKey(mutator.ArithmeticBase), true)
 	source := fstest.MapFS{"calc.go": &fstest.MapFile{Data: []byte("package calc\nfunc Sum(a,b int)int{return a+b}\n")}}
 	covered := coverage.Profile{"calc.go": {{StartLine: 2, EndLine: 2, StartCol: 1, EndCol: 100}}}

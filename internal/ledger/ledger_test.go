@@ -425,3 +425,18 @@ func TestLedgerPublicationFailureIsReportedWithoutReplacingDirectory(t *testing.
 		t.Fatal("partial publication artifacts remain", files, err)
 	}
 }
+
+func TestLedgerReuseKilledDoesNotPromoteSurvivor(t *testing.T) {
+	o := options(t)
+	finish(t, o, mutator.Lived)
+	finish(t, o, mutator.Lived)
+	s := ledger.Open(context.Background(), o)
+	defer s.Close()
+	if _, ok := s.ReuseKilled("id"); ok {
+		t.Fatal("detection-only policy reused survivor")
+	}
+	evidence := s.Finish(context.Background(), map[string]mutator.Status{"id": mutator.Runnable}, func(string) string { return "removed" }, true)
+	if evidence[0].Provenance != "fresh" || evidence[0].Confidence != "inconclusive" {
+		t.Fatal("declined reuse marked as reused or retained survivor", evidence)
+	}
+}
