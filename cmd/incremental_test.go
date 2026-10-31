@@ -12,7 +12,55 @@ import (
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/ledger"
+	"github.com/smedijan/go-imp/internal/mutator"
 )
+
+type incrementalReport struct {
+	Evidence []ledger.Evidence `json:"evidence"`
+	Note     string            `json:"ledger_note"`
+	Groups   map[string]map[string][]struct {
+		ID          string                      `json:"id"`
+		Identity    *mutator.Identity           `json:"identity"`
+		Context     *mutator.ObservationContext `json:"observation_context"`
+		Execution   *mutator.ExecutionEvidence  `json:"execution"`
+		Applied     bool                        `json:"applied"`
+		AppliedHash string                      `json:"applied_source_sha256"`
+		Command     string                      `json:"test_command"`
+		Original    string                      `json:"original_snippet"`
+		Mutated     string                      `json:"mutated_snippet"`
+	} `json:"groups"`
+}
+
+func assertIncrementalReportEvidence(t *testing.T, result incrementalReport) {
+	t.Helper()
+	if len(result.Evidence) != 1 {
+		t.Fatalf("expected one outcome: %+v", result)
+	}
+	findings := 0
+	for _, files := range result.Groups {
+		for _, mutations := range files {
+			for _, finding := range mutations {
+				findings++
+				if finding.ID != result.Evidence[0].ID || finding.Identity == nil || finding.Original == "" || finding.Mutated == "" {
+					t.Fatalf("identity/snippet contract lost: %+v", finding)
+				}
+				if finding.Context == nil || !finding.Context.Package.Known || !finding.Context.PackagePath.Known || !finding.Context.EnclosingSymbol.Known || finding.Context.Selection.Coverage != "covered" || finding.Context.Selection.EligibilityReason != "covered-and-in-scope" || finding.Context.Selection.ImpactProvenance != "unknown" {
+					t.Fatalf("current discovery context lost or overstated: %+v", finding)
+				}
+				if result.Evidence[0].Provenance == "reused" {
+					if finding.Execution != nil || finding.Applied || finding.AppliedHash != "" || finding.Command != "" {
+						t.Fatalf("reused outcome fabricated current execution: %+v", finding)
+					}
+				} else if finding.Execution == nil || len(finding.Execution.Args) == 0 || !finding.Applied || finding.AppliedHash == "" || finding.Command == "" {
+					t.Fatalf("fresh execution evidence lost: %+v", finding)
+				}
+			}
+		}
+	}
+	if findings != 1 {
+		t.Fatalf("expected one current finding: %+v", result)
+	}
+}
 
 func TestCLIIncrementalRetainsBaselineAndIndependentExecution(t *testing.T) {
 	configuration.Reset()
@@ -41,16 +89,14 @@ func TestValue(t *testing.T){
 		if err != nil {
 			t.Fatal(err)
 		}
-		var result struct {
-			Evidence []ledger.Evidence `json:"evidence"`
-			Note     string            `json:"ledger_note"`
-		}
+		var result incrementalReport
 		if err = json.Unmarshal([]byte(out), &result); err != nil {
 			t.Fatal(err)
 		}
 		if result.Note != "" {
 			t.Fatal(result.Note)
 		}
+		assertIncrementalReportEvidence(t, result)
 
 		return result.Evidence
 	}
