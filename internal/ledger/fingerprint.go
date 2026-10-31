@@ -253,9 +253,16 @@ func hashTree(ctx context.Context, h hash.Hash, root string, components map[stri
 			entryKey = key + "/entry/" + filepath.ToSlash(relative)
 		}
 		if d.IsDir() {
-			info, err := d.Info()
+			info, err := DirectoryMetadata(name, d)
 			if err != nil {
 				return err
+			}
+			if components != nil {
+				enumerated, err := d.Info()
+				if err != nil {
+					return err
+				}
+				componentDigest(components, entryKey+"/enumerated-mtime", fmt.Sprint(enumerated.ModTime().UnixNano()))
 			}
 			frame(h, name)
 			frame(h, info.Mode().String())

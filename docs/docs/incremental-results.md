@@ -30,7 +30,10 @@ same broad SHA-256 fingerprint of:
   manifests, otherwise inactive sources, and repository metadata inside these
   directories are included; no source-path exclusions are applied. File content,
   mode and modification time, plus directory mode and modification time, are
-  fingerprinted; timestamp-only fixture edits invalidate outcomes too.
+  fingerprinted; timestamp-only fixture edits invalidate outcomes too. Windows
+  directory attributes are queried through a no-follow handle, not the possibly
+  stale enumeration snapshot returned by `DirEntry.Info`; modification times are
+  retained, not rounded or ignored.
 - The complete selected Go toolchain directory, Go version/settings, imp binary,
   effective mutation/execution configuration, calling scope and runtime CPU settings.
 - The sorted process environment, including flags and potential secrets. Only
