@@ -26,6 +26,9 @@ var descriptions = map[mutator.Status]string{
 }
 
 func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.Mutator, options Options) {
+	for _, target := range document.Replay {
+		fmt.Fprintf(out, "Replay %s: %s\n", target.ID, target.Resolution)
+	}
 	title := "Mutation testing"
 	if options.DryRun {
 		title = "Dry run"

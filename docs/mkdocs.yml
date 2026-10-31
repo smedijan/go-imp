@@ -48,6 +48,7 @@ nav:
             - usage/commands/run/index.md
             - usage/commands/run/workers.md
       - usage/configuration.md
+      - Exact mutant replay: mutant-replay.md
       - Mutations:
           - usage/mutations/index.md
           - usage/mutations/arithmetic_base.md

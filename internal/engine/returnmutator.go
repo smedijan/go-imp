@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"go/token"
 	"os"
@@ -25,12 +26,17 @@ type ReturnMutator struct {
 	mutantType                  mutator.Type
 	origSnippet, mutatedSnippet []byte
 	testCommand                 []string
+	identity                    mutator.Identity
+	sourceDigest                [32]byte
+	applied                     bool
+	appliedSourceHash           string
 }
 
 var _ mutator.Mutator = (*ReturnMutator)(nil)
 
 func newReturnMutator(pkg string, position token.Position, pos token.Pos, end int, source []byte, replacement string, mt mutator.Type) *ReturnMutator {
 	m := &ReturnMutator{pkg: pkg, position: position, pos: pos, end: end, expected: bytes.Clone(source[position.Offset:end]), replacement: replacement, mutantType: mt}
+	m.sourceDigest = sha256.Sum256(source)
 	m.origSnippet = extractSnippet(source, position.Line, 3)
 	m.mutatedSnippet = extractSnippet(m.splice(source), position.Line, 3)
 
@@ -98,13 +104,23 @@ func (m *ReturnMutator) Apply() error {
 	if err != nil {
 		return err
 	}
+	if sha256.Sum256(source) != m.sourceDigest {
+		return fmt.Errorf("source changed after return mutation discovery: %s", m.position)
+	}
 	start := m.position.Offset
 	if start < 0 || m.end < start || m.end > len(source) || !bytes.Equal(source[start:m.end], m.expected) {
 		return fmt.Errorf("return expression changed at %s", m.position)
 	}
 	m.original = source
+	payload := m.splice(source)
 	// #nosec G703 -- filename is a discovered relative source path within the isolated worker copy.
-	return os.WriteFile(filename, m.splice(source), 0o600)
+	if err := os.WriteFile(filename, payload, 0o600); err != nil {
+		return err
+	}
+	m.applied = true
+	m.appliedSourceHash = fmt.Sprintf("%x", sha256.Sum256(payload))
+
+	return nil
 }
 
 // Rollback is safe after failed Apply and retains the backup if restoration fails.
@@ -119,3 +135,12 @@ func (m *ReturnMutator) Rollback() error {
 
 	return nil
 }
+
+// Identity returns the canonical v1 source-edit identity.
+func (m *ReturnMutator) Identity() mutator.Identity { return m.identity }
+
+// Applied reports a successfully written mutation, not merely a test command.
+func (m *ReturnMutator) Applied() bool { return m.applied }
+
+// AppliedSourceHash returns the SHA-256 of the mutated file actually written.
+func (m *ReturnMutator) AppliedSourceHash() string { return m.appliedSourceHash }
