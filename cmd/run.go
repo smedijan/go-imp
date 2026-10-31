@@ -41,6 +41,7 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report"
 	"github.com/smedijan/go-imp/internal/report/output"
+	"github.com/smedijan/go-imp/internal/triage"
 )
 
 type runCmd struct {
@@ -133,6 +134,38 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 			return fmt.Errorf("not in a Go module: %w", err)
 		}
 
+		cmd.Annotations["report-stage"] = "triage"
+		triageInput := configuration.Get[string](configuration.RunTriageInputKey)
+		triageOutput := configuration.Get[string](configuration.RunTriageOutputKey)
+		if triageOutput == "-" {
+			return execution.NewUsageError(fmt.Errorf("triage-output requires a file, not stdout"))
+		}
+		if triageInput != "" || triageOutput != "" {
+			reportPath := configuration.Get[string](configuration.RunOutputKey)
+			if reportPath == "-" {
+				reportPath = ""
+			}
+			if err := output.Distinct(triageInput, triageOutput, reportPath, configuration.Get[string](configuration.RunReplayReportKey)); err != nil {
+				return execution.NewUsageError(err)
+			}
+		}
+		if triageInput != "" {
+			// #nosec G304 -- the user explicitly selects the triage input.
+			file, err := os.Open(triageInput)
+			if err != nil {
+				return err
+			}
+			options.Triage, err = triage.Read(file, mod.Name)
+			_ = file.Close()
+			if err != nil {
+				return execution.NewUsageError(err)
+			}
+		} else if triageOutput != "" {
+			options.Triage = &triage.Ledger{Version: 1, Module: mod.Name, Entries: []triage.Entry{}}
+		}
+		if options.HideReviewed && triageInput == "" {
+			return execution.NewUsageError(fmt.Errorf("hide-reviewed requires triage-input"))
+		}
 		cmd.Annotations["report-stage"] = "output"
 		output, err := output.Open(cmd.OutOrStdout(), configuration.Get[string](configuration.RunOutputKey))
 		if err != nil {
@@ -165,6 +198,12 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		cmd.Annotations["report-stage"] = "commit"
 		if err := output.Commit(); err != nil {
 			return err
+		}
+		if triageOutput != "" {
+			resolved := triage.Resolve(*options.Triage, results.Mutants)
+			if err := writeTriageLedger(triageOutput, resolved); err != nil {
+				return err
+			}
 		}
 		cmd.Annotations["report-stage"] = "committed"
 
@@ -240,6 +279,10 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "triage-input", CfgKey: configuration.RunTriageInputKey, DefaultV: "", Usage: "read strict human-authored disposition JSON from FILE (report only)"},
+		{Name: "triage-output", CfgKey: configuration.RunTriageOutputKey, DefaultV: "", Usage: "atomically save the annotated disposition ledger to a distinct FILE"},
+		{Name: "hide-reviewed", CfgKey: configuration.RunHideReviewedKey, DefaultV: false, Usage: "hide uniquely matched reviewed findings; retain ledger, counts and whole-run gates"},
+		{Name: "group-review", CfgKey: configuration.RunGroupReviewKey, DefaultV: false, Usage: "add bounded owner/status review tasks, retaining underlying findings"},
 		{Name: "mutant-ids", CfgKey: configuration.RunMutantIDsKey, DefaultV: []string{}, Usage: "select exact mutant IDs (comma-separated or repeated)"},
 		{Name: "replay-report", CfgKey: configuration.RunReplayReportKey, DefaultV: "", Usage: "select all findings in an identity-aware JSON `FILE`"},
 		{Name: "json", CfgKey: configuration.RunJSONKey, DefaultV: false, Usage: "write grouped JSON instead of human-readable text"},
