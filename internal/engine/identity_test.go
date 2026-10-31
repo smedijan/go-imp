@@ -189,7 +189,8 @@ func TestIdentityReplayActuallyExecutesMutant(t *testing.T) {
 	mod := gomodule.GoModule{Name: "example.test/replay", Root: root, CallingDir: "."}
 	dealer := workdir.NewCachedDealer(temp, root)
 	defer dealer.Clean()
-	executor := engine.NewExecutor(mod, dealer, time.Second)
+	// Allow cold Go compilation on Windows CI; this is not a timeout test.
+	executor := engine.NewExecutor(mod, dealer, 15*time.Second)
 	data := engine.CodeData{TargetIDs: ids, Cov: coverage.Profile{"calc.go": {{StartLine: 1, EndLine: 99, StartCol: 1, EndCol: 999}}}}
 	e := engine.New(mod, data, executor)
 	result, err := e.Run(context.Background())
