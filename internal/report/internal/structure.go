@@ -1,6 +1,8 @@
 // Package internal provides the versioned JSON report schema.
 package internal
 
+import "github.com/smedijan/go-imp/internal/mutator"
+
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
 	SchemaVersion     int                              `json:"schema_version"`
@@ -24,8 +26,9 @@ type OutputResult struct {
 
 // Mutation omits the status and filename supplied by its enclosing group.
 type Mutation struct {
-	Type        string `json:"type"`
-	Line        int    `json:"line"`
-	Column      int    `json:"column"`
-	TestCommand string `json:"test_command,omitempty"`
+	Execution   *mutator.ExecutionEvidence `json:"execution,omitempty"`
+	Type        string                     `json:"type"`
+	Line        int                        `json:"line"`
+	Column      int                        `json:"column"`
+	TestCommand string                     `json:"test_command,omitempty"`
 }

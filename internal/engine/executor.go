@@ -18,7 +18,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +37,8 @@ import (
 // DefaultTimeoutCoefficient is the default multiplier for the timeout length
 // of each test run.
 const DefaultTimeoutCoefficient = 5
+
+const evidenceInfrastructure = "infrastructure"
 
 // Internal stop signals must not turn lifecycle errors into CLI interrupts.
 var errExecutionStopped = errors.New("mutant execution stopped")
@@ -266,26 +266,69 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) m
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
 
-	var output synchronizedBuffer
-	cmd.Stdout = &output
-	cmd.Stderr = io.Discard
+	var stdout, stderr synchronizedBuffer
+	reader, writer := io.Pipe()
+	observed := make(chan testOutput, 1)
+	go func() {
+		observed <- collectTestOutput(reader)
+		_ = reader.Close()
+	}()
+	cmd.Stdout = io.MultiWriter(&stdout, writer)
+	cmd.Stderr = &stderr
+	started := time.Now()
 	err := run(ctx, cmd)
-
-	if parent.Err() != nil {
-		return mutator.Runnable
+	_ = writer.Close()
+	parsed := <-observed
+	evidence := &mutator.ExecutionEvidence{
+		Args: append([]string{"go"}, args...), WorkingDirectory: cmd.Dir,
+		PackageScope: args[len(args)-1], DurationSeconds: time.Since(started).Seconds(),
+		TimeoutSeconds: m.executor.testExecutionTime.Seconds(),
+		FailingTests:   parsed.failing, FailingTestsTruncated: parsed.truncated,
+		Stdout: stdout.diagnostic(), Stderr: stderr.diagnostic(), JSONValid: parsed.valid,
 	}
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return mutator.TimedOut
+	if err != nil {
+		var failure synchronizedBuffer
+		_, _ = failure.Write([]byte(err.Error()))
+		diagnostic := failure.diagnostic()
+		evidence.ProcessError = &diagnostic
 	}
-	if err == nil {
-		return mutator.Lived
-	}
+	status := mutator.NotViable
 	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		return getTestFailedStatus(exitErr.ExitCode(), output.String())
+	switch {
+	case parent.Err() != nil:
+		status, evidence.Category = mutator.Runnable, evidenceInfrastructure
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		status, evidence.Category = mutator.TimedOut, "timeout"
+	case err == nil:
+		status, evidence.Category = mutator.Lived, "success"
+		code := 0
+		evidence.ExitCode = &code
+	case errors.As(err, &exitErr):
+		code := exitErr.ExitCode()
+		evidence.ExitCode = &code
+		status = parsed.status(code)
+		switch {
+		case status == mutator.Killed:
+			evidence.Category = "test"
+		case code == 1 && parsed.valid:
+			evidence.Category = "build-setup"
+		default:
+			evidence.Category = evidenceInfrastructure
+		}
+	default:
+		if cmd.Process == nil {
+			evidence.Category = "launch"
+		} else {
+			evidence.Category = evidenceInfrastructure
+		}
+	}
+	if recorder, ok := m.mutant.(interface {
+		SetExecutionEvidence(*mutator.ExecutionEvidence)
+	}); ok {
+		recorder.SetExecutionEvidence(evidence)
 	}
 
-	return mutator.NotViable
+	return status
 }
 
 func (m *mutantExecutor) getTestArgs(pkg string) []string {
@@ -347,73 +390,4 @@ func run(ctx context.Context, cmd *exec.Cmd) error {
 		// Process completed normally
 		return err
 	}
-}
-
-type synchronizedBuffer struct {
-	mu  sync.Mutex
-	buf []byte
-}
-
-func (b *synchronizedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.buf = append(b.buf, p...)
-
-	return len(p), nil
-}
-
-func (b *synchronizedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return string(b.buf)
-}
-
-func getTestFailedStatus(exitCode int, output string) mutator.Status {
-	if exitCode != 1 {
-		return mutator.NotViable
-	}
-
-	type packageResult struct {
-		packageFailed bool
-		testFailed    bool
-	}
-	results := make(map[string]packageResult)
-	decoder := json.NewDecoder(strings.NewReader(output))
-	for {
-		var event struct {
-			Action  string
-			Package string
-			Test    string
-		}
-		if err := decoder.Decode(&event); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return mutator.NotViable
-		}
-		result := results[event.Package]
-		if event.Action == "fail" {
-			if event.Test == "" {
-				result.packageFailed = true
-			} else {
-				result.testFailed = true
-			}
-		}
-		results[event.Package] = result
-	}
-
-	testFailed := false
-	for _, result := range results {
-		if result.packageFailed && !result.testFailed {
-			return mutator.NotViable
-		}
-		testFailed = testFailed || result.testFailed
-	}
-	if testFailed {
-		return mutator.Killed
-	}
-
-	return mutator.NotViable
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/smedijan/go-imp/cmd/internal/flags"
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/execution"
+	"github.com/smedijan/go-imp/internal/report"
 )
 
 const paramConfigFile = "config"
@@ -49,6 +50,18 @@ type rootCommand struct {
 
 func (gc rootCommand) execute() error {
 	command, err := gc.cmd.ExecuteC()
+	if err != nil && command != nil && command.Name() == commandName {
+		jsonFlag, _ := command.Flags().GetBool("json")
+		var gate *execution.ExitError
+		if (jsonFlag || configuration.Get[bool](configuration.RunJSONKey)) && !errors.As(err, &gate) {
+			stage := command.Annotations["report-stage"]
+			if stage == "" {
+				stage = "validation"
+			}
+			// Keep the original failure as the return value; stderr may itself be broken.
+			_ = report.WriteFailure(command.ErrOrStderr(), stage, errors.Is(err, context.Canceled))
+		}
+	}
 	if err != nil && (command == nil || command == gc.cmd) {
 		return execution.NewUsageError(err)
 	}

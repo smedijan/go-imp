@@ -121,7 +121,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
-		SchemaVersion: 1, GoModule: results.Module, DryRun: options.DryRun,
+		SchemaVersion: 2, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
 		TestEfficacy: 100, MutationsCoverage: 100,
 		SelectedStatuses:  make([]string, 0, len(options.Statuses)),
@@ -180,8 +180,14 @@ func addFinding(document *internal.OutputResult, m mutator.Mutator) {
 		document.Groups[status] = files
 	}
 	pos := m.Position()
+	var evidence *mutator.ExecutionEvidence
+	if provider, ok := m.(interface {
+		ExecutionEvidence() *mutator.ExecutionEvidence
+	}); ok {
+		evidence = provider.ExecutionEvidence()
+	}
 	files[pos.Filename] = append(files[pos.Filename], internal.Mutation{
-		Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
+		Execution: evidence, Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
 	})
 }
 

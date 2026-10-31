@@ -41,7 +41,7 @@ JSON document, without progress messages, ANSI escapes or source snippets.
 imp run --json --statuses lived,not-covered | jq '.groups'
 ```
 
-The schema has `schema_version: 1`. Findings are grouped by status and then filename,
+The schema has `schema_version: 2`. Findings are grouped by status and then filename,
 so status and filename are not repeated on every mutation. `test_command` is a string
 and is omitted when unavailable. Command arguments use POSIX shell quoting, preserving
 literal whitespace, quotes and shell metacharacters; they are not native PowerShell or
@@ -49,7 +49,7 @@ literal whitespace, quotes and shell metacharacters; they are not native PowerSh
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "go_module": "example.com/pkg",
   "dry_run": false,
   "selected_statuses": ["lived"],
@@ -87,6 +87,88 @@ literal whitespace, quotes and shell metacharacters; they are not native PowerSh
 JSON object key order is not significant. Findings within each file are sorted by
 location and operator, independent of worker completion order. Elapsed time is in
 seconds. Empty or unmatched results produce a valid report with `"groups": {}`.
+
+### Execution evidence (schema 2)
+
+Schema 2 adds optional `execution` on each finding; existing groups, counts and
+`test_command` remain unchanged. Consumers should ignore unknown fields. An absent
+`execution` means unavailable (including dry-run, skipped and uncovered mutants),
+not a successful test. No environment array is serialized.
+
+An observed attempt includes:
+
+- `args`: the requested executable and argument array (prefer this over the POSIX
+  display command); `working_directory`: the effective isolated process cwd;
+  `package_scope`: the effective package argument, or `./...` in integration mode.
+  Worker directories are temporary and may no longer exist after the run.
+- `duration_seconds`: wall-clock process/collection duration;
+  `timeout_seconds`: imp's effective deadline. The Go test timeout in `args` is
+  intentionally two seconds longer. These are not per-test durations.
+- `category`: `success`, `test`, `build-setup`, `launch`, `timeout` or
+  `infrastructure`. `test` requires the existing KILLED rule: exit 1, valid Go
+  JSON, at least one test failure, and no failed package without a test failure.
+  `build-setup` is an inference for other valid-JSON exit-1 outcomes, not a compiler
+  diagnosis. Other exit codes, invalid JSON, process/wait failures and parent
+  cancellation are infrastructure outcomes. Launch means no process started.
+  The original status classification is unchanged; stderr never establishes KILLED.
+- `exit_code` when observed for normal completion; absent for launch failure or
+  deadlines/cancellation when no reliable exit code is available. `json_valid`
+  describes the complete stdout stream, independently of process success.
+- `failing_tests`: observed Go `fail` events with `package` and slash-qualified
+  `test` names, including subtests. At most 100 events are retained, each name at
+  most 1024 bytes; excess/oversize events are omitted and
+  `failing_tests_truncated` is true. Events may be incomplete after malformed JSON
+  or termination. An empty list is **not** individual-test attribution.
+- `stdout`, `stderr`, and optional `process_error`: diagnostic objects with `text`,
+  `truncated`, `redaction_policy` and `redacted`. Each retains at most the first
+  16384 input bytes. Classification independently consumes the **entire** stream,
+  including huge output events and failures after the retained prefix. Ignored
+  payloads (including nested `Test`/`Package` fields) are streamed. Exact root
+  package identities remain essential classification metadata; oversized root test
+  names retain only nonempty classification information, never synthetic attribution.
+
+Diagnostic redaction removes nonempty values from imp's environment and their
+JSON-escaped forms (with and without HTML escaping), longest first, without
+substituting a marker that could increase output size. It may
+remove ordinary text too. The policy is explicitly
+`environment-values-removed; other-secrets-not-detected`; redaction is **not** a
+security boundary. Unknown secrets, fragments, arguments, cwd, package and test
+names are not sanitized. Avoid printing secrets in tests or placing them in test
+names/command arguments. Truncation is applied before redaction; a fragment cut
+at a boundary might remain. The tool does not claim complete secret detection.
+
+### Pre-final failures
+
+For a parsed `run` command selecting JSON, a failure before report commitment emits
+one JSON **line on stderr**, identified by `kind: "run_error"`, alongside ordinary
+human diagnostics. Stdout receives no error envelope. Read stderr line-by-line and
+select this kind; stderr as a whole is not a JSON document. For example:
+
+```json
+{
+  "schema_version": 2,
+  "kind": "run_error",
+  "stage": "execution",
+  "report_state": "not-committed",
+  "partial_results_available": false,
+  "cancelled": false,
+  "diagnostics_policy": "error-text-omitted; inspect-human-stderr"
+}
+```
+
+Stages are `validation`, `module`, `output`, `workdir`, `execution`, `report` and
+`commit`. `cancelled` means explicit context cancellation (not a timeout).
+No partial findings are currently published: `partial_results_available` is false,
+including if some mutants completed before a lifecycle failure. The envelope omits
+arbitrary error text; inspect human stderr for details. Early failures before a
+run command/JSON selection can be established may have only human diagnostics.
+A broken stderr sink cannot guarantee envelope delivery; the original error is
+still returned. Exit codes remain unchanged.
+
+The envelope never replaces a report file. Existing committed files survive
+pre-final failures. A report/write failure on stdout can leave a partial report
+stream, which must not be treated as a completed report. Quality-gate failures
+have a completed report and **do not** emit `run_error`.
 
 ### Status filtering
 

@@ -43,13 +43,14 @@ func TestMutatorTestExecution(t *testing.T) {
 		name       string
 		initial    mutator.Status
 		want       mutator.Status
+		category   string
 	}{
 		{name: "not covered", initial: mutator.NotCovered, want: mutator.NotCovered},
 		{name: "skipped", initial: mutator.Skipped, want: mutator.Skipped},
-		{name: "tests pass", testResult: fakeExecCommandSuccess, initial: mutator.Runnable, want: mutator.Lived},
-		{name: "tests fail", testResult: fakeExecCommandTestsFailure, initial: mutator.Runnable, want: mutator.Killed},
-		{name: "build fails", testResult: fakeExecCommandBuildFailure, initial: mutator.Runnable, want: mutator.NotViable},
-		{name: "cannot start", testResult: fakeExecCommandStartupFailure, initial: mutator.Runnable, want: mutator.NotViable},
+		{name: "tests pass", category: "success", testResult: fakeExecCommandSuccess, initial: mutator.Runnable, want: mutator.Lived},
+		{name: "tests fail", category: "test", testResult: fakeExecCommandTestsFailure, initial: mutator.Runnable, want: mutator.Killed},
+		{name: "build fails", category: "infrastructure", testResult: fakeExecCommandBuildFailure, initial: mutator.Runnable, want: mutator.NotViable},
+		{name: "cannot start", category: "launch", testResult: fakeExecCommandStartupFailure, initial: mutator.Runnable, want: mutator.NotViable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			viperSet(map[string]any{configuration.RunDryRunKey: false})
@@ -67,10 +68,21 @@ func TestMutatorTestExecution(t *testing.T) {
 
 				return command
 			}))
-			mut := &mutantStub{status: tc.initial, pkg: "example.com"}
+			mut := &evidenceMutant{mutantStub: &mutantStub{status: tc.initial, pkg: "example.com"}}
 			got := executeMutants(t, executor, mut)[0]
 			if got.Status() != tc.want {
 				t.Fatalf("status = %s, want %s", got.Status(), tc.want)
+			}
+			evidence := mut.ExecutionEvidence()
+			if tc.category == "" {
+				if evidence != nil {
+					t.Fatal("unexecuted mutant has evidence")
+				}
+			} else if evidence == nil || evidence.Category != tc.category || evidence.DurationSeconds <= 0 || evidence.TimeoutSeconds != 50 || evidence.PackageScope != "example.com" || evidence.WorkingDirectory != command.Dir || len(evidence.Args) == 0 {
+				t.Fatalf("incorrect evidence: %+v", evidence)
+			}
+			if evidence != nil && tc.category == "launch" && evidence.ProcessError == nil {
+				t.Fatal("launch diagnostics missing")
 			}
 			runnable := tc.initial == mutator.Runnable
 			if mut.applyCalled != runnable || mut.rollbackCalled != runnable {
@@ -158,11 +170,23 @@ func TestMutatorClassifiesRealGoTestFailures(t *testing.T) {
 
 			mod := gomodule.GoModule{Name: "example.com/fixture", Root: rootDir, CallingDir: "."}
 			executor := engine.NewExecutor(mod, wdDealer, expectedTimeout)
-			mut := &mutantStub{status: mutator.Runnable, pkg: "."}
+			mut := &evidenceMutant{mutantStub: &mutantStub{status: mutator.Runnable, pkg: "."}}
 			got := executeMutants(t, executor, mut)[0]
 			if got.Status() != tc.want {
 				t.Errorf("status = %v, want %v", got.Status(), tc.want)
 			}
+			evidence := mut.ExecutionEvidence()
+			category := "test"
+			if tc.want == mutator.NotViable {
+				category = "build-setup"
+			}
+			if evidence == nil || evidence.Category != category || evidence.ExitCode == nil || *evidence.ExitCode != 1 {
+				t.Fatalf("unexpected real process evidence: %+v", evidence)
+			}
+			if tc.want == mutator.Killed && len(evidence.FailingTests) == 0 {
+				t.Fatal("failing test attribution missing")
+			}
+
 		})
 	}
 }
@@ -262,4 +286,51 @@ func helperCommand(ctx context.Context, test, command string, args ...string) *e
 	cmd.Env = []string{"GO_TEST_PROCESS=1"}
 
 	return cmd
+}
+
+type evidenceMutant struct {
+	*mutantStub
+	mutator.EvidenceRecorder
+}
+
+func TestExecutorCollectsHugeProcessOutput(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		t.Run(fmt.Sprint(malformed), func(t *testing.T) {
+			viperSet(map[string]any{configuration.RunWorkersKey: 1})
+			defer viperReset()
+			t.Setenv("IMP_EVIDENCE_TEST_SECRET", "evidence-process-secret")
+			executor := engine.NewExecutor(gomodule.GoModule{CallingDir: "."}, newWdDealerStub(t), expectedTimeout, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				cmd := helperCommand(ctx, "TestEvidenceOutputProcess", name, args...)
+				if malformed {
+					cmd.Env = append(cmd.Env, "IMP_EVIDENCE_MALFORMED=1")
+				}
+
+				return cmd
+			}))
+			m := &evidenceMutant{mutantStub: &mutantStub{status: mutator.Runnable, pkg: "p"}}
+			got := executeMutants(t, executor, m)[0]
+			want := mutator.Killed
+			if malformed {
+				want = mutator.NotViable
+			}
+			e := m.ExecutionEvidence()
+			if got.Status() != want || e == nil || !e.Stdout.Truncated || !e.Stderr.Truncated || !e.Stderr.Redacted || strings.Contains(e.Stderr.Text, "evidence-process-secret") || len(e.FailingTests) != 1 || e.FailingTests[0].Test != "TestParent/child" || e.JSONValid == malformed {
+				t.Fatalf("status=%s evidence=%+v", got.Status(), e)
+			}
+		})
+	}
+}
+
+func TestEvidenceOutputProcess(_ *testing.T) {
+	if os.Getenv("GO_TEST_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprint(os.Stdout, `{"Action":"output","Output":"`+strings.Repeat("x", 2*1024*1024)+`"}`+"\n")
+	fmt.Fprintln(os.Stdout, `{"Action":"fail","Package":"p","Test":"TestParent/child"}`)
+	fmt.Fprintln(os.Stdout, `{"Action":"fail","Package":"p"}`)
+	fmt.Fprint(os.Stderr, "evidence-process-secret "+strings.Repeat("x", 64*1024))
+	if os.Getenv("IMP_EVIDENCE_MALFORMED") == "1" {
+		fmt.Fprint(os.Stdout, "malformed")
+	}
+	os.Exit(1)
 }
