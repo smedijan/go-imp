@@ -64,6 +64,39 @@ These are design clues, not automatic diagnoses. Review the code and requirement
 If no test reaches a mutation, running that suite against it won't tell you whether an assertion protects it.
 imp reports these candidates as `NOT COVERED` and spends execution time on covered mutations instead.
 
+## Why are some source files or operators missing from discovery?
+
+Discovery loads active Go packages below the calling directory, using `--tags` and the inherited Go build
+settings (including `GOOS`, `GOARCH`, `CGO_ENABLED` and `GOFLAGS`). Inactive build variants, test files,
+Go-ignored directories such as `testdata`, and nested modules are not mutation targets. Integration mode
+changes which tests execute, not the source subtree selected for mutations. Package import paths come from
+Go's loader, even when directory and package names differ. Active internal-test declarations are considered
+when checking whether Boolean names are shadowed, but test files are never mutation targets. External-test
+package declarations do not shadow production names.
+
+Explicit file exclusions still win over includes; generated sources remain excluded unless explicitly
+included. An include does not activate a file excluded by the Go build. Exclusions select mutation targets,
+not package/type-check input: malformed active packages, missing imports and type errors stop discovery
+with an error, rather than publishing a successful partial result (including in dry-run mode).
+
+Conservative applicability checks remove known invalid edits: string concatenation becoming subtraction
+(including string-capable generic constraints), unary address/complement operators becoming binary bitwise
+operators, type-set unions, provably invalid integer/constant division by zero, incompatible compound-assignment
+removal, and `break` becoming `continue` without a valid loop target. Nonconstant float/complex zero division
+remains eligible. Unknown cases still reach normal execution checks; this is not a proof that every remaining
+mutation compiles or changes behavior.
+
+Cgo source is discovered from its original source positions, not the compiler-rewritten AST. When that AST
+cannot provide matching type information, discovery retains syntax checks and explicitly reports that
+type-based checks are unavailable for the file. The `WithDirFs` engine option is a syntax-only fixture seam;
+it deliberately bypasses package loading and type checks for synthetic test sources.
+
+Discovery summaries on stderr identify inactive-build file counts and filtered candidate counts/reasons
+(unless `--quiet` is set). These exclusions are not `NOT COVERED` mutations and do not enter score
+denominators. `NOT COVERED` means an eligible, applicable candidate lacks coverage; `NOT VIABLE` means
+an attempted mutation failed to build. Applicability loading adds a Go package-load/type-check pass, even
+in dry-run mode, to avoid spending a separate test invocation on each known-invalid candidate.
+
 ## Should I aim for 100%?
 
 Aim for confidence in important behavior. Equivalent mutations and low-value cases can make a perfect score costly
