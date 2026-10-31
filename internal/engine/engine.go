@@ -52,6 +52,8 @@ type Engine struct {
 	module         gomodule.GoModule
 	booleanShadows map[string]map[string]bool
 	sourceLocators map[string]bool
+	returnLoader   ReturnAnalysisLoader
+	customFS       bool
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -88,6 +90,7 @@ func New(mod gomodule.GoModule, codeData CodeData, executor Executor, opts ...Op
 func WithDirFs(dirFS fs.FS) Option {
 	return func(m Engine) Engine {
 		m.fs = dirFS
+		m.customFS = true
 
 		return m
 	}
@@ -101,6 +104,14 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	start := time.Now()
 	files := mu.sourceFiles()
 	mu.sourceLocators = make(map[string]bool)
+	var returns []mutator.Mutator
+	if returnAnalysisEnabled() {
+		var err error
+		returns, err = mu.returnMutations(ctx, files)
+		if err != nil {
+			return report.Results{}, err
+		}
+	}
 	mu.booleanShadows = findPackageBooleanShadows(mu.fs)
 	progress := log.NewFileProgress(len(files))
 	defer progress.Finish()
@@ -115,7 +126,7 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		}
 	}()
 
-	var discovered []mutator.Mutator
+	discovered := returns
 	for mutant := range mu.mutantStream {
 		discovered = append(discovered, mutant)
 	}
@@ -340,17 +351,33 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 	}
 
 	pkg := mu.pkgName(fileName, file.Name.Name)
+	// All families here target the same source token. Select enabled families
+	// first, then retain one mutant per replacement, in stable mapping order.
+	byReplacement := make(map[string]*TokenMutator)
+	var unique []*TokenMutator
 	for _, mt := range mutantTypes {
 		if !configuration.Get[bool](configuration.MutantTypeEnabledKey(mt)) {
 			continue
 		}
-		mutantType := mt
 		tm := NewTokenMutant(pkg, set, file, node)
-		tm.SetType(mutantType)
+		tm.SetType(mt)
+		_, replacement, ok := tm.replacementText()
+		if !ok {
+			continue
+		}
+		if existing, found := byReplacement[replacement]; found {
+			existing.families = append(existing.families, mt)
+
+			continue
+		}
+		tm.families = []mutator.Type{mt}
+		byReplacement[replacement] = tm
+		unique = append(unique, tm)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
 		tm.captureSnippets(src)
 		tm.captureIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, fileName), src)
-
+	}
+	for _, tm := range unique {
 		mu.mutantStream <- tm
 	}
 }

@@ -24,14 +24,21 @@ func fingerprint(parts ...string) string {
 
 func (m *TokenMutator) captureIdentity(module, path string, src []byte) {
 	m.sourceDigest = sha256.Sum256(src)
-	original, replacement := m.replacementText()
-	m.identity = mutator.Identity{Version: 1, ModulePath: filepath.ToSlash(filepath.Clean(path)), Original: original, Replacement: replacement}
-	for _, decl := range m.file.Decls {
-		if m.Pos() < decl.Pos() || m.Pos() >= decl.End() {
+	original, replacement, ok := m.replacementText()
+	if !ok {
+		return
+	}
+	m.identity = sourceIdentity(module, path, m.fs, m.file, m.Position().Offset, original, replacement, src)
+}
+
+func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, offset int, original, replacement string, src []byte) mutator.Identity {
+	identity := mutator.Identity{Version: 1, ModulePath: filepath.ToSlash(filepath.Clean(path)), Original: original, Replacement: replacement}
+	for _, decl := range file.Decls {
+		if offset < set.PositionFor(decl.Pos(), false).Offset || offset >= set.PositionFor(decl.End(), false).Offset {
 			continue
 		}
 		name := declarationName(decl)
-		start, end := m.fs.Position(decl.Pos()).Offset, m.fs.Position(decl.End()).Offset
+		start, end := set.PositionFor(decl.Pos(), false).Offset, set.PositionFor(decl.End(), false).Offset
 		set := token.NewFileSet()
 		file := set.AddFile("", -1, end-start)
 		var scan scanner.Scanner
@@ -43,7 +50,7 @@ func (m *TokenMutator) captureIdentity(module, path string, src []byte) {
 			if tok == token.EOF {
 				break
 			}
-			if file.Offset(pos)+start == m.Position().Offset {
+			if file.Offset(pos)+start == offset {
 				index = len(tokens)
 			}
 			if tok == token.SEMICOLON {
@@ -51,12 +58,39 @@ func (m *TokenMutator) captureIdentity(module, path string, src []byte) {
 			}
 			tokens = append(tokens, fmt.Sprintf("%d:%s", tok, literal))
 		}
-		locator := fingerprint(module, m.identity.ModulePath, name)
+		locator := fingerprint(module, identity.ModulePath, name)
 		context := fingerprint(tokens...)
-		m.identity.ID = "imp-v1:" + locator + ":" + fingerprint(context, fmt.Sprint(index), original, replacement)
+		identity.ID = "imp-v1:" + locator + ":" + fingerprint(context, fmt.Sprint(index), normalizedOriginal(original), replacement)
 
-		return
+		return identity
 	}
+
+	return identity
+}
+
+// Range edits include original expression text, normalized like declaration
+// context, so whitespace/comments do not give literal/return aliases new IDs.
+func normalizedOriginal(source string) string {
+	set := token.NewFileSet()
+	file := set.AddFile("", -1, len(source))
+	var scan scanner.Scanner
+	scan.Init(file, []byte(source), nil, 0)
+	var tokens []string
+	for {
+		pos, tok, literal := scan.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.SEMICOLON && file.Offset(pos) == len(source) {
+			continue
+		}
+		if literal == "" {
+			literal = tok.String()
+		}
+		tokens = append(tokens, literal)
+	}
+
+	return strings.Join(tokens, " ")
 }
 
 func declarationName(decl ast.Decl) string {

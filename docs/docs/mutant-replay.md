@@ -28,7 +28,9 @@ labels that finding; its label is **not** its identity.
   whitespace/comments, and operator labels. SHA-256 inputs use length framing.
   Function/method names (including receiver type) or grouped declaration names
   identify the enclosing declaration. Alias operators at the same source token
-  with the same actual replacement collapse to one canonical edit.
+  with the same actual replacement collapse to one canonical edit. This includes
+  both token edits and typed Boolean/error-return expression replacements; a
+  Boolean literal return and its equivalent return-family edit share one ID.
 * Unrelated line shifts and edits **outside** that declaration preserve IDs;
   whitespace/comment-only changes within it also preserve IDs when Go tokens
   are unchanged. Any token change inside the declaration conservatively
@@ -65,7 +67,10 @@ Replay does not override `--exclude-files`, generated-file exclusion,
 `--coverpkg`, integration mode or worker-copy exclusions. Excluded files are
 not discovered and their IDs resolve as missing. Discovery can see source not
 compiled under the current Go platform/tags; without coverage these findings
-remain `NOT COVERED`. A matched uncovered target is not forced to run; a target
+remain `NOT COVERED`. Typed return discovery only considers files compiled in
+the current build scope; an old return ID outside that scope has no candidate
+and resolves as `changed` when its declaration remains visible to token
+discovery, otherwise `missing`. A matched uncovered target is not forced to run; a target
 outside diff scope stays `SKIPPED`. `--dry-run` never applies mutations. Set
 compatible scope explicitly when replaying a prior report. Quality gates count
 only the exact selected set, not the unselected module population.
@@ -73,7 +78,7 @@ only the exact selected set, not the unselected module population.
 Findings additionally expose `applied` (successful mutated-file write),
 `applied_source_sha256` (SHA-256 of the complete bytes actually written),
 `original_snippet`, `mutated_snippet`, and the existing `test_command` when an
-execution was attempted. The snippets preview the exact token edit; printer
+execution was attempted. The snippets preview the exact token/expression edit; printer
 formatting may differ in the applied file. `applied: true`, the source hash,
 the mutant ID/replacement, command and terminal status together distinguish a
 mutation attempt from merely running an unmutated package command. A command

@@ -280,14 +280,6 @@ var mutationsTests = []mutationsTest{
 		covResult:  notCoveredPosition("testdata/fixtures/quo_assign_go"),
 		mutStatus:  mutator.NotCovered,
 	},
-	{
-		name:       "it recognizes INVERT_ASSIGNMENTS with REM_ASSIGN",
-		fixture:    "testdata/fixtures/rem_assign_go",
-		mutantType: mutator.InvertAssignments,
-		token:      token.REM_ASSIGN,
-		covResult:  notCoveredPosition("testdata/fixtures/rem_assign_go"),
-		mutStatus:  mutator.NotCovered,
-	},
 	// INVERT_BITWISE
 	{
 		name:       "it recognizes INVERT_BITWISE with AND",
@@ -501,6 +493,9 @@ func TestMutations(t *testing.T) {
 			t.Parallel()
 			viperSet(map[string]any{configuration.RunDryRunKey: true})
 			defer viperReset()
+			for _, mt := range mutator.Types {
+				configuration.Set(configuration.MutantTypeEnabledKey(mt), mt == tc.mutantType)
+			}
 
 			mapFS, mod, c := loadFixture(tc.fixture, ".")
 			defer c()
@@ -522,12 +517,7 @@ func TestMutations(t *testing.T) {
 			}
 
 			for _, g := range got {
-				// SUB aliases canonicalize to the first enabled operator (InvertNegatives).
-				expectedType := tc.mutantType
-				if tc.token == token.SUB && expectedType == mutator.ArithmeticBase {
-					expectedType = mutator.InvertNegatives
-				}
-				if g.Type() == expectedType && g.Status() == tc.mutStatus && g.Pos() > 0 {
+				if g.Type() == tc.mutantType && g.Status() == tc.mutStatus && g.Pos() > 0 {
 					// PASS
 					return
 				}

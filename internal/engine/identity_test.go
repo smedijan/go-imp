@@ -34,7 +34,7 @@ func enableIdentityOperators(t *testing.T) {
 	configuration.Reset()
 	t.Cleanup(configuration.Reset)
 	for _, operator := range mutator.Types {
-		configuration.Set(configuration.MutantTypeEnabledKey(operator), true)
+		configuration.Set(configuration.MutantTypeEnabledKey(operator), operator != mutator.BooleanReturn && operator != mutator.ErrorReturn)
 	}
 }
 

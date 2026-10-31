@@ -132,6 +132,8 @@ func TestTypeString(t *testing.T) {
 			expected:   "REMOVE_SELF_ASSIGNMENTS",
 			mutantType: mutator.RemoveSelfAssignments,
 		},
+		{name: "BOOLEAN_RETURN", expected: "BOOLEAN_RETURN", mutantType: mutator.BooleanReturn},
+		{name: "ERROR_RETURN", expected: "ERROR_RETURN", mutantType: mutator.ErrorReturn},
 	}
 	for _, tc := range testCases {
 		tc := tc
@@ -140,5 +142,12 @@ func TestTypeString(t *testing.T) {
 				t.Error(cmp.Diff(tc.mutantType.String(), tc.expected))
 			}
 		})
+	}
+}
+
+func TestReturnCategoriesAppendExistingValues(t *testing.T) {
+	t.Parallel()
+	if mutator.RemoveSelfAssignments != 11 || mutator.BooleanReturn != 12 || mutator.ErrorReturn != 13 {
+		t.Fatal("return categories must not shift existing numeric values")
 	}
 }

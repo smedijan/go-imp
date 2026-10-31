@@ -49,6 +49,7 @@ type TokenMutator struct {
 	origFile      []byte
 	status        mutator.Status
 	mutantType    mutator.Type
+	families      []mutator.Type
 	actualToken   token.Token
 	originalIdent string
 
@@ -79,6 +80,13 @@ func (m *TokenMutator) Type() mutator.Type {
 // SetType sets the mutator.Type of the mutant.Mutator.
 func (m *TokenMutator) SetType(mt mutator.Type) {
 	m.mutantType = mt
+}
+
+// ContributingTypes returns the enabled families that generated this unique edit.
+// Type remains the first enabled family in TokenMutantType order for exclusive
+// per-operator reporting. The returned slice does not alias discovery metadata.
+func (m *TokenMutator) ContributingTypes() []mutator.Type {
+	return append([]mutator.Type(nil), m.families...)
 }
 
 // Status returns the mutator.Status of the mutant.Mutator.
@@ -118,6 +126,10 @@ func (m *TokenMutator) Pkg() string {
 func (m *TokenMutator) Apply() error {
 	fileLock(m.Position().Filename).Lock()
 	defer fileLock(m.Position().Filename).Unlock()
+
+	if _, _, ok := m.replacementText(); !ok {
+		return fmt.Errorf("no distinct replacement for %s (%s)", m.tokenNode.Tok(), m.Type())
+	}
 
 	filename := filepath.Join(m.workDir, m.Position().Filename)
 	var err error
@@ -300,7 +312,11 @@ func (m *TokenMutator) captureSnippets(source []byte) {
 	fileLock(m.Position().Filename).Lock()
 	defer fileLock(m.Position().Filename).Unlock()
 
-	originalText, replacement := m.replacementText()
+	originalText, replacement, ok := m.replacementText()
+	if !ok {
+		return
+	}
+
 	pos := m.Position()
 	end := pos.Offset + len(originalText)
 	if pos.Offset < 0 || end > len(source) || string(source[pos.Offset:end]) != originalText {
@@ -312,6 +328,26 @@ func (m *TokenMutator) captureSnippets(source []byte) {
 	mutated = append(mutated, source[end:]...)
 	m.origSnippet = extractSnippet(source, pos.Line, 3)
 	m.mutatedSnippet = extractSnippet(mutated, pos.Line, 3)
+}
+
+// replacementText describes the edit before any AST reprinting, so formatting
+// changes cannot disguise an identity token substitution.
+func (m *TokenMutator) replacementText() (string, string, bool) {
+	original := m.tokenNode.Tok()
+	if m.Type() == mutator.BooleanLiteral {
+		name := m.tokenNode.Ident().Name
+		if name == booleanTrueLiteral {
+			return name, booleanFalseLiteral, true
+		}
+
+		return name, booleanTrueLiteral, true
+	}
+	if m.Type() == mutator.InvertLogical && original == token.NOT {
+		return "!", "!!", true
+	}
+	replacement, ok := tokenMutations[m.Type()][original]
+
+	return original.String(), replacement.String(), ok && replacement != original
 }
 
 // extractSnippet extracts lines around the target line with the given context size.
@@ -333,23 +369,6 @@ func extractSnippet(content []byte, targetLine, contextLines int) []byte {
 	}
 
 	return bytes.Join(lines[start:end], []byte("\n"))
-}
-
-func (m *TokenMutator) replacementText() (string, string) {
-	original := m.tokenNode.Tok()
-	originalText := original.String()
-	replacement := tokenMutations[m.Type()][original].String()
-	if m.Type() == mutator.BooleanLiteral {
-		originalText = m.tokenNode.Ident().Name
-		replacement = booleanTrueLiteral
-		if originalText == booleanTrueLiteral {
-			replacement = booleanFalseLiteral
-		}
-	} else if m.Type() == mutator.InvertLogical && original == token.NOT {
-		replacement = "!!"
-	}
-
-	return originalText, replacement
 }
 
 // Applied reports a successfully written mutation, not merely a test command.
