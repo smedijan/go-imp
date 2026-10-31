@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/execution"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report/internal"
@@ -18,9 +19,10 @@ import (
 
 // Results contains all discovered mutants and the elapsed execution time.
 type Results struct {
-	Module  string
-	Mutants []mutator.Mutator
-	Elapsed time.Duration
+	Selection *diff.Selection
+	Module    string
+	Mutants   []mutator.Mutator
+	Elapsed   time.Duration
 }
 
 // Options selects presentation and quality gates, never which mutants are executed.
@@ -119,6 +121,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
+		Selection:     results.Selection,
 		SchemaVersion: 1, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
 		TestEfficacy: 100, MutationsCoverage: 100,

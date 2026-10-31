@@ -26,6 +26,12 @@ var descriptions = map[mutator.Status]string{
 }
 
 func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.Mutator, options Options) {
+	if document.Selection != nil {
+		fmt.Fprintf(out, "Scope: requested=%s effective=%s\n", document.Selection.Requested, document.Selection.Effective)
+		for _, reason := range document.Selection.Reasons {
+			fmt.Fprintf(out, "  %s\n", reason)
+		}
+	}
 	title := "Mutation testing"
 	if options.DryRun {
 		title = "Dry run"

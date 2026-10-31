@@ -81,6 +81,9 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 		Long:    longExplainer(),
 		Example: "  imp run\n  imp run --statuses lived,not-covered\n  imp run --json --statuses lived --output survivors.json\n  imp run --dry-run --json",
 		PreRunE: func(_ *cobra.Command, _ []string) error {
+			if err := diff.ValidateScope(configuration.Get[string](configuration.RunDiffScope)); err != nil {
+				return execution.NewUsageError(err)
+			}
 			_, err := configuredReportOptions()
 			if err != nil {
 				return execution.NewUsageError(err)
@@ -167,7 +170,7 @@ func cleanUp(wd string) {
 }
 
 func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Results, error) {
-	fDiff, err := diff.New(mod)
+	fDiff, selection, err := diff.NewSelection(mod)
 	if err != nil {
 		return report.Results{}, err
 	}
@@ -197,7 +200,10 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 
 	mut := engine.New(mod, codeData, executor)
 
-	return mut.Run(ctx)
+	results, err := mut.Run(ctx)
+	results.Selection = selection
+
+	return results, err
 }
 
 func setFlagsOnCmd(cmd *cobra.Command) error {
@@ -219,6 +225,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 		{Name: paramDryRun, CfgKey: configuration.RunDryRunKey, Shorthand: "d", DefaultV: false, Usage: "gather coverage and find mutations without testing them"},
 		{Name: paramBuildTags, CfgKey: configuration.RunTagsKey, Shorthand: "t", DefaultV: "", Usage: "comma-separated build tag `LIST`"},
 		{Name: paramCoverPackages, CfgKey: configuration.RunCoverPkgKey, DefaultV: "", Usage: "comma-separated coverage package pattern `LIST`"},
+		{Name: "diff-scope", CfgKey: configuration.RunDiffScope, DefaultV: "changed-line", Usage: "select changed-line, changed-function, or affected-package with --diff"},
 		{Name: paramDiff, CfgKey: configuration.RunDiffRef, Shorthand: "D", DefaultV: "", Usage: "limit mutations to changes against Git `REF`"},
 		{Name: paramOutput, CfgKey: configuration.RunOutputKey, Shorthand: "o", DefaultV: "", Usage: "write the selected report format to `FILE` (- for stdout)"},
 		{Name: paramIntegrationMode, CfgKey: configuration.RunIntegrationMode, Shorthand: "i", DefaultV: false, Usage: "run the whole module's test suite for each mutation"},

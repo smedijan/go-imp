@@ -51,6 +51,7 @@ const (
 	RunIncludeFiles          = "run.include-files"
 	RunExcludeWorkdir        = "run.exclude-workdir"
 	RunDiffRef               = "run.diff"
+	RunDiffScope             = "run.diff-scope"
 	RunThresholdEfficacyKey  = "run.threshold.efficacy"
 	RunThresholdMCoverageKey = "run.threshold.mutant-coverage"
 )

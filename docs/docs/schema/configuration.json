@@ -66,6 +66,19 @@
           "type": "boolean",
           "default": false
         },
+        "diff": {
+          "title": "Git comparison ref",
+          "description": "Select impact against the Git merge base; empty disables selection",
+          "type": "string",
+          "default": ""
+        },
+        "diff-scope": {
+          "title": "Diff selection policy",
+          "description": "Requested scope; test, deletion, dependency and configuration changes can expand it conservatively",
+          "type": "string",
+          "enum": ["changed-line", "changed-function", "affected-package"],
+          "default": "changed-line"
+        },
         "tags": {
           "title": "Tags",
           "description": "The build tags for the Go module to be tested",

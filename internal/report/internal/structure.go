@@ -1,8 +1,11 @@
 // Package internal provides the versioned JSON report schema.
 package internal
 
+import "github.com/smedijan/go-imp/internal/diff"
+
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
+	Selection         *diff.Selection                  `json:"selection,omitempty"`
 	SchemaVersion     int                              `json:"schema_version"`
 	GoModule          string                           `json:"go_module"`
 	DryRun            bool                             `json:"dry_run"`

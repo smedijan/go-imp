@@ -155,6 +155,7 @@ Use `--json --output FILE` where `--output FILE` previously implied JSON.
 | Flag | Purpose |
 | --- | --- |
 | `--diff REF` / `-D REF` | Test mutations in changes against the merge base with a branch or commit |
+| `--diff-scope POLICY` | `changed-line` (default), `changed-function`, or `affected-package`; used with `--diff` |
 | `--tags LIST` / `-t LIST` | Comma-separated Go build tags |
 | `--coverpkg LIST` | Comma-separated package patterns for coverage analysis |
 | `--exclude-files REGEXP` / `-E REGEXP` | Exclude matching paths from mutation discovery; repeat for multiple rules |
@@ -175,6 +176,38 @@ scope: paths are exact module-relative paths, and excluded directories are recur
 does not infer exclusions from `.gitignore`; all source files, including ignored build/test assets, are copied by
 default. Excluding a required asset can make builds or tests fail. Diff filtering marks out-of-scope mutants as
 `SKIPPED`; the baseline test run is unchanged. Fetch the comparison ref before using `--diff`.
+
+### Impact-aware diff selection
+
+`--diff-scope changed-line` preserves added/current-line selection for ordinary production edits.
+`changed-function` selects whole enclosing function declarations (including methods and their function literals).
+Changes outside functions fall back to the package. `affected-package` selects whole changed packages.
+
+All policies conservatively expand when line selection cannot express the impact:
+
+- Changed tests select production files in the same package (including external-package tests).
+- Deletion-only hunks and deleted files select the surviving package, not a guessed neighboring line.
+- Renames select both old and new packages. New tracked and non-ignored untracked Go files select their package.
+- Transitive reverse package imports select dependent packages, including imports from tests and shared test helpers.
+- Non-Go changes inside the module (configuration, dependencies, embedded assets, or unknown files) select the module.
+  Changes to repository `go.work` / `go.work.sum` also select the module. Other out-of-module paths are explicitly
+  ignored. Git-ignored untracked files are not considered.
+
+Without `--diff`, selection is disabled. With `--diff` and no relevant changes, **nothing is selected**; this never
+falls back to the whole module. The baseline coverage/test run still runs. Human and JSON reports include
+`selection.requested`, `selection.effective` (`disabled`, `empty`, a policy, or `module`), and sorted selection reasons.
+Effective scope describes automatic selection before exclusions and coverage, not a guarantee that tests run.
+
+Impact analysis uses `go list -deps -test` package/import metadata under the current build environment and `--tags`,
+not type or call-graph discovery. This includes transitive helpers imported from `testdata` and `_helpers`, while
+synthetic test variants/binaries never become production candidates. Changed-function selection skips build-inactive
+source before parsing function bodies. Selection intersects the calling directory, then existing file filters/exclusions
+and coverage eligibility still apply. Reverse dependencies outside that directory are not mutated; `--coverpkg` and
+`--integration` retain their existing test-execution meanings. Package loading errors fail explicitly.
+Changed-line/function modes do not follow callers within the changed package: choose `affected-package` for shared
+helpers or package-wide confidence. Dynamic/plugin dependencies and code outside the current module are not traced.
+Non-Go fallback can be intentionally broad (for example, a changed README); use exclusions/calling-directory scope
+as usual. These incremental policies complement, rather than replace, periodic full-module runs.
 
 ## Execution
 

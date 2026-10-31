@@ -55,6 +55,7 @@ run:
   verbose: false
   statuses: ""
   diff: ""
+  diff-scope: changed-line
   workers: 0 #(1)
   test-cpu: 0 #(2)
   timeout-coefficient: 0 #(3)
