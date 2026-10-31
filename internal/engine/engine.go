@@ -56,6 +56,7 @@ type Engine struct {
 	packageSources map[string]packageSource
 	filtered       map[token.Pos]map[mutator.Type]string
 	filteredCounts map[string]int
+	returnLoader   ReturnAnalysisLoader
 }
 
 // CodeData is used to check if the mutant should be executed.
@@ -114,6 +115,14 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 			return report.Results{}, err
 		}
 	}
+	var returns []mutator.Mutator
+	if returnAnalysisEnabled() {
+		var err error
+		returns, err = mu.returnMutations(ctx, files)
+		if err != nil {
+			return report.Results{}, err
+		}
+	}
 	mu.filteredCounts = make(map[string]int)
 	if mu.customFS {
 		mu.booleanShadows = findPackageBooleanShadows(mu.fs)
@@ -131,7 +140,7 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 		}
 	}()
 
-	var discovered []mutator.Mutator
+	discovered := returns
 	for mutant := range mu.mutantStream {
 		discovered = append(discovered, mutant)
 	}
@@ -381,6 +390,10 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 	if source, ok := mu.packageSources[fileName]; ok {
 		pkg = source.pkg
 	}
+	// All families here target the same source token. Select enabled families
+	// first, then retain one mutant per replacement, in stable mapping order.
+	byReplacement := make(map[string]*TokenMutator)
+	var unique []*TokenMutator
 	for _, mt := range mutantTypes {
 		if !configuration.Get[bool](configuration.MutantTypeEnabledKey(mt)) {
 			continue
@@ -390,12 +403,24 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 
 			continue
 		}
-		mutantType := mt
 		tm := NewTokenMutant(pkg, set, file, node)
-		tm.SetType(mutantType)
+		tm.SetType(mt)
+		_, replacement, ok := tm.replacementText()
+		if !ok {
+			continue
+		}
+		if existing, found := byReplacement[replacement]; found {
+			existing.families = append(existing.families, mt)
+
+			continue
+		}
+		tm.families = []mutator.Type{mt}
+		byReplacement[replacement] = tm
+		unique = append(unique, tm)
 		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
 		tm.captureSnippets(src)
-
+	}
+	for _, tm := range unique {
 		mu.mutantStream <- tm
 	}
 }
