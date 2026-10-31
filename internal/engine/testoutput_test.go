@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/engine"
@@ -166,7 +165,9 @@ func observeTestOutputReader(t *testing.T, output io.Reader, code int) (mutator.
 	t.Helper()
 	viperSet(map[string]any{configuration.RunWorkersKey: 1})
 	defer viperReset()
-	executor := engine.NewExecutor(gomodule.GoModule{CallingDir: "."}, newWdDealerStub(t), time.Second, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+	// Race/coverage instrumentation slows generated streaming fixtures; their
+	// deadline is independent of the allocation bound being tested.
+	executor := engine.NewExecutor(gomodule.GoModule{CallingDir: "."}, newWdDealerStub(t), expectedTimeout, engine.WithExecContext(func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		cmd := helperCommand(ctx, "TestStreamingOutputProcess", name, args...)
 		cmd.Env = append(cmd.Env, fmt.Sprintf("IMP_EVIDENCE_EXIT=%d", code))
 		cmd.Stdin = output
