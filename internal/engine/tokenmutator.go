@@ -101,7 +101,7 @@ func (m *TokenMutator) SetStatus(s mutator.Status) {
 
 // Position returns the token.Position where the TokenMutator resides.
 func (m *TokenMutator) Position() token.Position {
-	return m.fs.Position(m.tokenNode.TokPos)
+	return m.fs.PositionFor(m.tokenNode.TokPos, false)
 }
 
 // Pos returns the token.Pos where the TokenMutator resides.

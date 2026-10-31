@@ -151,14 +151,9 @@ func runMutationTests(ctx context.Context) func(cmd *cobra.Command, args []strin
 		reportErr := report.Write(output, results, options)
 		var gate *execution.ExitError
 		if reportErr != nil && !errors.As(reportErr, &gate) {
-			for _, target := range results.Replay {
-				if target.Resolution != "matched" {
-					return fmt.Errorf("exact replay unresolved; no mutants executed (see replay diagnostics)")
-				}
-			}
-
 			return reportErr
 		}
+
 		if err := output.Commit(); err != nil {
 			return err
 		}

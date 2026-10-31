@@ -181,7 +181,7 @@ func TestIdentityReplayActuallyExecutesMutant(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Replay a prior report after a real line shift in the source file.
-	shifted := "// unrelated header\n\n" + source
+	shifted := "// unrelated header\n\n//line generated.go:100\n" + source
 	if err := os.WriteFile(filepath.Join(root, "calc.go"), []byte(shifted), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -261,5 +261,25 @@ func TestIdentityRejectsWorkerSourceChange(t *testing.T) {
 	restored, err := os.ReadFile(filepath.Join(root, "calc.go"))
 	if err != nil || !bytes.Equal(restored, changed) {
 		t.Fatal("stale worker source overwritten")
+	}
+}
+
+func TestIdentityDistinguishesTokenIndexesAndLiteralContent(t *testing.T) {
+	enableIdentityOperators(t)
+	source := "package calc\nfunc Sum(a,b int)int{return a+b+b}\n"
+	got := discoverIdentity(t, source, engine.CodeData{}, ".")
+	if len(got.Mutants) != 2 || identityID(got.Mutants[0]) == identityID(got.Mutants[1]) {
+		t.Fatal("distinct token indexes collapsed")
+	}
+	selected := discoverIdentity(t, source, engine.CodeData{TargetIDs: []string{identityID(got.Mutants[1])}}, ".")
+	if len(selected.Mutants) != 1 || selected.Mutants[0].Position().Offset != got.Mutants[1].Position().Offset {
+		t.Fatal("ID did not select exact repeated expression token")
+	}
+	for _, text := range []string{"`a b`", "`a  b`", "`a\nb`", "\"a b\""} {
+		first := discoverIdentity(t, "package calc\nfunc F()bool{return "+text+"==`a b`}\n", engine.CodeData{}, ".")
+		changed := discoverIdentity(t, "package calc\nfunc F()bool{return "+text+"==`different`}\n", engine.CodeData{}, ".")
+		if identityID(first.Mutants[0]) == identityID(changed.Mutants[0]) {
+			t.Fatal("literal content omitted from context")
+		}
 	}
 }

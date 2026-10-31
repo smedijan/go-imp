@@ -227,3 +227,40 @@ func TestReturnIdentityRejectsChangedWorkerContext(t *testing.T) {
 		t.Fatal("stale worker overwritten")
 	}
 }
+
+func TestReturnIdentityLineDirectiveUsesPhysicalSource(t *testing.T) {
+	returnTestConfig(t)
+	source := "package calc\n//line virtual.go:100\nfunc Constant()bool{return true}\n"
+	returned := discoverReturnIdentity(t, source, nil)
+	id := identityID(returned.Mutants[0])
+	configuration.Set(configuration.MutantTypeEnabledKey(mutator.BooleanLiteral), true)
+	both := discoverReturnIdentity(t, source, []string{id})
+	if len(both.Mutants) != 1 || both.Replay[0].Resolution != "matched" {
+		t.Fatalf("line directive created alias ambiguity: %+v", both)
+	}
+	configuration.Set(configuration.MutantTypeEnabledKey(mutator.BooleanReturn), false)
+	configuration.Set(configuration.MutantTypeEnabledKey(mutator.ErrorReturn), false)
+	token := discoverReturnIdentity(t, source, []string{id})
+	if len(token.Mutants) != 1 {
+		t.Fatalf("token alias not selected: %+v", token)
+	}
+	m := token.Mutants[0]
+	if m.Position().Filename != "calc.go" || m.Position().Line != 3 {
+		t.Fatalf("nonphysical token position: %s", m.Position())
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "calc.go"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.SetWorkdir(root)
+	if err := m.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join(root, "calc.go"))
+	if err != nil || !bytes.Contains(payload, []byte("false")) {
+		t.Fatalf("token edit not applied to physical source: %s, %v", payload, err)
+	}
+	if err := m.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+}

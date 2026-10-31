@@ -373,7 +373,7 @@ func (mu *Engine) findMutations(fileName string, set *token.FileSet, file *ast.F
 		tm.families = []mutator.Type{mt}
 		byReplacement[replacement] = tm
 		unique = append(unique, tm)
-		tm.SetStatus(mu.mutationStatus(set.Position(node.TokPos)))
+		tm.SetStatus(mu.mutationStatus(set.PositionFor(node.TokPos, false)))
 		tm.captureSnippets(src)
 		tm.captureIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, fileName), src)
 	}

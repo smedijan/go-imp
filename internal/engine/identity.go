@@ -40,7 +40,7 @@ func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, off
 		name := declarationName(decl)
 		start, end := set.PositionFor(decl.Pos(), false).Offset, set.PositionFor(decl.End(), false).Offset
 		set := token.NewFileSet()
-		file := set.AddFile("", -1, end-start)
+		file := set.AddFile("", set.Base(), end-start)
 		var scan scanner.Scanner
 		scan.Init(file, src[start:end], nil, 0)
 		var tokens []string
@@ -58,6 +58,9 @@ func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, off
 			}
 			tokens = append(tokens, fmt.Sprintf("%d:%s", tok, literal))
 		}
+		if index < 0 {
+			return identity
+		}
 		locator := fingerprint(module, identity.ModulePath, name)
 		context := fingerprint(tokens...)
 		identity.ID = "imp-v1:" + locator + ":" + fingerprint(context, fmt.Sprint(index), normalizedOriginal(original), replacement)
@@ -72,7 +75,7 @@ func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, off
 // context, so whitespace/comments do not give literal/return aliases new IDs.
 func normalizedOriginal(source string) string {
 	set := token.NewFileSet()
-	file := set.AddFile("", -1, len(source))
+	file := set.AddFile("", set.Base(), len(source))
 	var scan scanner.Scanner
 	scan.Init(file, []byte(source), nil, 0)
 	var tokens []string
@@ -139,7 +142,7 @@ func canonicalMutants(discovered []mutator.Mutator) []mutator.Mutator {
 	for _, m := range discovered {
 		identified, ok := m.(mutator.Identified)
 		if ok && identified.Identity().ID != "" {
-			key := fmt.Sprintf("%s:%s:%d", identified.Identity().ID, m.Position().Filename, m.Position().Offset)
+			key := fmt.Sprintf("%s:%s:%d", identified.Identity().ID, identified.Identity().ModulePath, m.Position().Offset)
 			if seen[key] {
 				continue
 			}
@@ -163,9 +166,6 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 		}
 		id := identified.Identity().ID
 		byID[id] = append(byID[id], m)
-		if parts := strings.Split(id, ":"); len(parts) == 3 {
-			locators[parts[1]] = true
-		}
 	}
 	var selected []mutator.Mutator
 	var diagnostics []mutator.ReplayTarget
