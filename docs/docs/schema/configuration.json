@@ -187,6 +187,39 @@
             }
           }
         },
+        "boolean-literal": {
+          "title": "The boolean-literal Schema",
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "boolean-return": {
+          "title": "The boolean-return Schema",
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "error-return": {
+          "title": "The error-return Schema",
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
         "increment-decrement": {
           "title": "The increment-decrement Schema",
           "type": "object",

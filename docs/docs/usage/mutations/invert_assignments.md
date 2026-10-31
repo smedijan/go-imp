@@ -15,7 +15,8 @@ and right operands to the left operand.
 |    -=    |   +=    |
 |    *=    |   /=    |
 |    /=    |   *=    |
-|    %=    |   *=    |
+
+`%=` has no invert-assignment substitution. It can still be changed to `=` by `REMOVE_SELF_ASSIGNMENTS`.
 
 ## Examples
 

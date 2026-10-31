@@ -30,6 +30,8 @@ func TestMutantDefaultStatus(t *testing.T) {
 		expected   bool
 	}
 	testCases := []testCase{
+		{mutantType: mutator.BooleanReturn, expected: false},
+		{mutantType: mutator.ErrorReturn, expected: false},
 		{
 			mutantType: mutator.ArithmeticBase,
 			expected:   true,

@@ -17,7 +17,9 @@ import (
 	"github.com/smedijan/go-imp/internal/report/internal"
 )
 
-// Results contains all discovered mutants and the elapsed execution time.
+// Results contains unique discovered edits and the elapsed execution time.
+// Counts are exclusive: each edit is attributed only to its primary Type(),
+// even when multiple enabled families contributed the same edit.
 type Results struct {
 	Selection *diff.Selection
 	Module    string
