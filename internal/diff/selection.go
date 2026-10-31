@@ -44,6 +44,8 @@ func ValidateScope(scope string) error {
 }
 
 type packageInfo struct {
+	Module             struct{ Path string }
+	ForTest            string
 	Dir                string
 	ImportPath         string
 	GoFiles            []string
@@ -177,7 +179,7 @@ func listPackages(root, module string) ([]packageInfo, error) {
 
 			return nil, fmt.Errorf("decode impact packages: %w", err)
 		}
-		if pkg.Dir == "" {
+		if !isModuleProductionPackage(pkg, module) || pkg.Dir == "" {
 			continue
 		}
 		pkg.Dir, err = canonicalDirectory(pkg.Dir)
@@ -200,6 +202,25 @@ func listPackages(root, module string) ([]packageInfo, error) {
 	}
 
 	return packages, nil
+}
+
+// Reject irrelevant metadata before touching its filesystem paths: toolchain and
+// external dependency directories need not exist on the current host.
+func isModuleProductionPackage(pkg packageInfo, module string) bool {
+	if pkg.Module.Path != module || pkg.ForTest != "" {
+		return false
+	}
+	if pkg.ImportPath != module && !strings.HasPrefix(pkg.ImportPath, module+"/") {
+		return false
+	}
+	// go list test binaries use generated absolute source paths, unlike ordinary packages.
+	for _, name := range pkg.GoFiles {
+		if filepath.IsAbs(name) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Canonicalize existing directory anchors only; changed/deleted file paths must

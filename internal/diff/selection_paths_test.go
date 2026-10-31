@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -124,5 +125,50 @@ func TestSelectionModuleRootSymlinkAlias(t *testing.T) {
 				t.Errorf("deleted path/calling-directory alias scope: %v %+v", selected, info)
 			}
 		})
+	}
+}
+
+func TestSelectionPackageMetadataScope(t *testing.T) {
+	external := t.TempDir()
+	for name, source := range map[string]string{
+		"go.mod":  "module example.com/impact/external\n\ngo 1.25.0\n",
+		"code.go": "package external\nimport _ \"fmt\"\nfunc Value(a,b int) int {return a+b}\n",
+	} {
+		if err := os.WriteFile(filepath.Join(external, name), []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mod, write := selectionReviewFixture(t, map[string]string{
+		"go.mod":                  "module example.com/impact\n\ngo 1.25.0\nrequire example.com/impact/external v0.0.0\nreplace example.com/impact/external => " + strconv.Quote(filepath.ToSlash(external)) + "\n",
+		"consumer/code.go":        "package consumer\nimport _ \"example.com/impact/external\"\nfunc Value(a,b int) int {return a+b}\n",
+		"consumer/code_test.go":   "package consumer_test\nimport (_ \"testing\"; _ \"example.com/impact/testdata/helper\")\n",
+		"testdata/helper/code.go": "package helper\nfunc Value(a,b int) int {return a+b}\n",
+		"unrelated/code.go":       "package unrelated\nfunc Value(a,b int) int {return a+b}\n",
+	})
+	configuration.Set(configuration.RunDiffScope, diff.ChangedLine)
+	write("testdata/helper/code.go", "package helper\nfunc Value(a,b int) int {return a-b}\n")
+	selected, _, err := diff.NewSelection(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !selected.IsChanged(token.Position{Filename: "consumer/code.go", Line: 3}) || !selected.IsChanged(token.Position{Filename: "testdata/helper/code.go", Line: 2}) {
+		t.Fatalf("owned test-helper metadata lost: %v", selected)
+	}
+	// Module fallback must retain only canonical production sources, even though
+	// go list includes standard dependencies, an overlapping external module path,
+	// external-test variants and a synthetic test binary.
+	write(".imp.yaml", "{}\n")
+	selected, _, err = diff.NewSelection(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[diff.FileName]bool{"consumer/code.go": true, "testdata/helper/code.go": true, "unrelated/code.go": true}
+	if len(selected) != len(expected) {
+		t.Fatalf("unexpected metadata selected: %v", selected)
+	}
+	for name := range selected {
+		if !expected[name] {
+			t.Errorf("non-production/dependency source selected: %s", name)
+		}
 	}
 }
