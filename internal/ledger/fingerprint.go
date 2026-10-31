@@ -194,7 +194,12 @@ func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPa
 				return nil
 			}
 			if !d.Type().IsRegular() {
-				return fmt.Errorf("unsupported nonregular input")
+				relative, err := filepath.Rel(path, name)
+				if err != nil {
+					return fmt.Errorf("unsupported nonregular input (mode=%s)", d.Type())
+				}
+
+				return fmt.Errorf("unsupported nonregular input %q (mode=%s)", filepath.ToSlash(relative), d.Type())
 			}
 			frame(h, name)
 

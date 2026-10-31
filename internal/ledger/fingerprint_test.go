@@ -161,6 +161,8 @@ func TestFingerprintWorkspaceAndUnsupportedInputs(t *testing.T) {
 	}
 	if _, err = ledger.Fingerprint(context.Background(), root, path, "settings", ""); err == nil {
 		t.Fatal("symlink accepted")
+	} else if !strings.Contains(err.Error(), `unsupported nonregular input "module/linked-input" (mode=L`) || strings.Contains(err.Error(), root) {
+		t.Fatalf("diagnostic must identify relative input/type without exposing the absolute root: %v", err)
 	}
 }
 func TestFingerprintCancellationAndOverlap(t *testing.T) {
