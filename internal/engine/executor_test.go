@@ -74,11 +74,12 @@ func TestMutatorTestExecution(t *testing.T) {
 				t.Fatalf("status = %s, want %s", got.Status(), tc.want)
 			}
 			evidence := mut.ExecutionEvidence()
+			// An immediate launch failure can measure zero at Windows clock resolution.
 			if tc.category == "" {
 				if evidence != nil {
 					t.Fatal("unexecuted mutant has evidence")
 				}
-			} else if evidence == nil || evidence.Category != tc.category || evidence.DurationSeconds <= 0 || evidence.TimeoutSeconds != 50 || evidence.PackageScope != "example.com" || evidence.WorkingDirectory != command.Dir || len(evidence.Args) == 0 {
+			} else if evidence == nil || evidence.Category != tc.category || evidence.DurationSeconds < 0 || evidence.TimeoutSeconds != 50 || evidence.PackageScope != "example.com" || evidence.WorkingDirectory != command.Dir || len(evidence.Args) == 0 {
 				t.Fatalf("incorrect evidence: %+v", evidence)
 			}
 			if evidence != nil && tc.category == "launch" && evidence.ProcessError == nil {
