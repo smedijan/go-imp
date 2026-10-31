@@ -79,3 +79,17 @@ func TestNoLoggerAndColorConventions(t *testing.T) {
 		t.Fatal("buffer must not be treated as a colored terminal")
 	}
 }
+
+func TestSummarySupportsCapturedOutputAndQuiet(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	var stderr bytes.Buffer
+	log.Init(&stderr)
+	t.Cleanup(log.Reset)
+	log.Summaryf("Discovery: %d inactive files\n", 2)
+	configuration.Set(configuration.ImpQuietKey, true)
+	log.Summaryf("hidden")
+	if got := stderr.String(); got != "Discovery: 2 inactive files\n" {
+		t.Fatalf("stderr = %q", got)
+	}
+}
