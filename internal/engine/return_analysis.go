@@ -163,6 +163,7 @@ func (mu *Engine) findReturnMutations(ctx context.Context, pkg ReturnPackage, fi
 					if !validReturnCandidate(ctx, pkg, filename, candidate.splice(source)) {
 						continue
 					}
+					candidate.identity = sourceIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, relative), pkg.Fset, file, position.Offset, string(candidate.expected), replacement, source)
 					candidate.SetStatus(mu.mutationStatus(position))
 					result = append(result, candidate)
 				}
