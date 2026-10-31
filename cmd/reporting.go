@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/report"
+	"github.com/smedijan/go-imp/internal/report/output"
+	"github.com/smedijan/go-imp/internal/triage"
 )
 
 func configuredReportOptions() (report.Options, error) {
@@ -17,6 +21,8 @@ func configuredReportOptions() (report.Options, error) {
 	}
 
 	return report.Options{
+		HideReviewed:      configuration.Get[bool](configuration.RunHideReviewedKey),
+		GroupReview:       configuration.Get[bool](configuration.RunGroupReviewKey),
 		JSON:              configuration.Get[bool](configuration.RunJSONKey),
 		Verbose:           configuration.Get[bool](configuration.RunVerboseKey),
 		DryRun:            configuration.Get[bool](configuration.RunDryRunKey),
@@ -60,7 +66,7 @@ func setRunHelp(cmd *cobra.Command) {
 
 func flagGroup(name string) string {
 	switch name {
-	case "json", "output", "statuses", "verbose", "quiet", "no-color", "help":
+	case "triage-input", "triage-output", "hide-reviewed", "group-review", "json", "output", "statuses", "verbose", "quiet", "no-color", "help":
 		return "Reporting"
 	case "diff", "diff-scope", "tags", "coverpkg", "exclude-files", "include-files", "exclude-workdir":
 		return "Scope"
@@ -71,4 +77,19 @@ func flagGroup(name string) string {
 	default:
 		return "Mutation operators"
 	}
+}
+
+func writeTriageLedger(path string, ledger triage.Ledger) error {
+	destination, err := output.Open(io.Discard, path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = destination.Close() }()
+	encoder := json.NewEncoder(destination)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(ledger); err != nil {
+		return err
+	}
+
+	return destination.Commit()
 }

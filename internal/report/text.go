@@ -35,6 +35,15 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 	for _, target := range document.Replay {
 		fmt.Fprintf(out, "Replay %s: %s\n", target.ID, target.Resolution)
 	}
+	if document.Triage != nil {
+		fmt.Fprintf(out, "Triage: reviewed=%d hidden=%d; gates unchanged (whole run)\n", document.Triage.Reviewed, document.Triage.Hidden)
+		for _, e := range document.Triage.Ledger.Entries {
+			fmt.Fprintf(out, "  %s %s [%s]: %s (provenance: %s)\n", e.Identity.ID, e.Disposition, e.Resolution, e.Reason, e.Provenance)
+		}
+	}
+	for _, group := range document.ReviewGroups {
+		fmt.Fprintf(out, "Review group %s: %s\n  %s\n", group.ID, group.Criterion, strings.Join(group.MutantIDs, "\n  "))
+	}
 	title := "Mutation testing"
 	if options.DryRun {
 		title = "Dry run"
@@ -54,7 +63,7 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 		fmt.Fprintf(out, "\n%s (%d) - %s\n", paint(status.String(), statusColor(status), options.Color), count, descriptions[status])
 		filename := ""
 		for _, m := range mutants {
-			if m.Status() != status {
+			if m.Status() != status || (options.HideReviewed && options.Triage != nil && options.Triage.Reviewed(m)) {
 				continue
 			}
 			if m.Position().Filename != filename {

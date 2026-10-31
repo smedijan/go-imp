@@ -101,3 +101,6 @@ field contract and truncation policy.
 The v1 contract is intentionally conservative; there is no cache, persistent
 ledger, semantic matching, cross-file migration, or support for legacy position
 replay. Future identity algorithms require a new identity version.
+
+For durable human review decisions without changing execution or gates, see
+[persistent triage](persistent-triage.md).

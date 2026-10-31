@@ -15,6 +15,7 @@ import (
 	"github.com/smedijan/go-imp/internal/execution"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report/internal"
+	"github.com/smedijan/go-imp/internal/triage"
 )
 
 // Results contains unique discovered edits and the elapsed execution time.
@@ -30,6 +31,9 @@ type Results struct {
 
 // Options selects presentation and quality gates, never which mutants are executed.
 type Options struct {
+	Triage            *triage.Ledger
+	HideReviewed      bool
+	GroupReview       bool
 	JSON              bool
 	Verbose           bool
 	Color             bool
@@ -87,6 +91,13 @@ func Write(out io.Writer, results Results, options Options) error {
 	if len(options.Statuses) == 0 {
 		options.Statuses = append([]mutator.Status(nil), statusOrder...)
 	}
+	if options.Triage != nil {
+		if err := options.Triage.Validate(results.Module); err != nil {
+			return err
+		}
+		resolved := triage.Resolve(*options.Triage, results.Mutants)
+		options.Triage = &resolved
+	}
 	ordered := sortedMutants(results.Mutants)
 	document := newDocument(results, ordered, options)
 	var buffer bytes.Buffer
@@ -135,12 +146,32 @@ func newDocument(results Results, ordered []mutator.Mutator, options Options) in
 	for _, status := range options.Statuses {
 		document.SelectedStatuses = append(document.SelectedStatuses, statusNames[status])
 	}
+	if options.Triage != nil {
+		document.Triage = &internal.TriageAudit{Ledger: *options.Triage, Counts: make(map[string]int), HideReviewed: options.HideReviewed, GatePolicy: "unchanged-whole-run; dispositions never kill or prove equivalence"}
+		for _, e := range options.Triage.Entries {
+			document.Triage.Counts[e.Disposition]++
+		}
+	}
+	var visible []mutator.Mutator
 	for _, m := range ordered {
 		countStatus(&document, m.Status())
 		document.MutatorStatistics[strings.ToLower(m.Type().String())]++
+		reviewed := options.Triage != nil && options.Triage.Reviewed(m)
+		if reviewed {
+			document.Triage.Reviewed++
+		}
 		if selected(options.Statuses, m.Status()) {
+			if reviewed && options.HideReviewed {
+				document.Triage.Hidden++
+
+				continue
+			}
+			visible = append(visible, m)
 			addFinding(&document, m)
 		}
+	}
+	if options.GroupReview {
+		document.ReviewGroups = reviewGroups(visible)
 	}
 	tested := document.MutantsKilled + document.MutantsLived
 	// Legacy empty/default scores remain unchanged. Confirmed campaigns with no

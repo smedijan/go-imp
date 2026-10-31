@@ -91,3 +91,54 @@ func (out *Destination) Close() error {
 
 	return errors.Join(closeErr, removeErr)
 }
+
+// Distinct rejects lexical, symlink and hardlink aliases among input and output
+// files. Call before opening any destination. Empty paths are ignored; callers
+// must replace stdout sentinels with empty paths. A literal "-" is a filename.
+func Distinct(paths ...string) error {
+	for i, path := range paths {
+		if path == "" {
+			continue
+		}
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+		info, statErr := os.Stat(path)
+		if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+			return statErr
+		}
+		resolved, resolveErr := filepath.EvalSymlinks(absolute)
+		if resolveErr != nil {
+			resolved = resolveParent(absolute)
+		}
+		for _, other := range paths[:i] {
+			if other == "" {
+				continue
+			}
+			otherAbs, err := filepath.Abs(other)
+			if err != nil {
+				return err
+			}
+			otherResolved, err := filepath.EvalSymlinks(otherAbs)
+			if err != nil {
+				otherResolved = resolveParent(otherAbs)
+			}
+			otherInfo, _ := os.Stat(other)
+			if absolute == otherAbs || resolved == otherResolved || (info != nil && otherInfo != nil && os.SameFile(info, otherInfo)) {
+				return fmt.Errorf("input/output paths must be distinct: %q aliases %q", path, other)
+			}
+		}
+	}
+
+	return nil
+}
+
+func resolveParent(path string) string {
+	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return path
+	}
+
+	return filepath.Join(parent, filepath.Base(path))
+}
