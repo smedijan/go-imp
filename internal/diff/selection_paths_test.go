@@ -4,6 +4,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -72,5 +73,56 @@ func TestSelectionPathsAndBuildSettings(t *testing.T) {
 	}
 	if info.Effective != "module" || !selected.IsChanged(token.Position{Filename: "a.go", Line: 2}) {
 		t.Fatalf("workspace fallback: %v %+v", selected, info)
+	}
+}
+
+func TestSelectionModuleRootSymlinkAlias(t *testing.T) {
+	for _, scope := range []string{diff.ChangedLine, diff.ChangedFunction, diff.AffectedPackage} {
+		t.Run(scope, func(t *testing.T) {
+			mod, write := selectionReviewFixture(t, map[string]string{
+				"a/code.go":     "package a\nfunc Value(a,b int) int {return a+b}\n",
+				"a/deleted.go":  "package a\nfunc Removed(a,b int) int {return a-b}\n",
+				"b/code.go":     "package b\nimport _ \"example.com/impact/a\"\nfunc Value(a,b int) int {return a+b}\n",
+				"other/code.go": "package other\nfunc Value(a,b int) int {return a+b}\n",
+			})
+			alias := filepath.Join(t.TempDir(), "module-alias")
+			if err := os.Symlink(mod.Root, alias); err != nil {
+				t.Skipf("directory symlink unavailable: %v", err)
+			}
+			write("a/code.go", "package a\nfunc Value(a,b int) int {return a-b}\n")
+			configuration.Set(configuration.RunDiffScope, scope)
+			direct, _, err := diff.NewSelection(mod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mod.Root = alias
+			selected, info, err := diff.NewSelection(mod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, pos := range []token.Position{{Filename: "a/code.go", Line: 2}, {Filename: "b/code.go", Line: 3}} {
+				if !selected.IsChanged(pos) {
+					t.Errorf("symlink alias lost selected source %+v: %v %+v", pos, selected, info)
+				}
+			}
+			if selected.IsChanged(token.Position{Filename: "other/code.go", Line: 2}) {
+				t.Error("unrelated package selected")
+			}
+			if !reflect.DeepEqual(selected, direct) {
+				t.Errorf("alias scope differs: %v, direct %v", selected, direct)
+			}
+			// Deleted paths must be mapped lexically below the canonical existing root.
+			if err := os.Remove(filepath.Join(alias, "a", "deleted.go")); err != nil {
+				t.Fatal(err)
+			}
+			mod.CallingDir = "a"
+			selected, info, err = diff.NewSelection(mod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !selected.IsChanged(token.Position{Filename: "code.go", Line: 99}) || selected.IsChanged(token.Position{Filename: "../b/code.go", Line: 3}) || info.Effective != diff.AffectedPackage {
+				t.Errorf("deleted path/calling-directory alias scope: %v %+v", selected, info)
+			}
+		})
 	}
 }

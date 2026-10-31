@@ -83,7 +83,7 @@ func NewSelection(mod gomodule.GoModule) (Diff, *Selection, error) {
 	if ref == "" {
 		return nil, info, nil
 	}
-	root, err := filepath.Abs(mod.Root)
+	root, err := canonicalDirectory(mod.Root)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +91,10 @@ func NewSelection(mod gomodule.GoModule) (Diff, *Selection, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	repo := strings.TrimSpace(string(repoOutput))
+	repo, err := canonicalDirectory(strings.TrimSpace(string(repoOutput)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve Git repository directory: %w", err)
+	}
 	patch, err := gitOutput(repo, "diff", "--no-ext-diff", "--no-textconv", "--find-renames", "--merge-base", ref, "--")
 	if err != nil {
 		return nil, nil, err
@@ -117,7 +120,10 @@ func NewSelection(mod gomodule.GoModule) (Diff, *Selection, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	callingRoot := filepath.Join(root, mod.CallingDir)
+	callingRoot, err := canonicalDirectory(filepath.Join(root, mod.CallingDir))
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve calling directory: %w", err)
+	}
 	result := make(Diff)
 	for name, ranges := range selected {
 		relative, ok := within(callingRoot, filepath.Join(root, string(name)))
@@ -171,10 +177,17 @@ func listPackages(root, module string) ([]packageInfo, error) {
 
 			return nil, fmt.Errorf("decode impact packages: %w", err)
 		}
+		if pkg.Dir == "" {
+			continue
+		}
+		pkg.Dir, err = canonicalDirectory(pkg.Dir)
+		if err != nil {
+			return nil, fmt.Errorf("resolve package directory for %s: %w", pkg.ImportPath, err)
+		}
 		// Keep canonical module packages, not external dependencies, test variants,
 		// external-test packages, or synthetic test binaries sharing a source directory.
 		dir, ok := within(root, pkg.Dir)
-		if !ok || pkg.Dir == "" {
+		if !ok {
 			continue
 		}
 		canonical := module
@@ -187,6 +200,17 @@ func listPackages(root, module string) ([]packageInfo, error) {
 	}
 
 	return packages, nil
+}
+
+// Canonicalize existing directory anchors only; changed/deleted file paths must
+// remain lexical so removals and renames do not require a surviving file leaf.
+func canonicalDirectory(dir string) (string, error) {
+	absolute, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.EvalSymlinks(absolute)
 }
 
 func within(root, path string) (string, bool) {
