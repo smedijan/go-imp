@@ -143,6 +143,21 @@ func newDocument(results Results, ordered []mutator.Mutator, options Options) in
 		}
 	}
 	tested := document.MutantsKilled + document.MutantsLived
+	// Legacy empty/default scores remain unchanged. Confirmed campaigns with no
+	// conclusive observations must not advertise perfect efficacy.
+	if tested == 0 && !options.DryRun {
+		for _, m := range ordered {
+			if p, ok := m.(interface {
+				ExecutionEvidence() *mutator.ExecutionEvidence
+			}); ok {
+				if e := p.ExecutionEvidence(); e != nil && e.Confidence != "" {
+					document.TestEfficacy = 0
+
+					break
+				}
+			}
+		}
+	}
 	if tested > 0 {
 		document.TestEfficacy = float64(document.MutantsKilled) / float64(tested) * 100
 	}
