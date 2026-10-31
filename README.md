@@ -35,6 +35,9 @@ imp run --json --statuses lived,not-covered --output findings.json
 Omit `--output` to write the selected format to stdout. Counts and quality gates
 always describe the whole run, even when findings are filtered.
 
+Optional [incremental results](docs/docs/incremental-results.md) reuse only
+repeatedly confirmed outcomes; coverage and baseline tests still execute.
+
 See the [installation guide](docs/docs/install.md) for mise and Go options.
 Then follow the [quick start](docs/docs/quick-start.md) or read the [FAQ](docs/docs/faq.md).
 

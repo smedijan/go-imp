@@ -82,6 +82,9 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 		Long:    longExplainer(),
 		Example: "  imp run\n  imp run --statuses lived,not-covered\n  imp run --json --statuses lived --output survivors.json\n  imp run --dry-run --json",
 		PreRunE: func(_ *cobra.Command, _ []string) error {
+			if err := validateIncrementalOptions(); err != nil {
+				return execution.NewUsageError(err)
+			}
 			_, err := configuredReportOptions()
 			if err != nil {
 				return execution.NewUsageError(err)
@@ -185,6 +188,11 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		return report.Results{}, execution.NewUsageError(err)
 	}
 
+	session := incrementalSession(ctx, mod)
+	if session != nil {
+		defer session.Close()
+	}
+
 	c := coverage.New(workDir, mod)
 
 	exclude, err := exclusion.New()
@@ -209,7 +217,7 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		TargetIDs: ids,
 	}
 
-	mut := engine.New(mod, codeData, executor)
+	mut := engine.New(mod, codeData, executor, engine.WithLedger(session))
 
 	return mut.Run(ctx)
 }
@@ -227,6 +235,10 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "incremental", CfgKey: configuration.RunIncrementalKey, DefaultV: false, Usage: "reuse confirmed historical outcomes (disabled by default)"},
+		{Name: "incremental-refresh", CfgKey: configuration.RunIncrementalRefreshKey, DefaultV: false, Usage: "discard historical evidence and execute fresh (requires --incremental)"},
+		{Name: "incremental-ttl-hours", CfgKey: configuration.RunIncrementalTTLKey, DefaultV: 24, Usage: "expire observations after N hours (1..720; reused outcomes do not extend TTL)"},
+		{Name: "incremental-max-entries", CfgKey: configuration.RunIncrementalEntriesKey, DefaultV: 2000, Usage: "retain at most N historical outcomes (1..10000; 4 MiB byte cap)"},
 		{Name: "mutant-ids", CfgKey: configuration.RunMutantIDsKey, DefaultV: []string{}, Usage: "select exact mutant IDs (comma-separated or repeated)"},
 		{Name: "replay-report", CfgKey: configuration.RunReplayReportKey, DefaultV: "", Usage: "select all findings in an identity-aware JSON `FILE`"},
 		{Name: "json", CfgKey: configuration.RunJSONKey, DefaultV: false, Usage: "write grouped JSON instead of human-readable text"},

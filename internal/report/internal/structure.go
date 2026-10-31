@@ -1,10 +1,15 @@
 // Package internal provides the versioned JSON report schema.
 package internal
 
-import "github.com/smedijan/go-imp/internal/mutator"
+import (
+	"github.com/smedijan/go-imp/internal/ledger"
+	"github.com/smedijan/go-imp/internal/mutator"
+)
 
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
+	Evidence          []ledger.Evidence                `json:"evidence,omitempty"`
+	LedgerNote        string                           `json:"ledger_note,omitempty"`
 	IdentityVersion   int                              `json:"identity_version"`
 	Replay            []mutator.ReplayTarget           `json:"replay,omitempty"`
 	SchemaVersion     int                              `json:"schema_version"`

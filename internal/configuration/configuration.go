@@ -36,6 +36,10 @@ import (
 const (
 	ImpQuietKey              = "quiet"
 	ImpNoColorKey            = "no-color"
+	RunIncrementalKey        = "run.incremental"
+	RunIncrementalRefreshKey = "run.incremental-refresh"
+	RunIncrementalTTLKey     = "run.incremental-ttl-hours"
+	RunIncrementalEntriesKey = "run.incremental-max-entries"
 	RunMutantIDsKey          = "run.mutant-ids"
 	RunReplayReportKey       = "run.replay-report"
 	RunJSONKey               = "run.json"

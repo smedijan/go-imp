@@ -12,6 +12,8 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
+const replayMatched = "matched"
+
 func fingerprint(parts ...string) string {
 	// Length framing prevents source text from creating field-boundary collisions.
 	var text strings.Builder
@@ -182,7 +184,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 				resolution = "changed"
 			}
 		case 1:
-			resolution = "matched"
+			resolution = replayMatched
 			selected = append(selected, byID[id][0])
 		default:
 			resolution = "ambiguous"
@@ -191,7 +193,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 	}
 	// Exact-set replay is atomic: never execute a partial set silently.
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Resolution != "matched" {
+		if diagnostic.Resolution != replayMatched {
 			return nil, diagnostics
 		}
 	}

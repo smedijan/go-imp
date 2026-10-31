@@ -33,6 +33,7 @@ import (
 	"github.com/smedijan/go-imp/internal/coverage"
 	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/exclusion"
+	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/log"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report"
@@ -46,6 +47,7 @@ import (
 // It traverses the AST of the project, finds which TokenMutator can be applied and
 // performs the actual mutation testing.
 type Engine struct {
+	ledger         *ledger.Session
 	fs             fs.FS
 	executor       Executor
 	codeData       CodeData
@@ -159,7 +161,9 @@ func (mu *Engine) Run(ctx context.Context) (report.Results, error) {
 	}
 	discovered = canonicalMutants(discovered)
 	discovered, replay := selectMutants(discovered, mu.codeData.TargetIDs, mu.sourceLocators)
-	res, err := mu.executeTests(ctx, discovered, files, progress)
+	res, err := mu.executeWithLedger(ctx, discovered, replay, func(pending []mutator.Mutator) (report.Results, error) {
+		return mu.executeTests(ctx, pending, files, progress)
+	})
 	res.Replay = replay
 	res.Elapsed = time.Since(start)
 	res.Module = mu.module.Name

@@ -90,6 +90,8 @@ successful report. Worker source bytes must still match discovery before Apply;
 stale worker copies fail rather than receiving a mutation against other source.
 The isolated worker copy is restored before results are returned.
 
-The v1 contract is intentionally conservative; there is no cache, persistent
-ledger, semantic matching, cross-file migration, or support for legacy position
-replay. Future identity algorithms require a new identity version.
+The v1 identity contract is intentionally conservative: no semantic matching,
+cross-file migration, or legacy position replay. Future identity algorithms
+require a new identity version. [Incremental results](incremental-results.md)
+optionally reuse independently confirmed outcomes; exact replay still respects
+all current discovery and coverage constraints.

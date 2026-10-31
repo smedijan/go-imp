@@ -66,7 +66,7 @@ func flagGroup(name string) string {
 		return "Scope"
 	case "threshold-efficacy", "threshold-mcover":
 		return "Quality gates"
-	case "config", "dry-run", "integration", "workers", "test-cpu", "timeout-coefficient":
+	case "config", "dry-run", "integration", "workers", "test-cpu", "timeout-coefficient", "incremental", "incremental-refresh", "incremental-ttl-hours", "incremental-max-entries":
 		return "Execution"
 	default:
 		return "Mutation operators"

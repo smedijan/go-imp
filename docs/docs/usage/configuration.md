@@ -47,6 +47,10 @@ Here is a complete configuration file with all the properties set to their defau
 quiet: false
 no-color: false
 run:
+  incremental: false
+  incremental-refresh: false
+  incremental-ttl-hours: 24
+  incremental-max-entries: 2000
   integration: false
   dry-run: false
   tags: ""
