@@ -83,6 +83,9 @@ func newRunCmd(ctx context.Context) (*runCmd, error) {
 		Long:    longExplainer(),
 		Example: "  imp run\n  imp run --statuses lived,not-covered\n  imp run --json --statuses lived --output survivors.json\n  imp run --dry-run --json",
 		PreRunE: func(_ *cobra.Command, _ []string) error {
+			if err := validateIncrementalOptions(); err != nil {
+				return execution.NewUsageError(err)
+			}
 			if err := diff.ValidateScope(configuration.Get[string](configuration.RunDiffScope)); err != nil {
 				return execution.NewUsageError(err)
 			}
@@ -234,6 +237,11 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		return report.Results{}, execution.NewUsageError(err)
 	}
 
+	session := incrementalSession(ctx, mod)
+	if session != nil {
+		defer session.Close()
+	}
+
 	c := coverage.New(workDir, mod)
 
 	exclude, err := exclusion.New()
@@ -258,7 +266,7 @@ func run(ctx context.Context, mod gomodule.GoModule, workDir string) (report.Res
 		TargetIDs: ids,
 	}
 
-	mut := engine.New(mod, codeData, executor)
+	mut := engine.New(mod, codeData, executor, engine.WithLedger(session))
 
 	results, err := mut.Run(ctx)
 	results.Selection = selection
@@ -279,6 +287,10 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "incremental", CfgKey: configuration.RunIncrementalKey, DefaultV: false, Usage: "reuse confirmed historical outcomes (disabled by default)"},
+		{Name: "incremental-refresh", CfgKey: configuration.RunIncrementalRefreshKey, DefaultV: false, Usage: "discard historical evidence and execute fresh (requires --incremental)"},
+		{Name: "incremental-ttl-hours", CfgKey: configuration.RunIncrementalTTLKey, DefaultV: 24, Usage: "expire observations after N hours (1..720; reused outcomes do not extend TTL)"},
+		{Name: "incremental-max-entries", CfgKey: configuration.RunIncrementalEntriesKey, DefaultV: 2000, Usage: "retain at most N historical outcomes (1..10000; 4 MiB byte cap)"},
 		{Name: "triage-input", CfgKey: configuration.RunTriageInputKey, DefaultV: "", Usage: "read strict human-authored disposition JSON from FILE (report only)"},
 		{Name: "triage-output", CfgKey: configuration.RunTriageOutputKey, DefaultV: "", Usage: "atomically save the annotated disposition ledger to a distinct FILE"},
 		{Name: "hide-reviewed", CfgKey: configuration.RunHideReviewedKey, DefaultV: false, Usage: "hide uniquely matched reviewed findings; retain ledger, counts and whole-run gates"},

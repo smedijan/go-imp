@@ -19,6 +19,30 @@
     "run": {
       "type": "object",
       "properties": {
+        "incremental": {
+          "description": "Reuse confirmed historical outcomes (coverage baseline always runs)",
+          "type": "boolean",
+          "default": false
+        },
+        "incremental-refresh": {
+          "description": "Discard historical evidence; requires incremental",
+          "type": "boolean",
+          "default": false
+        },
+        "incremental-ttl-hours": {
+          "description": "Observation lifetime in hours; reuse does not extend it",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24
+        },
+        "incremental-max-entries": {
+          "description": "Maximum retained outcomes (also bounded to 4 MiB)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 2000
+        },
         "json": {
           "title": "JSON report",
           "description": "Write grouped JSON instead of human-readable text",

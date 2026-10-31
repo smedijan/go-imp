@@ -12,7 +12,10 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-const replayMatched = "matched"
+const (
+	replayMatched = "matched"
+	replayChanged = "changed"
+)
 
 func fingerprint(parts ...string) string {
 	// Length framing prevents source text from creating field-boundary collisions.
@@ -178,7 +181,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 		switch len(byID[id]) {
 		case 0:
 			if parts := strings.Split(id, ":"); len(parts) == 3 && locators[parts[1]] {
-				resolution = "changed"
+				resolution = replayChanged
 			}
 		case 1:
 			resolution = replayMatched

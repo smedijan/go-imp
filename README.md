@@ -35,6 +35,9 @@ imp run --json --statuses lived,not-covered --output findings.json
 Omit `--output` to write the selected format to stdout. Counts and quality gates
 always describe the whole run, even when findings are filtered.
 
+Optional [incremental results](docs/docs/incremental-results.md) reuse only
+repeatedly confirmed outcomes; coverage and baseline tests still execute.
+
 Verify a bounded test-only patch against exact findings with `imp verify`;
 see [test-patch verification](docs/verification.md) for selectors, evidence and limits.
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/execution"
+	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/report/internal"
 	"github.com/smedijan/go-imp/internal/triage"
@@ -22,11 +23,13 @@ import (
 // Counts are exclusive: each edit is attributed only to its primary Type(),
 // even when multiple enabled families contributed the same edit.
 type Results struct {
-	Selection *diff.Selection
-	Module    string
-	Mutants   []mutator.Mutator
-	Elapsed   time.Duration
-	Replay    []mutator.ReplayTarget
+	Evidence   []ledger.Evidence
+	LedgerNote string
+	Selection  *diff.Selection
+	Module     string
+	Mutants    []mutator.Mutator
+	Elapsed    time.Duration
+	Replay     []mutator.ReplayTarget
 }
 
 // Options selects presentation and quality gates, never which mutants are executed.
@@ -135,6 +138,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
+		Evidence: results.Evidence, LedgerNote: results.LedgerNote,
 		Selection:     results.Selection,
 		SchemaVersion: 2, IdentityVersion: 1, Replay: results.Replay, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),

@@ -32,6 +32,12 @@ func writeText(out io.Writer, document internal.OutputResult, mutants []mutator.
 			fmt.Fprintf(out, "  %s\n", reason)
 		}
 	}
+	if document.LedgerNote != "" {
+		fmt.Fprintf(out, "Ledger: %s\n", document.LedgerNote)
+	}
+	for _, e := range document.Evidence {
+		fmt.Fprintf(out, "Evidence %s: %s (%s, %s; %d confirmations) %s; historical=%s\n", e.ID, e.Provenance, e.Confidence, e.Scope, e.Confirmations, e.Transition, e.Previous)
+	}
 	for _, target := range document.Replay {
 		fmt.Fprintf(out, "Replay %s: %s\n", target.ID, target.Resolution)
 	}

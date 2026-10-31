@@ -98,9 +98,11 @@ Unknown context is explicit `null`; dependency/individual-test impact provenance
 is explicitly `unknown`. See [run reporting](usage/commands/run/index.md) for the
 field contract and truncation policy.
 
-The v1 contract is intentionally conservative; there is no cache, persistent
-ledger, semantic matching, cross-file migration, or support for legacy position
-replay. Future identity algorithms require a new identity version.
+The v1 identity contract is intentionally conservative: no semantic matching,
+cross-file migration, or legacy position replay. Future identity algorithms
+require a new identity version. [Incremental results](incremental-results.md)
+optionally reuse independently confirmed outcomes; exact replay still respects
+all current discovery and coverage constraints.
 
 For durable human review decisions without changing execution or gates, see
 [persistent triage](persistent-triage.md).

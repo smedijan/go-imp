@@ -3,12 +3,15 @@ package internal
 
 import (
 	"github.com/smedijan/go-imp/internal/diff"
+	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/mutator"
 	"github.com/smedijan/go-imp/internal/triage"
 )
 
 // OutputResult describes the whole run; Groups contains only selected findings.
 type OutputResult struct {
+	Evidence          []ledger.Evidence                `json:"evidence,omitempty"`
+	LedgerNote        string                           `json:"ledger_note,omitempty"`
 	Triage            *TriageAudit                     `json:"triage,omitempty"`
 	ReviewGroups      []ReviewGroup                    `json:"review_groups,omitempty"`
 	Selection         *diff.Selection                  `json:"selection,omitempty"`
