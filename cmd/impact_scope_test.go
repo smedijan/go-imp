@@ -44,7 +44,8 @@ func newImpactFixture(t *testing.T) string {
 	return dir
 }
 
-func TestCLIImpactScope(t *testing.T) {
+func clearImpactGitEnvironment(t *testing.T) {
+	t.Helper()
 	// Inherited hook Git state must not redirect these fixture repositories.
 	for _, entry := range os.Environ() {
 		name, _, _ := strings.Cut(entry, "=")
@@ -55,6 +56,10 @@ func TestCLIImpactScope(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCLIImpactScope(t *testing.T) {
+	clearImpactGitEnvironment(t)
 	for _, tc := range []struct {
 		name, scope, reason, effective string
 		edit                           func(*testing.T, string)
@@ -73,7 +78,9 @@ func TestCLIImpactScope(t *testing.T) {
 		{name: "package", scope: "affected-package", effective: "affected-package", reason: "requested package", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, "a", "code.go"), "package a\nfunc Value(a,b int) int {\n _ = a + 0\n return a - b\n}\nfunc Other(a,b int) int { return a - b }\n")
 		}, wantA: true, wantB: true},
-		{name: "config", scope: "changed-line", effective: "module", reason: "configuration", edit: func(t *testing.T, dir string) { writeFixture(t, filepath.Join(dir, "settings.json"), "{}\n") }, wantA: true, wantB: true, wantOther: true},
+		{name: "config", scope: "changed-line", effective: "module", reason: "configuration", edit: func(t *testing.T, dir string) {
+			writeFixture(t, filepath.Join(dir, ".imp.yaml"), "# changed configuration\n")
+		}, wantA: true, wantB: true, wantOther: true},
 		{name: "calling-directory", scope: "affected-package", effective: "affected-package", calling: "b", reason: "reverse dependency", edit: func(t *testing.T, dir string) {
 			writeFixture(t, filepath.Join(dir, "a", "extra_test.go"), "package a\n")
 		}, wantB: true},
@@ -131,5 +138,35 @@ func TestCLIImpactScope(t *testing.T) {
 				t.Error("inactive build-tagged source selected")
 			}
 		})
+	}
+}
+
+func TestCLIDocsOnlyDoesNotExecuteMutations(t *testing.T) {
+	clearImpactGitEnvironment(t)
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	dir := newImpactFixture(t)
+	t.Chdir(dir)
+	writeFixture(t, filepath.Join(dir, "README.md"), "# documentation only\n")
+	payload, err := executeCLI(context.Background(), t, "test", "run", "--diff", "HEAD", "--diff-scope", "changed-line", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Selection struct {
+			Requested, Effective string
+			Reasons              []string
+		} `json:"selection"`
+		Total   int `json:"mutants_total"`
+		Skipped int `json:"mutants_skipped"`
+	}
+	if err := json.Unmarshal([]byte(payload), &document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Total == 0 || document.Skipped != document.Total {
+		t.Fatalf("docs-only run executed or selected mutants: %s", payload)
+	}
+	if document.Selection.Requested != "changed-line" || document.Selection.Effective != "empty" || !strings.Contains(strings.Join(document.Selection.Reasons, ";"), "ignored documentation/metadata: README.md") {
+		t.Fatalf("missing bounded-scope explanation: %s", payload)
 	}
 }

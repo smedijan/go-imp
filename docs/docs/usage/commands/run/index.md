@@ -189,8 +189,21 @@ All policies conservatively expand when line selection cannot express the impact
 - Deletion-only hunks and deleted files select the surviving package, not a guessed neighboring line.
 - Renames select both old and new packages. New tracked and non-ignored untracked Go files select their package.
 - Transitive reverse package imports select dependent packages, including imports from tests and shared test helpers.
-- Non-Go changes inside the module (configuration, dependencies, embedded assets, or unknown files) select the module.
-  Changes to repository `go.work` / `go.work.sum` also select the module. Other out-of-module paths are explicitly
+- Module/workspace, imp, and recognized build configuration changes select the module (for example `go.mod`,
+  `go.sum`, `go.work`, `.imp.yaml`, `Makefile`, `mise.toml`, or `.github/workflows/` inputs).
+- Under `changed-line` (the default) and `changed-function`, embedded production/test inputs and native build inputs
+  reported by `go list` select their owning packages and reverse dependencies. Embed patterns also identify deleted
+  or renamed-away inputs before documentation exclusions, including directory and `all:` patterns. Pattern fallback
+  conservatively includes hidden descendants and reports an explicit ownership-fallback reason. Files under `testdata/`
+  select the nearest owning package and reverse dependencies, or the module when no owner is known.
+- Documentation (`docs/`, `doc/`, `.md`, `.rst`, `.adoc`) and recognized repository metadata (`LICENSE`, `COPYING`,
+  `AUTHORS`, `CONTRIBUTORS`, `CODEOWNERS`, `.gitignore`, `.gitattributes`, `.editorconfig`) are ignored in those two
+  policies, unless identified as embedded/build inputs or test fixtures. Thus a docs/schema-only diff selects no
+  mutations, rather than silently requesting a full-module mutation run.
+- Unknown non-Go inputs are not discarded: they conservatively select the nearest owning package and reverse
+  dependencies, or the module if no package owns their path. Reports explicitly label this unknown-input fallback.
+  The opt-in `affected-package` policy retains a broad module fallback for every non-Go change, including docs.
+- Changes to repository `go.work` / `go.work.sum` also select a nested module. Other out-of-module paths are explicitly
   ignored. Git-ignored untracked files are not considered.
 
 Without `--diff`, selection is disabled. With `--diff` and no relevant changes, **nothing is selected**; this never
@@ -206,8 +219,10 @@ and coverage eligibility still apply. Reverse dependencies outside that director
 `--integration` retain their existing test-execution meanings. Package loading errors fail explicitly.
 Changed-line/function modes do not follow callers within the changed package: choose `affected-package` for shared
 helpers or package-wide confidence. Dynamic/plugin dependencies and code outside the current module are not traced.
-Non-Go fallback can be intentionally broad (for example, a changed README); use exclusions/calling-directory scope
-as usual. These incremental policies complement, rather than replace, periodic full-module runs.
+Requested scope remains the configured policy; effective scope reports any package/module expansion or an empty
+selection. Unknown runtime file reads cannot be inferred from imports: the ownership fallback above is conservative,
+not precise runtime dependency tracking. Arbitrary custom configurations use that same unknown-input policy.
+Use exclusions/calling-directory scope as usual. These policies complement periodic full-module runs.
 
 ## Execution
 

@@ -30,7 +30,7 @@ func TestSelectionPolicies(t *testing.T) {
 		{name: "deleted file", scope: diff.ChangedLine, edits: map[string]string{"a/helper.go": ""}, selected: []token.Position{{Filename: "b/b.go", Line: 99}, {Filename: "a/a.go", Line: 3}}, reason: "deleted source"},
 		{name: "rename", scope: diff.ChangedLine, rename: true, selected: []token.Position{{Filename: "a/a.go", Line: 99}, {Filename: "b/b.go", Line: 99}}, reason: "renamed source"},
 		{name: "untracked", scope: diff.ChangedFunction, edits: map[string]string{"a/new.go": "package a\n"}, selected: []token.Position{{Filename: "a/helper.go", Line: 99}}, reason: "new/untracked"},
-		{name: "configuration", scope: diff.ChangedLine, edits: map[string]string{"settings.json": "{}\n"}, selected: []token.Position{{Filename: "unrelated/u.go", Line: 99}}, effective: "module", reason: "configuration"},
+		{name: "configuration", scope: diff.ChangedLine, edits: map[string]string{".imp.yaml": "{}\n"}, selected: []token.Position{{Filename: "unrelated/u.go", Line: 99}}, effective: "module", reason: "configuration"},
 		{name: "empty", scope: diff.ChangedLine, rejected: []token.Position{{Filename: "a/a.go", Line: 3}}, effective: "empty"},
 		{name: "top-level", scope: diff.ChangedFunction, edits: map[string]string{"a/helper.go": "package a\nvar Global = 1\nfunc Helper(a int) int { return a + 1 }\n"}, selected: []token.Position{{Filename: "a/a.go", Line: 99}}, reason: "outside function"},
 	} {

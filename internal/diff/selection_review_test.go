@@ -89,7 +89,7 @@ func TestSelectionTransitiveHiddenTestHelpers(t *testing.T) {
 				}
 			}
 			// A module-wide fallback must also exclude synthetic test variants and binaries.
-			write("settings.json", "{}\n")
+			write(".imp.yaml", "{}\n")
 			selected, _, err = diff.NewSelection(mod)
 			if err != nil {
 				t.Fatal(err)

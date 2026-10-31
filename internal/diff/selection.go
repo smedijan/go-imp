@@ -44,13 +44,28 @@ func ValidateScope(scope string) error {
 }
 
 type packageInfo struct {
-	Dir          string
-	ImportPath   string
-	GoFiles      []string
-	CgoFiles     []string
-	Imports      []string
-	TestImports  []string
-	XTestImports []string
+	Dir                string
+	ImportPath         string
+	GoFiles            []string
+	CgoFiles           []string
+	Imports            []string
+	TestImports        []string
+	XTestImports       []string
+	EmbedFiles         []string
+	TestEmbedFiles     []string
+	XTestEmbedFiles    []string
+	EmbedPatterns      []string
+	TestEmbedPatterns  []string
+	XTestEmbedPatterns []string
+	CFiles             []string
+	CXXFiles           []string
+	MFiles             []string
+	HFiles             []string
+	FFiles             []string
+	SFiles             []string
+	SwigFiles          []string
+	SwigCXXFiles       []string
+	SysoFiles          []string
 }
 
 // NewSelection selects current-source ranges without resolving types or test-to-code coverage.
@@ -210,8 +225,9 @@ func selectChanges(root, repo, module, scope string, files []*gitdiff.File, pack
 				continue
 			}
 			if filepath.Ext(relative) != ".go" {
-				moduleFallback = true
-				info.Reasons = append(info.Reasons, "non-Go/configuration change: "+relative)
+				fallback, reason := selectNonGoInput(root, scope, relative, packages, seeds, fullPackages)
+				moduleFallback = moduleFallback || fallback
+				info.Reasons = append(info.Reasons, reason+": "+relative)
 
 				continue
 			}
