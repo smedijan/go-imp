@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/smedijan/go-imp/internal/configuration"
 	"github.com/smedijan/go-imp/internal/execution"
+	"github.com/smedijan/go-imp/internal/report"
 )
 
 func TestReportingConfigurationPrecedence(t *testing.T) {
@@ -124,10 +126,10 @@ func TestCLIOutputContract(t *testing.T) {
 		{name: "empty filter", args: []string{"--dry-run", "--json", "--statuses", "killed"}, json: true},
 		{name: "quality gate", args: []string{"--json", "--threshold-efficacy", "90"}, json: true, exit: 10},
 		{name: "quality gate file", args: []string{"--json", "--threshold-efficacy", "90", "--output", "gate-failed.json"}, file: "gate-failed.json", json: true, exit: 10},
-		{name: "invalid status", args: []string{"--statuses", "typo"}, exit: 2, noReport: true},
-		{name: "malformed config", config: "run: [broken", exit: 2, noReport: true},
+		{name: "invalid status", args: []string{"--json", "--statuses", "typo"}, exit: 2, noReport: true},
+		{name: "malformed config", args: []string{"--json"}, config: "run: [broken", exit: 2, noReport: true},
 		{name: "unknown flag", args: []string{"--experimental", "detailed-report"}, exit: 2, noReport: true},
-		{name: "unwritable destination", args: []string{"--output", filepath.Join(dir, "missing", "report.txt")}, exit: 1, noReport: true},
+		{name: "unwritable destination", args: []string{"--json", "--output", filepath.Join(dir, "missing", "report.txt")}, exit: 1, noReport: true},
 		{name: "baseline failure", args: []string{"--json", "--quiet"}, exit: 1, noReport: true, failBaseline: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -169,6 +171,8 @@ func TestCLIOutputContract(t *testing.T) {
 				}
 			}
 			checkCLIPayload(t, payload, tc.json, tc.noReport)
+			checkCLIErrorEnvelope(t, stderr.String(), tc.noReport && slices.Contains(tc.args, "--json"))
+
 			if tc.exit == 0 {
 				for _, line := range strings.Split(strings.TrimSpace(stderr.String()), "\n") {
 					if line != "" && !strings.HasPrefix(line, "Progress: ") && !strings.HasPrefix(line, "Discovery: ") && !strings.HasPrefix(line, "Discovery filtered ") {
@@ -207,7 +211,7 @@ func checkCLIPayload(t *testing.T, payload []byte, jsonOutput, noReport bool) {
 		if err := json.Unmarshal(payload, &doc); err != nil {
 			t.Fatal(err)
 		}
-		if doc.Schema != 1 || doc.Groups == nil {
+		if doc.Schema != 2 || doc.Groups == nil {
 			t.Errorf("missing schema/groups: %s", payload)
 		}
 		if len(doc.Statuses) == 1 && doc.Statuses[0] == "runnable" && len(doc.Groups) != 1 {
@@ -221,5 +225,23 @@ func checkCLIPayload(t *testing.T, payload []byte, jsonOutput, noReport bool) {
 	}
 	if bytes.Contains(payload, []byte("\x1b[")) {
 		t.Error("redirected report contains ANSI escapes")
+	}
+}
+
+func checkCLIErrorEnvelope(t *testing.T, stderr string, wantsFailure bool) {
+	t.Helper()
+	var failures []report.Failure
+	for _, line := range strings.Split(stderr, "\n") {
+		var failure report.Failure
+		if json.Unmarshal([]byte(line), &failure) == nil && failure.Kind == "run_error" {
+			failures = append(failures, failure)
+		}
+	}
+	if wantsFailure {
+		if len(failures) != 1 || failures[0].SchemaVersion != 2 || failures[0].Stage == "" || failures[0].ReportState != "not-committed" || failures[0].PartialResultsAvailable {
+			t.Fatalf("missing/incorrect failure envelope: %+v; stderr: %s", failures, stderr)
+		}
+	} else if len(failures) != 0 {
+		t.Fatalf("unexpected failure envelope: %+v", failures)
 	}
 }

@@ -23,7 +23,7 @@ func ValidateMutantIDs(ids []string) error {
 	return nil
 }
 
-// ReplayIDs reads exactly the findings present in a v1 identity-aware report.
+// ReplayIDs reads exactly the findings present in a schema 1 or 2 identity-aware report.
 // It never falls back to legacy line/column/operator matching.
 func ReplayIDs(reader io.Reader, module string) ([]string, error) {
 	var document internal.OutputResult
@@ -35,8 +35,8 @@ func ReplayIDs(reader io.Reader, module string) ([]string, error) {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return nil, fmt.Errorf("replay report must contain one JSON document")
 	}
-	if document.SchemaVersion != 1 || document.IdentityVersion != 1 {
-		return nil, fmt.Errorf("replay requires schema_version 1 and identity_version 1")
+	if (document.SchemaVersion != 1 && document.SchemaVersion != 2) || document.IdentityVersion != 1 {
+		return nil, fmt.Errorf("replay requires schema_version 1 or 2 and identity_version 1")
 	}
 	if document.GoModule != module {
 		return nil, fmt.Errorf("replay report module %q differs from %q", document.GoModule, module)

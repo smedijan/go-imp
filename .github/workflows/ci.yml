@@ -42,6 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Go
@@ -49,10 +50,16 @@ jobs:
         with:
           go-version: "1.27"
       - name: Run imp
-        uses: smedijan/imp-action@1bd538f7b6fac3437841acc43042a365db3dbe0d # v1.0.0
-        with:
-          diff: auto
-          args: --quiet
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          GOMAXPROCS: "2"
+          GOFLAGS: "-p=2"
+          IMP_RUN_WORKERS: "2"
+        run: |
+          set -euo pipefail
+          : "${BASE_SHA:?Missing immutable event base SHA}"
+          go run ./cmd/imp run --diff "$BASE_SHA" --quiet
 
   lint:
     name: Lint and vet

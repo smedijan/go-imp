@@ -164,7 +164,9 @@ func (mu *Engine) findReturnMutations(ctx context.Context, pkg ReturnPackage, fi
 						continue
 					}
 					candidate.identity = sourceIdentity(mu.module.Name, filepath.Join(mu.module.CallingDir, relative), pkg.Fset, file, position.Offset, string(candidate.expected), replacement, source)
-					candidate.SetStatus(mu.mutationStatus(position))
+					status, observation := mu.observeMutation(pkg.Types.Path(), pkg.Fset, file, position)
+					candidate.SetStatus(status)
+					candidate.SetObservationContext(observation)
 					result = append(result, candidate)
 				}
 			}

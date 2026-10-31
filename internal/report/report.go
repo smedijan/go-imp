@@ -122,7 +122,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
-		SchemaVersion: 1, IdentityVersion: 1, Replay: results.Replay, GoModule: results.Module, DryRun: options.DryRun,
+		SchemaVersion: 2, IdentityVersion: 1, Replay: results.Replay, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
 		TestEfficacy: 100, MutationsCoverage: 100,
 		SelectedStatuses:  make([]string, 0, len(options.Statuses)),
@@ -183,6 +183,14 @@ func addFinding(document *internal.OutputResult, m mutator.Mutator) {
 	pos := m.Position()
 	finding := internal.Mutation{
 		Line: pos.Line, Column: pos.Column, Type: m.Type().String(), TestCommand: formatCommand(testCommand(m)),
+	}
+	if provider, ok := m.(interface {
+		ExecutionEvidence() *mutator.ExecutionEvidence
+	}); ok {
+		finding.Execution = provider.ExecutionEvidence()
+	}
+	if provider, ok := m.(mutator.ObservationProvider); ok {
+		finding.ObservationContext = provider.ObservationContext()
 	}
 	if identified, ok := m.(mutator.Identified); ok {
 		identity := identified.Identity()

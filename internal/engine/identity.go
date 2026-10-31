@@ -12,6 +12,8 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
+const replayMatched = "matched"
+
 func fingerprint(parts ...string) string {
 	// Length framing prevents source text from creating field-boundary collisions.
 	var text strings.Builder
@@ -33,10 +35,7 @@ func (m *TokenMutator) captureIdentity(module, path string, src []byte) {
 
 func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, offset int, original, replacement string, src []byte) mutator.Identity {
 	identity := mutator.Identity{Version: 1, ModulePath: filepath.ToSlash(filepath.Clean(path)), Original: original, Replacement: replacement}
-	for _, decl := range file.Decls {
-		if offset < set.PositionFor(decl.Pos(), false).Offset || offset >= set.PositionFor(decl.End(), false).Offset {
-			continue
-		}
+	if decl := enclosingDeclaration(set, file, offset); decl != nil {
 		name := declarationName(decl)
 		start, end := set.PositionFor(decl.Pos(), false).Offset, set.PositionFor(decl.End(), false).Offset
 		set := token.NewFileSet()
@@ -182,7 +181,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 				resolution = "changed"
 			}
 		case 1:
-			resolution = "matched"
+			resolution = replayMatched
 			selected = append(selected, byID[id][0])
 		default:
 			resolution = "ambiguous"
@@ -191,7 +190,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 	}
 	// Exact-set replay is atomic: never execute a partial set silently.
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Resolution != "matched" {
+		if diagnostic.Resolution != replayMatched {
 			return nil, diagnostics
 		}
 	}
