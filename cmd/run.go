@@ -240,6 +240,7 @@ func setFlagsOnCmd(cmd *cobra.Command) error {
 	})
 
 	fls := []*flags.Flag{
+		{Name: "confirm-outcomes", CfgKey: configuration.RunConfirmOutcomesKey, DefaultV: false, Usage: "confirm killed/timed-out outcomes against a pristine baseline (at most two extra attempts)"},
 		{Name: "mutant-ids", CfgKey: configuration.RunMutantIDsKey, DefaultV: []string{}, Usage: "select exact mutant IDs (comma-separated or repeated)"},
 		{Name: "replay-report", CfgKey: configuration.RunReplayReportKey, DefaultV: "", Usage: "select all findings in an identity-aware JSON `FILE`"},
 		{Name: "json", CfgKey: configuration.RunJSONKey, DefaultV: false, Usage: "write grouped JSON instead of human-readable text"},

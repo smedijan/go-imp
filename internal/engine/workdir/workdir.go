@@ -18,6 +18,7 @@
 package workdir
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -48,11 +49,12 @@ type Dealer interface {
 // imp not to work in the actual source directory messing up
 // with the source code files.
 type CachedDealer struct {
-	mutex    *sync.RWMutex
-	cache    map[string]string
-	workDir  string
-	srcDir   string
-	excludes []string
+	mutex      *sync.RWMutex
+	cache      map[string]string
+	workDir    string
+	srcDir     string
+	excludes   []string
+	excludeGit bool
 }
 
 // NewCachedDealer instantiates a new Dealer that keeps a cache of the
@@ -77,9 +79,27 @@ func NewCachedDealer(workDir, srcDir string, excludes ...string) *CachedDealer {
 	return dealer
 }
 
+// Snapshot captures source before workers run, excluding Git metadata (including
+// worktree pointer files). The caller owns removal of the returned directory.
+func (cd *CachedDealer) Snapshot(ctx context.Context) (string, error) {
+	snapshot := NewCachedDealer(cd.workDir, cd.srcDir, cd.excludes...)
+	snapshot.excludeGit = true
+
+	return snapshot.GetContext(ctx, "pristine")
+}
+
 // Get provides a working directory where all the files are full copies
 // to the original files in the source directory.
 func (cd *CachedDealer) Get(idf string) (string, error) {
+	return cd.GetContext(context.Background(), idf)
+}
+
+// GetContext is Get with cancellation checks during source traversal/copying.
+func (cd *CachedDealer) GetContext(ctx context.Context, idf string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
 	dstDir, ok := cd.fromCache(idf)
 	if ok {
 		return dstDir, nil
@@ -89,7 +109,7 @@ func (cd *CachedDealer) Get(idf string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = filepath.Walk(cd.srcDir, cd.copyTo(dstDir))
+	err = filepath.Walk(cd.srcDir, cd.copyTo(ctx, dstDir))
 	if err != nil {
 		if cleanupErr := os.RemoveAll(dstDir); cleanupErr != nil {
 			return "", fmt.Errorf("copy source: %w (remove partial workdir: %w)", err, cleanupErr)
@@ -136,9 +156,12 @@ func (cd *CachedDealer) setCache(idf, folder string) {
 	cd.cache[idf] = folder
 }
 
-func (cd *CachedDealer) copyTo(dstDir string) func(srcPath string, info fs.FileInfo, err error) error {
+func (cd *CachedDealer) copyTo(ctx context.Context, dstDir string) func(srcPath string, info fs.FileInfo, err error) error {
 	return func(srcPath string, info fs.FileInfo, err error) error {
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		relPath, err := filepath.Rel(cd.srcDir, srcPath)
@@ -146,6 +169,13 @@ func (cd *CachedDealer) copyTo(dstDir string) func(srcPath string, info fs.FileI
 			return err
 		}
 		if relPath == "." {
+			return nil
+		}
+		if cd.excludeGit && info.Name() == ".git" {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+
 			return nil
 		}
 		for _, exclude := range cd.excludes {
