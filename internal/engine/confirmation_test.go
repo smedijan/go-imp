@@ -203,9 +203,9 @@ func TestConfirmationProcess(t *testing.T) {
 }
 
 func TestExecutorConfirmationRealMutation(t *testing.T) {
-	for _, integration := range []bool{false, true} {
-		t.Run(fmt.Sprintf("integration=%t", integration), func(t *testing.T) {
-			viperSet(map[string]any{configuration.RunConfirmOutcomesKey: true, configuration.RunWorkersKey: 1, configuration.RunIntegrationMode: integration, configuration.RunTagsKey: "confirmation", configuration.RunTestCPUKey: 1})
+	for _, tc := range []struct{ integration, enabled bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
+		t.Run(fmt.Sprintf("integration=%t/confirm=%t", tc.integration, tc.enabled), func(t *testing.T) {
+			viperSet(map[string]any{configuration.RunConfirmOutcomesKey: tc.enabled, configuration.RunWorkersKey: 1, configuration.RunIntegrationMode: tc.integration, configuration.RunTagsKey: "confirmation", configuration.RunTestCPUKey: 1})
 			defer viperReset()
 			src := t.TempDir()
 			source := "package example\nfunc Value() int { return 1+2 }\n"
@@ -229,7 +229,10 @@ func TestExecutorConfirmationRealMutation(t *testing.T) {
 				t.Fatalf("results=%v err=%v", results, err)
 			}
 			e := m.ExecutionEvidence()
-			if m.Status() != mutator.Killed || !e.ReusableDetection() || len(e.Attempts) != 3 || len(e.Attempts[2].FailingTests) != 1 {
+			if m.Status() != mutator.Killed || e.ReusableDetection() != tc.enabled || len(e.FailingTests) != 1 {
+				t.Fatalf("status=%s evidence=%+v", m.Status(), e)
+			}
+			if (tc.enabled && (len(e.Attempts) != 3 || len(e.Attempts[2].FailingTests) != 1)) || (!tc.enabled && (len(e.Attempts) != 0 || e.Confidence != "")) {
 				t.Fatalf("status=%s evidence=%+v", m.Status(), e)
 			}
 			if expression.Op.String() != "+" {
@@ -240,7 +243,7 @@ func TestExecutorConfirmationRealMutation(t *testing.T) {
 			if err != nil || string(restored) != source {
 				t.Fatalf("worker not restored: %s %v", restored, err)
 			}
-			t.Logf("real Go confirmation: elapsed=%s initial=%.3fs baseline=%.3fs repeat=%.3fs", time.Since(started), e.Attempts[0].DurationSeconds, e.Attempts[1].DurationSeconds, e.Attempts[2].DurationSeconds)
+			t.Logf("real Go execution: elapsed=%s attempts=%d", time.Since(started), len(e.Attempts))
 		})
 	}
 }

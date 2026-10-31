@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sync"
 	"time"
@@ -53,17 +54,19 @@ type Executor interface {
 
 // MutantExecutor runs mutants in isolated, reusable worker directories.
 type MutantExecutor struct {
-	wdDealer          workdir.Dealer
-	execContext       execContext
-	mod               gomodule.GoModule
-	buildTags         string
-	testExecutionTime time.Duration
-	dryRun            bool
-	integrationMode   bool
-	testCPU           int
-	workers           int
-	confirmOutcomes   bool
-	pristine          string
+	wdDealer             workdir.Dealer
+	execContext          execContext
+	mod                  gomodule.GoModule
+	buildTags            string
+	testExecutionTime    time.Duration
+	dryRun               bool
+	integrationMode      bool
+	testCPU              int
+	workers              int
+	selectedTest         string
+	verificationSnapshot bool
+	confirmOutcomes      bool
+	pristine             string
 }
 
 // ExecutorOption configures a MutantExecutor.
@@ -302,8 +305,14 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) (
 	if m.executor.integrationMode {
 		cmd.Dir = rootDir
 	}
-	cmd.Env = append(cmd.Env, os.Environ()...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.executor.wdDealer.WorkDir()))
+	env := os.Environ()
+	if m.executor.verificationSnapshot {
+		env = verificationEnvironment()
+	}
+	cmd.Env = append(cmd.Env, env...)
+	if m.executor.wdDealer != nil {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("GOTMPDIR=%s", m.executor.wdDealer.WorkDir()))
+	}
 
 	// Set up process group for killing entire process tree
 	setupProcessGroup(cmd)
@@ -312,7 +321,7 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) (
 	reader, writer := io.Pipe()
 	observed := make(chan testOutput, 1)
 	go func() {
-		observed <- collectTestOutput(reader)
+		observed <- collectSelectedTestOutput(reader, m.executor.selectedTest)
 		_ = reader.Close()
 	}()
 	cmd.Stdout = io.MultiWriter(&stdout, writer)
@@ -327,6 +336,11 @@ func (m *mutantExecutor) runTests(parent context.Context, rootDir, pkg string) (
 		TimeoutSeconds: m.executor.testExecutionTime.Seconds(),
 		FailingTests:   parsed.failing, FailingTestsTruncated: parsed.truncated,
 		Stdout: stdout.diagnostic(), Stderr: stderr.diagnostic(), JSONValid: parsed.valid,
+	}
+	if m.executor.verificationSnapshot {
+		evidence.PassingTests = parsed.passing
+		evidence.PassingTestsTruncated = parsed.passingTruncated
+		evidence.SelectedPassingTest = parsed.selectedPassing
 	}
 	if err != nil {
 		var failure synchronizedBuffer
@@ -383,6 +397,9 @@ func (m *mutantExecutor) getTestArgs(pkg string) []string {
 	// from hanging forever.
 	args = append(args, "-timeout", (2*time.Second + m.executor.testExecutionTime).String())
 	args = append(args, "-failfast")
+	if m.executor.selectedTest != "" {
+		args = append(args, "-run", "^"+regexp.QuoteMeta(m.executor.selectedTest)+"$")
+	}
 
 	if m.executor.testCPU != 0 {
 		args = append(args, "-cpu", fmt.Sprintf("%d", m.executor.testCPU))
