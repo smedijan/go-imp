@@ -63,7 +63,7 @@ func (mu *Engine) executeWithLedger(ctx context.Context, discovered []mutator.Mu
 		}
 		parts := strings.Split(id, ":")
 		if len(parts) == 3 && mu.sourceLocators[parts[1]] {
-			return "changed"
+			return replayChanged
 		}
 
 		return "removed"

@@ -12,7 +12,10 @@ import (
 	"github.com/smedijan/go-imp/internal/mutator"
 )
 
-const replayMatched = "matched"
+const (
+	replayMatched = "matched"
+	replayChanged = "changed"
+)
 
 func fingerprint(parts ...string) string {
 	// Length framing prevents source text from creating field-boundary collisions.
@@ -35,10 +38,7 @@ func (m *TokenMutator) captureIdentity(module, path string, src []byte) {
 
 func sourceIdentity(module, path string, set *token.FileSet, file *ast.File, offset int, original, replacement string, src []byte) mutator.Identity {
 	identity := mutator.Identity{Version: 1, ModulePath: filepath.ToSlash(filepath.Clean(path)), Original: original, Replacement: replacement}
-	for _, decl := range file.Decls {
-		if offset < set.PositionFor(decl.Pos(), false).Offset || offset >= set.PositionFor(decl.End(), false).Offset {
-			continue
-		}
+	if decl := enclosingDeclaration(set, file, offset); decl != nil {
 		name := declarationName(decl)
 		start, end := set.PositionFor(decl.Pos(), false).Offset, set.PositionFor(decl.End(), false).Offset
 		set := token.NewFileSet()
@@ -181,7 +181,7 @@ func selectMutants(discovered []mutator.Mutator, ids []string, locators map[stri
 		switch len(byID[id]) {
 		case 0:
 			if parts := strings.Split(id, ":"); len(parts) == 3 && locators[parts[1]] {
-				resolution = "changed"
+				resolution = replayChanged
 			}
 		case 1:
 			resolution = replayMatched

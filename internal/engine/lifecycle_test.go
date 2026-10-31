@@ -23,6 +23,7 @@ import (
 )
 
 type lifecycleMutant struct {
+	mutator.EvidenceRecorder
 	*mutantStub
 	apply    func(*lifecycleMutant) error
 	rollback func(*lifecycleMutant) error
@@ -319,6 +320,17 @@ func TestExecutorCancellationAndTimeoutRestoreBeforeReturning(t *testing.T) {
 				}
 			case <-time.After(15 * time.Second):
 				t.Fatal("command cancellation hung")
+			}
+			evidence := active.ExecutionEvidence()
+			category := "infrastructure"
+			if mode == "mutant timeout" {
+				category = "timeout"
+			}
+			if evidence == nil || evidence.Category != category || evidence.DurationSeconds <= 0 {
+				t.Fatalf("missing timeout/cancellation evidence: %+v", evidence)
+			}
+			if mode == "mutant timeout" && evidence.TimeoutSeconds != 1 {
+				t.Fatalf("incorrect minimum timeout: %+v", evidence)
 			}
 			assertRestored(t, active)
 			if command.ProcessState == nil {

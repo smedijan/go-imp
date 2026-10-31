@@ -80,6 +80,10 @@ func TestEngineActivePackages(t *testing.T) {
 		if m.Pkg() != wantPkg {
 			t.Errorf("package = %q, want %q", m.Pkg(), wantPkg)
 		}
+		observation := observationOf(t, m)
+		if !observation.PackagePath.Known || observation.PackagePath.Value != wantPkg || observation.Selection.Discovery != "active-build" || observation.Selection.File != "included" || !observation.Selection.DryRun {
+			t.Fatalf("unproven package/scope observation: %+v", observation)
+		}
 	}
 	sort.Strings(got)
 	want := []string{"active.go", "chosen.go", "generated.go", "platform_linux_amd64.go", "sub/source.go"}

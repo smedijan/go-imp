@@ -15,8 +15,9 @@ labels that finding; its label is **not** its identity.
 
 ## Minimal public contract for consumers
 
-* JSON keeps `schema_version: 1` and all existing fields. Additive
-  `identity_version: 1` announces replay support. Each finding has `id` and
+* JSON uses `schema_version: 2`, retaining existing fields and adding execution
+  evidence. Replay accepts schema 1 and 2 reports with `identity_version: 1`,
+  which announces replay support. Each finding has `id` and
   `identity` (`id`, `version`, `module_path`, `original`, `replacement`).
   `module_path` is the slash-separated **module-relative source file path**,
   not an import path. IDs are opaque, case-sensitive strings of the form
@@ -40,7 +41,7 @@ labels that finding; its label is **not** its identity.
   changing an ID. Renames/moves are not followed. No fuzzy/line-number fallback.
 * A prior report selects exactly the findings present in its `groups` (including
   any status filtering applied when it was written). Reports must have matching
-  `go_module`, schema and identity versions, nonempty findings, and consistent
+  `go_module`, supported schema (1 or 2) and identity version (1), nonempty findings, and consistent
   finding IDs. Legacy reports without IDs, unknown versions, empty reports,
   malformed IDs, or multiple JSON documents are rejected. Prior statuses and
   test commands do not control the new execution.
@@ -89,6 +90,13 @@ command. Interrupted/lifecycle-failed runs return an error rather than a
 successful report. Worker source bytes must still match discovery before Apply;
 stale worker copies fail rather than receiving a mutation against other source.
 The isolated worker copy is restored before results are returned.
+
+Schema 2 findings also expose bounded `observation_context` source ownership and
+selection observations: covered/uncovered, effective diff scope, exact replay
+matching and dry-run eligibility. These labels never participate in the ID.
+Unknown context is explicit `null`; dependency/individual-test impact provenance
+is explicitly `unknown`. See [run reporting](usage/commands/run/index.md) for the
+field contract and truncation policy.
 
 The v1 identity contract is intentionally conservative: no semantic matching,
 cross-file migration, or legacy position replay. Future identity algorithms
