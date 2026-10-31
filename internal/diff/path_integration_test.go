@@ -79,7 +79,9 @@ func TestDiffPathsAcrossModuleAndCallingDirectories(t *testing.T) {
 			}
 			if !got.IsChanged(token.Position{Filename: tc.changedFileName, Line: 3}) {
 				cwd, _ := os.Getwd()
-				repoRoot, _ := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+				repoCommand := exec.Command("git", "rev-parse", "--show-toplevel")
+				repoCommand.Env = gitEnvironment()
+				repoRoot, _ := repoCommand.Output()
 				t.Fatalf("changed source path %q was not recognized; cwd=%q repo=%q module=%+v diff=%#v", tc.changedFileName, cwd, repoRoot, mod, got)
 			}
 			if got.IsChanged(token.Position{Filename: tc.unchangedFileName, Line: 3}) {

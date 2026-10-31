@@ -1,6 +1,7 @@
 package cmd_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -12,12 +13,27 @@ import (
 	"github.com/smedijan/go-imp/internal/configuration"
 )
 
-func impactGit(t *testing.T, dir string, args ...string) {
+func impactGit(t *testing.T, dir string, args ...string) []byte {
 	t.Helper()
 	command := exec.Command("git", append([]string{"-C", dir, "-c", "core.hooksPath=/dev/null"}, args...)...) // #nosec G204 -- test-owned repository and fixed commands.
-	if output, err := command.CombinedOutput(); err != nil {
+	command.Env = impactGitEnvironment()
+	output, err := command.CombinedOutput()
+	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}
+
+	return output
+}
+
+func impactGitEnvironment() []string {
+	var env []string
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "GIT_") {
+			env = append(env, entry)
+		}
+	}
+
+	return env
 }
 
 func newImpactFixture(t *testing.T) string {
@@ -59,21 +75,36 @@ func clearImpactGitEnvironment(t *testing.T) {
 }
 
 func TestImpactFixtureGitEnvironmentIsolation(t *testing.T) {
-	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"} {
-		t.Setenv(name, filepath.Join(t.TempDir(), "must-not-be-used"))
-	}
-	clearImpactGitEnvironment(t)
-	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"} {
-		if _, exists := os.LookupEnv(name); exists {
-			t.Fatalf("fixture inherited %s", name)
+	victim := t.TempDir()
+	writeFixture(t, filepath.Join(victim, "victim.txt"), "sacrificial repository\n")
+	impactGit(t, victim, "init")
+	impactGit(t, victim, "add", ".")
+	impactGit(t, victim, "-c", "user.name=Victim", "-c", "user.email=victim@example.com", "commit", "-m", "victim baseline")
+	snapshot := make(map[string][]byte)
+	for _, name := range []string{"config", "HEAD", "index"} {
+		contents, err := os.ReadFile(filepath.Join(victim, ".git", name)) // #nosec G304 -- test-owned sacrificial repository.
+		if err != nil {
+			t.Fatal(err)
 		}
+		snapshot[name] = contents
 	}
+	victimHead := impactGit(t, victim, "rev-parse", "HEAD")
+	hostile := map[string]string{
+		"GIT_DIR":              filepath.Join(victim, ".git"),
+		"GIT_COMMON_DIR":       filepath.Join(victim, ".git"),
+		"GIT_WORK_TREE":        victim,
+		"GIT_INDEX_FILE":       filepath.Join(victim, ".git", "index"),
+		"GIT_OBJECT_DIRECTORY": filepath.Join(victim, ".git", "objects"),
+		"GIT_CONFIG_COUNT":     "1",
+		"GIT_CONFIG_KEY_0":     "core.worktree",
+		"GIT_CONFIG_VALUE_0":   victim,
+	}
+	for name, value := range hostile {
+		t.Setenv(name, value)
+	}
+	// Do not clear the caller environment: each fixture subprocess owns isolation.
 	dir := newImpactFixture(t)
-	command := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel") // #nosec G204 -- test-owned temporary directory and fixed Git operation.
-	output, err := command.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	output := impactGit(t, dir, "rev-parse", "--show-toplevel")
 	got, err := filepath.EvalSymlinks(strings.TrimSpace(string(output)))
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +115,26 @@ func TestImpactFixtureGitEnvironmentIsolation(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("fixture repository = %q, want %q", got, want)
+	}
+	if subject := strings.TrimSpace(string(impactGit(t, dir, "log", "-1", "--format=%s"))); subject != "baseline" {
+		t.Errorf("fixture commit = %q, want baseline", subject)
+	}
+	for name, before := range snapshot {
+		after, err := os.ReadFile(filepath.Join(victim, ".git", name)) // #nosec G304 -- test-owned sacrificial repository.
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Errorf("victim %s changed", name)
+		}
+	}
+	if after := impactGit(t, victim, "rev-parse", "HEAD"); !bytes.Equal(victimHead, after) {
+		t.Error("victim resolved HEAD changed")
+	}
+	for name, value := range hostile {
+		if os.Getenv(name) != value {
+			t.Errorf("caller %s was cleared instead of isolating subprocess", name)
+		}
 	}
 }
 
