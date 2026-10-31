@@ -3,6 +3,7 @@ package cmd_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,5 +145,92 @@ func TestTriageCLILiteralDashInputWithReportStdout(t *testing.T) {
 	data, err := os.ReadFile("-")
 	if err != nil || string(data) != original {
 		t.Fatal("report stdout overwrote input")
+	}
+}
+
+func TestTriageCLIOutputWithoutInputCreatesEmptyTemplate(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeFixture(t, filepath.Join(dir, "go.mod"), "module example.com/fixture\n\ngo 1.25.0\n")
+	writeFixture(t, filepath.Join(dir, "code.go"), "package fixture\nfunc Value()int{return 1}\n")
+	writeFixture(t, filepath.Join(dir, "code_test.go"), "package fixture\nimport \"testing\"\nfunc TestValue(t *testing.T){_ = Value()}\n")
+	configuration.Set(configuration.RunTriageOutputKey, "triage.json")
+	configuration.Set(configuration.RunDryRunKey, true)
+	if _, err := executeCLI(context.Background(), t, "test", "run"); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open("triage.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = file.Close() }()
+	ledger, err := triage.Read(file, "example.com/fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ledger.Version != 1 || ledger.Module != "example.com/fixture" || ledger.Entries == nil || len(ledger.Entries) != 0 {
+		t.Fatalf("invalid empty template: %+v", ledger)
+	}
+}
+
+func TestTriageCLIOutputAliasesWithoutInputFailBeforeExecution(t *testing.T) {
+	for _, key := range []string{configuration.RunOutputKey, configuration.RunReplayReportKey} {
+		t.Run(key, func(t *testing.T) {
+			configuration.Reset()
+			t.Cleanup(configuration.Reset)
+			dir := t.TempDir()
+			t.Chdir(dir)
+			writeFixture(t, filepath.Join(dir, "go.mod"), "module example.com/fixture\n\ngo 1.25.0\n")
+			original := "previous report or replay input"
+			writeFixture(t, filepath.Join(dir, "shared.json"), original)
+			configuration.Set(configuration.RunTriageOutputKey, "shared.json")
+			configuration.Set(key, "./shared.json")
+			_, err := executeCLI(context.Background(), t, "test", "run")
+			if err == nil || !strings.Contains(err.Error(), "aliases") {
+				t.Fatalf("triage output alias accepted without input: %v", err)
+			}
+			data, err := os.ReadFile("shared.json")
+			if err != nil || string(data) != original {
+				t.Fatalf("aliased file changed: %s, %v", data, err)
+			}
+		})
+	}
+}
+
+func TestTriageCLILedgerPublicationFailureAfterReportCommit(t *testing.T) {
+	configuration.Reset()
+	t.Cleanup(configuration.Reset)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeFixture(t, filepath.Join(dir, "go.mod"), "module example.com/fixture\n\ngo 1.25.0\n")
+	writeFixture(t, filepath.Join(dir, "code.go"), "package fixture\nfunc Value()int{return 1}\n")
+	writeFixture(t, filepath.Join(dir, "code_test.go"), "package fixture\nimport \"testing\"\nfunc TestValue(t *testing.T){_ = Value()}\n")
+	writeFixture(t, filepath.Join(dir, "report.json"), "previous report")
+	configuration.Set(configuration.RunTriageOutputKey, filepath.Join("missing", "triage.json"))
+	configuration.Set(configuration.RunOutputKey, "report.json")
+	configuration.Set(configuration.RunDryRunKey, true)
+	configuration.Set(configuration.RunJSONKey, true)
+	_, err := executeCLI(context.Background(), t, "test", "run")
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ledger publication failure not propagated: %v", err)
+	}
+	data, err := os.ReadFile("report.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		GoModule string `json:"go_module"`
+		DryRun   bool   `json:"dry_run"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("report was not committed before ledger failure: %s, %v", data, err)
+	}
+	if report.GoModule != "example.com/fixture" || !report.DryRun {
+		t.Fatalf("unexpected committed report: %+v", report)
+	}
+	if _, err := os.Stat(filepath.Join("missing", "triage.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unexpected ledger publication: %v", err)
 	}
 }

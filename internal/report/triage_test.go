@@ -154,3 +154,25 @@ func TestTriageGroupingLeavesUnknownAndAmbiguousFindingsStandalone(t *testing.T)
 		t.Fatal("unknown owner grouped")
 	}
 }
+
+func TestTriageGroupingExactlyTenMembersProducesOneNonemptyGroup(t *testing.T) {
+	results, _ := triageResults()
+	results.Mutants = results.Mutants[:10]
+	doc, _ := renderJSON(t, results, report.Options{GroupReview: true})
+	if len(doc.ReviewGroups) != 1 {
+		t.Fatalf("exactly ten members must yield one group, got %+v", doc.ReviewGroups)
+	}
+	if len(doc.ReviewGroups[0].MutantIDs) != 10 {
+		t.Fatalf("group lost members: %+v", doc.ReviewGroups[0])
+	}
+	seen := make(map[string]bool)
+	for _, id := range doc.ReviewGroups[0].MutantIDs {
+		if id == "" || seen[id] {
+			t.Fatalf("invalid or repeated member %q", id)
+		}
+		seen[id] = true
+	}
+	if len(doc.Groups[mutator.Lived.String()]["source.go"]) != 10 {
+		t.Fatal("grouping lost underlying findings")
+	}
+}
