@@ -53,8 +53,10 @@ func TestFingerprintInvalidation(t *testing.T) {
 
 		return value
 	}
-	baseline := fingerprint("settings", "")
-	if again := fingerprint("settings", ""); again != baseline {
+	baseline, firstComponents := captureFingerprint(t, root, path, "settings", "")
+	again, secondComponents := captureFingerprint(t, root, path, "settings", "")
+	if again != baseline {
+		reportFingerprintChanges(t, firstComponents, secondComponents)
 		t.Fatal("unstable fingerprint")
 	}
 	for _, name := range []string{filepath.Join(root, "main_test.go"), filepath.Join(root, "testdata", "fixture.txt"), filepath.Join(root, "data.txt"), filepath.Join(root, ".hidden", "fixture.txt"), filepath.Join(dep, "dep.go"), filepath.Join(dep, "go.mod")} {

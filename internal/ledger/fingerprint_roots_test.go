@@ -19,12 +19,11 @@ func testFingerprintSelectedRoot(t *testing.T, link func(*testing.T, string, str
 	link(t, selected, root)
 	path := filepath.Join(t.TempDir(), "ledger")
 	fingerprint := func(root string) (string, error) { return ledger.Fingerprint(context.Background(), root, path, "", "") }
-	original, err := fingerprint(selected)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if again, err := fingerprint(selected); err != nil || again != original {
-		t.Fatal("unstable resolved root", err)
+	original, firstComponents := captureFingerprint(t, selected, path, "", "")
+	again, secondComponents := captureFingerprint(t, selected, path, "", "")
+	if again != original {
+		reportFingerprintChanges(t, firstComponents, secondComponents)
+		t.Fatal("unstable resolved root")
 	}
 	if direct, err := fingerprint(root); err != nil || direct == original {
 		t.Fatal("root selection identity missing", err)

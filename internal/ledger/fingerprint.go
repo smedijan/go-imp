@@ -21,14 +21,25 @@ import (
 // It fails closed for symlinks, cgo or unavailable dependency metadata. Process
 // environment and Go settings are hashed, never written as plaintext evidence.
 func Fingerprint(ctx context.Context, root, ledgerPath, settings string, tags string) (string, error) {
+	return fingerprint(ctx, root, ledgerPath, settings, tags, nil)
+}
+
+// FingerprintDiagnostics runs the same fingerprint path with bounded component
+// digests. Keys identify inputs; values are hashes, never raw environment values,
+// root paths, file contents, timestamps or metadata. Nothing is persisted.
+func FingerprintDiagnostics(ctx context.Context, root, ledgerPath, settings, tags string) (string, map[string]string, error) {
+	components := make(map[string]string)
+	digest, err := fingerprint(ctx, root, ledgerPath, settings, tags, components)
+
+	return digest, components, err
+}
+
+func fingerprint(ctx context.Context, root, ledgerPath, settings string, tags string, components map[string]string) (string, error) {
 	h := sha256.New()
 	frame(h, settings)
 	frame(h, tags)
-	environment := os.Environ()
-	sort.Strings(environment)
-	for _, value := range environment {
-		frame(h, value)
-	}
+	componentDigest(components, "settings", settings, tags)
+	hashProcessEnvironment(h, components)
 	command := func(args ...string) ([]byte, error) {
 		// #nosec G204 -- fixed Go executable and internally constructed metadata arguments.
 		cmd := exec.CommandContext(ctx, "go", args...)
@@ -56,6 +67,10 @@ func Fingerprint(ctx context.Context, root, ledgerPath, settings string, tags st
 		return "", err
 	}
 	frame(h, string(stableEnv))
+	for key, value := range goenv {
+		componentDigest(components, "go-env/"+key, value)
+	}
+	componentCheckpoint(components, "stage/go-env", h)
 	if err = validateGoFlags(goenv["GOFLAGS"]); err != nil {
 		return "", err
 	}
@@ -64,6 +79,7 @@ func Fingerprint(ctx context.Context, root, ledgerPath, settings string, tags st
 		return "", err
 	}
 	frame(h, string(version))
+	componentDigest(components, "go-version", string(version))
 	args := []string{"list", "-deps", "-test", "-json"}
 	if tags != "" {
 		args = append(args, "-tags", tags)
@@ -119,17 +135,17 @@ func Fingerprint(ctx context.Context, root, ledgerPath, settings string, tags st
 	if err != nil {
 		return "", err
 	}
-	if err = hashFile(ctx, h, executable); err != nil {
+	if err = hashFile(ctx, h, executable, components, "imp-executable"); err != nil {
 		return "", err
 	}
 	goExecutable, err := exec.LookPath("go")
 	if err != nil {
 		return "", err
 	}
-	if err = hashFile(ctx, h, goExecutable); err != nil {
+	if err = hashFile(ctx, h, goExecutable, components, "go-executable"); err != nil {
 		return "", err
 	}
-	if err = hashRoots(ctx, h, roots, ledgerPath); err != nil {
+	if err = hashRoots(ctx, h, roots, ledgerPath, components); err != nil {
 		return "", err
 	}
 
@@ -140,7 +156,7 @@ func frame(h hash.Hash, value string) {
 	_, _ = fmt.Fprintf(h, "%d:", len(value))
 	_, _ = io.WriteString(h, value)
 }
-func hashFile(ctx context.Context, h hash.Hash, path string) error {
+func hashFile(ctx context.Context, h hash.Hash, path string, components map[string]string, key string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -155,12 +171,21 @@ func hashFile(ctx context.Context, h hash.Hash, path string) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(h, "%d:%d:%d:", info.Mode(), info.Size(), info.ModTime().UnixNano())
-	_, err = io.Copy(h, f)
+	if components != nil {
+		componentDigest(components, key+"/mode", info.Mode().String())
+		componentDigest(components, key+"/size", fmt.Sprint(info.Size()))
+		componentDigest(components, key+"/mtime", fmt.Sprint(info.ModTime().UnixNano()))
+		content := sha256.New()
+		_, err = io.Copy(io.MultiWriter(h, content), f)
+		componentCheckpoint(components, key+"/content", content)
+	} else {
+		_, err = io.Copy(h, f)
+	}
 
 	return err
 }
 
-func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPath string) error {
+func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPath string, components map[string]string) error {
 	resolvedParent, err := canonicalRoot(filepath.Dir(ledgerPath))
 	if err != nil {
 		return fmt.Errorf("ledger directory resolution unavailable")
@@ -171,7 +196,7 @@ func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPa
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
-	for _, selected := range paths {
+	for index, selected := range paths {
 		if selected == "" {
 			return fmt.Errorf("empty dependency root")
 		}
@@ -186,7 +211,10 @@ func hashRoots(ctx context.Context, h hash.Hash, roots map[string]bool, ledgerPa
 		// canonical targets both participate, so retargeting invalidates evidence.
 		frame(h, selected)
 		frame(h, resolved)
-		if err = hashTree(ctx, h, resolved); err != nil {
+		key := fmt.Sprintf("root/%d", index)
+		componentDigest(components, key+"/selected", selected)
+		componentDigest(components, key+"/canonical", resolved)
+		if err = hashTree(ctx, h, resolved, components, key); err != nil {
 			return err
 		}
 	}
@@ -208,13 +236,21 @@ func InputRootOverlapsPath(root, path string) bool {
 	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
 }
 
-func hashTree(ctx context.Context, h hash.Hash, root string) error {
+func hashTree(ctx context.Context, h hash.Hash, root string, components map[string]string, key string) error {
 	return filepath.WalkDir(root, func(name string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		entryKey := ""
+		if components != nil {
+			relative, err := filepath.Rel(root, name)
+			if err != nil {
+				return fmt.Errorf("relative input key unavailable")
+			}
+			entryKey = key + "/entry/" + filepath.ToSlash(relative)
 		}
 		if d.IsDir() {
 			info, err := d.Info()
@@ -224,6 +260,10 @@ func hashTree(ctx context.Context, h hash.Hash, root string) error {
 			frame(h, name)
 			frame(h, info.Mode().String())
 			_, _ = fmt.Fprintf(h, "%d:", info.ModTime().UnixNano())
+			if components != nil {
+				componentDigest(components, entryKey+"/mode", info.Mode().String())
+				componentDigest(components, entryKey+"/mtime", fmt.Sprint(info.ModTime().UnixNano()))
+			}
 
 			return nil
 		}
@@ -237,7 +277,7 @@ func hashTree(ctx context.Context, h hash.Hash, root string) error {
 		}
 		frame(h, name)
 
-		return hashFile(ctx, h, name)
+		return hashFile(ctx, h, name, components, entryKey)
 	})
 }
 
