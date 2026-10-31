@@ -15,7 +15,7 @@ func TestDiffIsChanged(t *testing.T) {
 		want bool
 	}{
 		{name: "nil diff", want: true},
-		{name: "empty diff", diff: diff.Diff{}, want: true},
+		{name: "empty diff", diff: diff.Diff{}, want: false},
 		{name: "in range", diff: diff.Diff{"test": {{StartLine: 21, EndLine: 21}}}, pos: token.Position{Filename: "test", Line: 21}, want: true},
 		{name: "outside range", diff: diff.Diff{"test": {{StartLine: 21, EndLine: 21}}}, pos: token.Position{Filename: "test", Line: 22}},
 		{name: "other file", diff: diff.Diff{"test": {{StartLine: 21, EndLine: 21}}}, pos: token.Position{Filename: "other", Line: 21}},

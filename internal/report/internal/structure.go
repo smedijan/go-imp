@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/mutator"
 )
@@ -10,6 +11,7 @@ import (
 type OutputResult struct {
 	Evidence          []ledger.Evidence                `json:"evidence,omitempty"`
 	LedgerNote        string                           `json:"ledger_note,omitempty"`
+	Selection         *diff.Selection                  `json:"selection,omitempty"`
 	IdentityVersion   int                              `json:"identity_version"`
 	Replay            []mutator.ReplayTarget           `json:"replay,omitempty"`
 	SchemaVersion     int                              `json:"schema_version"`

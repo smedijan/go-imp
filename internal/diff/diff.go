@@ -71,9 +71,9 @@ func normalizeFileName(name string) string {
 }
 
 // IsChanged returns true if the given position is within a changed region.
-// If the diff is empty, it returns true for all positions.
+// A nil diff disables selection; an allocated empty diff selects nothing.
 func (d Diff) IsChanged(pos token.Position) bool {
-	if len(d) == 0 {
+	if d == nil {
 		return true
 	}
 

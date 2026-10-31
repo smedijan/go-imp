@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/smedijan/go-imp/internal/diff"
 	"github.com/smedijan/go-imp/internal/execution"
 	"github.com/smedijan/go-imp/internal/ledger"
 	"github.com/smedijan/go-imp/internal/mutator"
@@ -23,6 +24,7 @@ import (
 type Results struct {
 	Evidence   []ledger.Evidence
 	LedgerNote string
+	Selection  *diff.Selection
 	Module     string
 	Mutants    []mutator.Mutator
 	Elapsed    time.Duration
@@ -126,6 +128,7 @@ func sortedMutants(mutants []mutator.Mutator) []mutator.Mutator {
 func newDocument(results Results, ordered []mutator.Mutator, options Options) internal.OutputResult {
 	document := internal.OutputResult{
 		Evidence: results.Evidence, LedgerNote: results.LedgerNote,
+		Selection:     results.Selection,
 		SchemaVersion: 2, IdentityVersion: 1, Replay: results.Replay, GoModule: results.Module, DryRun: options.DryRun,
 		ElapsedTime: results.Elapsed.Seconds(), MutantsTotal: len(results.Mutants),
 		TestEfficacy: 100, MutationsCoverage: 100,
