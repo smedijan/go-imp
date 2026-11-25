@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/MakeNowJust/heredoc v1.0.0
-	github.com/aymanbagabas/go-udiff v0.4.1
+	github.com/aymanbagabas/go-udiff v0.4.2
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/fatih/color v1.19.0
 	github.com/google/go-cmp v0.7.0
